@@ -1,12 +1,26 @@
 import { Stack } from "expo-router";
 import { useEffect } from "react";
-import { AppState } from "react-native";
+import { ActivityIndicator, AppState, View } from "react-native";
+import { AuthProvider, useAuth } from "../context/AuthContext";
 import { initLocalDB } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
 
+function RootNavigator() {
+  const { isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
+
 export default function RootLayout() {
   useEffect(() => {
-    // Initialize SQLite on startup and reuse the promise to avoid race conditions
     const initPromise = (async () => {
       try {
         await initLocalDB();
@@ -25,7 +39,6 @@ export default function RootLayout() {
 
     runAfterInit();
 
-    // Re-run sync when app comes back from background
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         runAfterInit();
@@ -35,5 +48,9 @@ export default function RootLayout() {
     return () => sub.remove();
   }, []);
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <AuthProvider>
+      <RootNavigator />
+    </AuthProvider>
+  );
 }
