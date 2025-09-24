@@ -17,6 +17,8 @@
   },
   "include": [
     "app",
+    "components",
+    "context",
     "lib",
     "App.tsx"
   ],
