@@ -2,18 +2,18 @@
 
 This project is an [Expo](https://expo.dev/) application that uses the Expo Router for navigation
 alongside Supabase-backed authentication and local SQLite persistence. The project configuration targets
-the latest stable Expo SDK (51) and the corresponding React Native 0.74 release.
+Expo SDK 54 and the matching React Native 0.74 release train.
 
 ## Getting started
 
 1. Copy the provided `.env.example` file to `.env` and fill in your Supabase project details.
-2. Install dependencies:
+2. Install dependencies with **Yarn** (our supported package manager):
    ```bash
-   npm install
+   yarn install
    ```
 3. Start the development server:
    ```bash
-   npm run start
+   yarn start
    ```
 
 The Expo CLI will prompt you to launch the application on a connected device, emulator, or the web.
@@ -35,10 +35,9 @@ Follow these steps whenever you sit down to work on the project:
    ```bash
    yarn install
    ```
-4. Launch the Expo development server:
+4. Launch the Expo development server (clear the Metro cache when you run into bundler issues):
    ```bash
-   yarn start --tunnel -c
-
+   yarn start --tunnel --clear
    ```
 5. From the Expo CLI prompt, open the app on your preferred target (press `i` for iOS simulator,
    `a` for Android emulator, or `w` for the web preview). Leave the server running while you work on code.
@@ -64,3 +63,21 @@ Follow these steps whenever you sit down to work on the project:
 
 - [Expo documentation](https://docs.expo.dev/)
 - [Expo Router documentation](https://docs.expo.dev/routing/introduction/)
+
+## Troubleshooting common environment issues
+
+- Delete cached artefacts when Metro refuses to bundle:
+  ```bash
+  rm -rf node_modules .expo .expo-shared
+  yarn cache clean
+  yarn install
+  yarn start --clear
+  ```
+- Run Expo's dependency check if you suspect a mismatched native module:
+  ```bash
+  npx expo doctor --fix
+  ```
+- Keep the Expo CLI up to date:
+  ```bash
+  npm install -g expo@latest
+  ```
