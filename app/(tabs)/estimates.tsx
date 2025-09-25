@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
 } from "react-native";
 import * as Sharing from "expo-sharing";
 
+import EstimateEditor from "../../components/EstimateEditor";
 import {
   EstimateRecord,
   fetchEstimatesWithDetails,
@@ -47,12 +49,19 @@ function formatTimestamp(value: string | null): string {
   }
 }
 
+function formatStatus(value: string | null | undefined): string {
+  if (!value) return "Draft";
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 export default function Estimates() {
   const [estimates, setEstimates] = useState<EstimateRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [processing, setProcessing] = useState<ProcessingState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editorVisible, setEditorVisible] = useState(false);
+  const [editingEstimateId, setEditingEstimateId] = useState<string | null>(null);
 
   const loadEstimates = useCallback(
     async (showLoader = false) => {
@@ -80,6 +89,31 @@ export default function Estimates() {
     setRefreshing(true);
     loadEstimates(false);
   }, [loadEstimates]);
+
+  const closeEditor = useCallback(() => {
+    setEditorVisible(false);
+    setEditingEstimateId(null);
+  }, []);
+
+  const openNewEstimate = useCallback(() => {
+    setEditingEstimateId(null);
+    setEditorVisible(true);
+  }, []);
+
+  const openExistingEstimate = useCallback((estimateId: string) => {
+    setEditingEstimateId(estimateId);
+    setEditorVisible(true);
+  }, []);
+
+  const handleEditorSaved = useCallback(() => {
+    closeEditor();
+    loadEstimates(true);
+  }, [closeEditor, loadEstimates]);
+
+  const handleEditorDeleted = useCallback(() => {
+    closeEditor();
+    loadEstimates(true);
+  }, [closeEditor, loadEstimates]);
 
   const updateEstimate = useCallback((id: string, updates: Partial<EstimateRecord>) => {
     setEstimates((prev) =>
@@ -239,7 +273,15 @@ export default function Estimates() {
               {item.pdf_last_sent_via ? ` via ${item.pdf_last_sent_via}` : ""}
               {item.pdf_last_sent_status ? ` (${item.pdf_last_sent_status})` : ""}
             </Text>
+            <Text style={styles.metaText}>Status: {formatStatus(item.status)}</Text>
           </View>
+
+          <Pressable
+            style={styles.manageLink}
+            onPress={() => openExistingEstimate(item.id)}
+          >
+            <Text style={styles.manageLinkText}>View & edit estimate</Text>
+          </Pressable>
 
           <View style={styles.buttonRow}>
             <Pressable
@@ -281,12 +323,40 @@ export default function Estimates() {
         </View>
       );
     },
-    [handleEmailEstimate, handleGeneratePdf, handleShareEstimate, isProcessing]
+    [
+      handleEmailEstimate,
+      handleGeneratePdf,
+      handleShareEstimate,
+      isProcessing,
+      openExistingEstimate,
+    ]
   );
 
   const listContentStyle = useMemo(
-    () => ({ padding: 16, flexGrow: estimates.length === 0 ? 1 : undefined }),
+    () => ({
+      paddingTop: 8,
+      paddingHorizontal: 16,
+      paddingBottom: 24,
+      flexGrow: estimates.length === 0 ? 1 : undefined,
+    }),
     [estimates.length]
+  );
+
+  const listHeaderComponent = useMemo(
+    () => (
+      <View style={styles.listHeader}>
+        <View style={styles.headerTextGroup}>
+          <Text style={styles.screenTitle}>Estimates</Text>
+          <Text style={styles.screenSubtitle}>
+            Create, edit, and send detailed proposals for every customer.
+          </Text>
+        </View>
+        <Pressable style={styles.createButton} onPress={openNewEstimate}>
+          <Text style={styles.createButtonText}>Create estimate</Text>
+        </Pressable>
+      </View>
+    ),
+    [openNewEstimate]
   );
 
   if (loading) {
@@ -312,15 +382,35 @@ export default function Estimates() {
         refreshing={refreshing}
         onRefresh={onRefresh}
         contentContainerStyle={listContentStyle}
+        ListHeaderComponent={listHeaderComponent}
         ListEmptyComponent={
           <View style={styles.centered}>
             <Text style={styles.emptyTitle}>No estimates yet</Text>
             <Text style={styles.emptySubtitle}>
               Create an estimate to start generating and sharing PDFs.
             </Text>
+            <Pressable style={styles.emptyButton} onPress={openNewEstimate}>
+              <Text style={styles.emptyButtonText}>Create estimate</Text>
+            </Pressable>
           </View>
         }
       />
+      {editorVisible ? (
+        <Modal
+          animationType="slide"
+          visible={editorVisible}
+          onRequestClose={closeEditor}
+        >
+          <View style={styles.editorContainer}>
+            <EstimateEditor
+              estimateId={editingEstimateId}
+              onClose={closeEditor}
+              onSaved={handleEditorSaved}
+              onDeleted={handleEditorDeleted}
+            />
+          </View>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -354,6 +444,8 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   metaText: { fontSize: 13, color: "#4b5563", marginBottom: 4 },
+  manageLink: { marginTop: 8, alignSelf: "flex-start" },
+  manageLinkText: { color: "#2563eb", fontWeight: "600" },
   buttonRow: { flexDirection: "row", marginTop: 16 },
   button: {
     flex: 1,
@@ -369,5 +461,57 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: "#ffffff", fontWeight: "600" },
   secondaryButtonText: { color: "#2563eb", fontWeight: "600" },
   emptyTitle: { fontSize: 18, fontWeight: "600", color: "#111827", marginBottom: 8 },
-  emptySubtitle: { fontSize: 14, color: "#4b5563", textAlign: "center", paddingHorizontal: 32 },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#4b5563",
+    textAlign: "center",
+    paddingHorizontal: 32,
+    marginBottom: 16,
+  },
+  listHeader: {
+    paddingTop: 16,
+    paddingBottom: 12,
+    gap: 12,
+  },
+  headerTextGroup: {
+    gap: 4,
+  },
+  screenTitle: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  screenSubtitle: {
+    fontSize: 14,
+    color: "#4b5563",
+  },
+  createButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "#2563eb",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  createButtonText: {
+    color: "#ffffff",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  emptyButton: {
+    marginTop: 16,
+    backgroundColor: "#2563eb",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
+    color: "#ffffff",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  editorContainer: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+    paddingTop: 0,
+  },
 });
