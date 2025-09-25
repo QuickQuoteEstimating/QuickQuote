@@ -30,6 +30,9 @@
       "expo-router",
       "expo-secure-store",
       "expo-sqlite"
-    ]
+    ],
+    "packagerOpts": {
+      "tunnel": true
+    }
   }
 }

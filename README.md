@@ -33,11 +33,12 @@ Follow these steps whenever you sit down to work on the project:
    ```
 3. Install any new dependencies that may have been added since your last session:
    ```bash
-   npm install
+   yarn install
    ```
 4. Launch the Expo development server:
    ```bash
-   npm run start
+   yarn start --tunnel -c
+
    ```
 5. From the Expo CLI prompt, open the app on your preferred target (press `i` for iOS simulator,
    `a` for Android emulator, or `w` for the web preview). Leave the server running while you work on code.
