@@ -76,6 +76,7 @@ export async function initLocalDB(): Promise<void> {
       user_id TEXT NOT NULL,
       customer_id TEXT NOT NULL,
       date TEXT DEFAULT (datetime('now')),
+      status TEXT DEFAULT 'draft',
       total REAL DEFAULT 0,
       notes TEXT,
       version INTEGER DEFAULT 1,
@@ -90,12 +91,16 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
+
   // Ensure new PDF metadata columns exist for legacy databases
   await ensureColumn(db, "estimates", "pdf_last_generated_uri", "TEXT");
   await ensureColumn(db, "estimates", "pdf_last_generated_at", "TEXT");
   await ensureColumn(db, "estimates", "pdf_last_sent_at", "TEXT");
   await ensureColumn(db, "estimates", "pdf_last_sent_via", "TEXT");
   await ensureColumn(db, "estimates", "pdf_last_sent_status", "TEXT");
+
+  await ensureEstimateStatusColumn(db);
+
 
   // Estimate Items
   await db.execAsync(`
@@ -169,4 +174,18 @@ export async function getQueuedChanges(): Promise<Change[]> {
 export async function clearQueuedChange(id: number): Promise<void> {
   const db = await openDB();
   await db.runAsync("DELETE FROM sync_queue WHERE id = ?", [id]);
+}
+
+async function ensureEstimateStatusColumn(
+  db: SQLite.SQLiteDatabase
+): Promise<void> {
+  const columns = await db.getAllAsync<{ name: string }>(
+    "PRAGMA table_info(estimates);"
+  );
+  const hasStatus = columns.some((column) => column.name === "status");
+  if (!hasStatus) {
+    await db.execAsync(
+      "ALTER TABLE estimates ADD COLUMN status TEXT DEFAULT 'draft';"
+    );
+  }
 }
