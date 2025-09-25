@@ -1,21 +1,17 @@
 {
-  "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "react",
+    "target": "esnext",
+    "module": "esnext",
+    "jsx": "react-native",
     "strict": true,
-    "esModuleInterop": true,
-    "moduleResolution": "node16",
-    "module": "Node16",
-    "allowSyntheticDefaultImports": true,
+    "noEmit": true,
+    "isolatedModules": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "types": ["react", "react-native", "expo"]
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "allowJs": true
   },
-  "include": [
-    "app",
-    "src",
-    "index.tsx",
-    "expo-env.d.ts"
-  ]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
 }
