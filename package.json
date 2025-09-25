@@ -13,17 +13,17 @@
     "@react-native-async-storage/async-storage": "~1.23.1",
     "@react-native-picker/picker": "^2.6.1",
     "@supabase/supabase-js": "^2.57.4",
-    "expo": "~51.0.28",
-    "expo-constants": "~15.5.4",
-    "expo-file-system": "~16.0.9",
-    "expo-linking": "~5.0.3",
-    "expo-print": "~13.5.2",
-    "expo-router": "~3.5.23",
-    "expo-secure-store": "~12.8.1",
-    "expo-sqlite": "~13.5.1",
-    "expo-status-bar": "~1.12.1",
+    "expo": "~51.0.0",
+    "expo-constants": "~15.4.0",
+    "expo-file-system": "~16.0.0",
+    "expo-linking": "~5.0.0",
+    "expo-print": "~13.5.0",
+    "expo-router": "~3.5.0",
+    "expo-secure-store": "~12.8.0",
+    "expo-sqlite": "~13.5.0",
+    "expo-status-bar": "~1.12.0",
     "react": "18.2.0",
-    "react-native": "0.74.5",
+    "react-native": "0.74.3",
     "react-native-get-random-values": "~1.11.0",
     "react-native-safe-area-context": "4.10.1",
     "react-native-screens": "~3.32.0",
@@ -32,10 +32,16 @@
   },
   "devDependencies": {
     "@babel/core": "^7.24.5",
-    "@types/react": "~18.2.48",
-    "@types/react-native": "~0.73.0",
-    "babel-preset-expo": "^10.0.2",
-    "typescript": "~5.3.3"
+    "@types/react": "~18.2.79",
+    "@types/react-native": "~0.74.0",
+    "babel-preset-expo": "^10.0.3",
+    "typescript": "~5.4.0"
+  },
+  "overrides": {
+    "glob": "^10.4.5",
+    "rimraf": "^5.0.5",
+    "mkdirp": "^3.0.1",
+    "uuid": "^9.0.1"
   },
   "private": true
 }
