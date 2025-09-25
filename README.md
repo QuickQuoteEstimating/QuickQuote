@@ -16,7 +16,9 @@ Expo SDK 54 and the matching React Native 0.74 release train.
    yarn start
    ```
 
-The Expo CLI will prompt you to launch the application on a connected device, emulator, or the web.
+The start script disables Yarn's output wrapper so the Expo CLI can display its interactive dashboard
+and QR code correctly. Once Metro has finished bundling, follow the on-screen prompts to launch the
+application on a connected device, emulator, or the web.
 
 ## Daily development workflow
 
