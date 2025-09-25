@@ -21,6 +21,7 @@ export type EstimateRecord = {
   user_id: string;
   customer_id: string;
   date: string | null;
+  status: string | null;
   total: number | null;
   notes: string | null;
   pdf_last_generated_uri: string | null;
@@ -53,6 +54,7 @@ export async function fetchEstimatesWithDetails(): Promise<EstimateRecord[]> {
       e.user_id,
       e.customer_id,
       e.date,
+      e.status,
       e.total,
       e.notes,
       e.pdf_last_generated_uri,
