@@ -1,6 +1,26 @@
 // lib/sqlite.ts
 import * as SQLite from "expo-sqlite";
 
+async function ensureColumn(
+  db: SQLite.SQLiteDatabase,
+  table: string,
+  column: string,
+  type: string
+): Promise<void> {
+  const columnInfo = await db.getFirstAsync<{ name: string }>(
+    `PRAGMA table_info(${table}) WHERE name = ?`,
+    [column]
+  );
+
+  if (!columnInfo) {
+    try {
+      await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${type};`);
+    } catch (error) {
+      console.warn(`Failed to add column ${column} to ${table}:`, error);
+    }
+  }
+}
+
 export type Change = {
   id: number;
   table_name: "customers" | "estimates" | "estimate_items" | "photos";
@@ -9,7 +29,7 @@ export type Change = {
   created_at: string;
 };
 
-let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+let _dbPromise: Promise<SQLite.SQLiteDatabase> | undefined;
 
 // Always use the async DB. No nulls, no transactions API.
 export function openDB(): Promise<SQLite.SQLiteDatabase> {
@@ -62,11 +82,25 @@ export async function initLocalDB(): Promise<void> {
       version INTEGER DEFAULT 1,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT,
+      pdf_last_generated_uri TEXT,
+      pdf_last_generated_at TEXT,
+      pdf_last_sent_at TEXT,
+      pdf_last_sent_via TEXT,
+      pdf_last_sent_status TEXT,
       FOREIGN KEY (customer_id) REFERENCES customers(id)
     );
   `);
 
+
+  // Ensure new PDF metadata columns exist for legacy databases
+  await ensureColumn(db, "estimates", "pdf_last_generated_uri", "TEXT");
+  await ensureColumn(db, "estimates", "pdf_last_generated_at", "TEXT");
+  await ensureColumn(db, "estimates", "pdf_last_sent_at", "TEXT");
+  await ensureColumn(db, "estimates", "pdf_last_sent_via", "TEXT");
+  await ensureColumn(db, "estimates", "pdf_last_sent_status", "TEXT");
+
   await ensureEstimateStatusColumn(db);
+
 
   // Estimate Items
   await db.execAsync(`
@@ -94,6 +128,18 @@ export async function initLocalDB(): Promise<void> {
       version INTEGER DEFAULT 1,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT,
+      FOREIGN KEY (estimate_id) REFERENCES estimates(id)
+    );
+  `);
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS estimate_delivery_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      estimate_id TEXT NOT NULL,
+      sent_via TEXT NOT NULL,
+      status TEXT NOT NULL,
+      sent_at TEXT NOT NULL,
+      metadata TEXT,
       FOREIGN KEY (estimate_id) REFERENCES estimates(id)
     );
   `);
