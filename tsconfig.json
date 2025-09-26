@@ -12,7 +12,8 @@
     "isolatedModules": true,
     "types": [
       "react",
-      "react-native"
+      "react-native",
+      "jest"
     ]
   },
   "include": [
@@ -20,7 +21,10 @@
     "components",
     "context",
     "lib",
-    "App.tsx"
+    "App.tsx",
+    "__tests__",
+    "jest.setup.ts",
+    "jest.config.js"
   ],
   "extends": "expo/tsconfig.base"
 }
