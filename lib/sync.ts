@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { isSupabaseConfigured, supabase, supabaseConfigError } from "./supabase";
 import { getQueuedChanges, clearQueuedChange, Change } from "./sqlite";
 
 // ✅ Process a single change
@@ -41,6 +41,15 @@ async function processChange(change: Change) {
 // ✅ Run full sync
 export async function runSync() {
   console.log("🔄 Running sync...");
+
+  if (!isSupabaseConfigured) {
+    console.warn(
+      "⚠️ Skipping sync because Supabase isn't configured.",
+      supabaseConfigError ??
+        "Provide EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to enable sync."
+    );
+    return;
+  }
 
   const changes = await getQueuedChanges();
   console.log(`📋 Found ${changes.length} queued change(s)`);
