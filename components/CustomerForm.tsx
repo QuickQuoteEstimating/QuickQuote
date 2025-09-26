@@ -3,9 +3,9 @@ import React, { useState } from "react";
 import { View, TextInput, Button, Alert } from "react-native";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
-import { supabase } from "../lib/supabase";
 import { openDB, queueChange } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
+import { useAuth } from "../context/AuthContext";
 
 type Props = {
   onSaved?: (customer: { id: string; name: string }) => void;
@@ -16,6 +16,7 @@ export default function CustomerForm({ onSaved, onCancel }: Props) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const { user, session } = useAuth();
 
   async function saveCustomer() {
     if (!name.trim()) {
@@ -23,8 +24,14 @@ export default function CustomerForm({ onSaved, onCancel }: Props) {
       return;
     }
 
-    const { data } = await supabase.auth.getUser();
-    const user_id = data.user?.id ?? "unknown-user";
+    const user_id = user?.id ?? session?.user?.id ?? null;
+    if (!user_id) {
+      Alert.alert(
+        "Sign in required",
+        "You must be signed in before you can create customers."
+      );
+      return;
+    }
 
     const newCustomer = {
       id: uuidv4(),
