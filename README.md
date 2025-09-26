@@ -6,7 +6,9 @@ Expo SDK 54 and the matching React Native 0.74 release train.
 
 ## Getting started
 
-1. Copy the provided `.env.example` file to `.env` and fill in your Supabase project details.
+1. Copy the provided `.env.example` file to `.env` and fill in your Supabase project details. The Expo app
+   will refuse to start unless both `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are
+   defined, so confirm these values are present before running `yarn start`.
 2. Install dependencies with **Yarn 3.6.4**. We manage Yarn via **Corepack** so every contributor runs the
    same toolchain and avoids the default Yarn 1.22.x that ships with Node installations:
    ```bash
