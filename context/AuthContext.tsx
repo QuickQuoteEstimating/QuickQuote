@@ -71,7 +71,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       async (event, newSession) => {
         setSession(newSession);
 
-        if (event === "SIGNED_OUT" || event === "USER_DELETED") {
+        const signedOutLike = event === "SIGNED_OUT" || (!newSession && !!bootstrappedUserRef.current);
+        if (signedOutLike) {
           bootstrappedUserRef.current = null;
           try {
             await clearLocalData();

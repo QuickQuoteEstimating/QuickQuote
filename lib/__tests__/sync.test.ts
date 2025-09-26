@@ -15,13 +15,19 @@ jest.mock("../sqlite", () => ({
 
 jest.mock("../supabase", () => {
   const operations: any[] = [];
-  const defaultInsert = async (payload: any) => ({ data: [payload], error: null });
-  const defaultUpdate = async (payload: any) => ({ data: [payload], error: null });
-  const defaultDelete = async () => ({ data: null, error: null });
+  const defaultInsert = async (payload: any, _table: string) => ({ data: [payload], error: null });
+  const defaultUpdate = async (payload: any, _table: string) => ({ data: [payload], error: null });
+  const defaultDelete = async (_filters: { column: string; value: any }, _table: string) => ({
+    data: null,
+    error: null,
+  });
 
-  const insertBehavior = jest.fn(defaultInsert);
-  const updateBehavior = jest.fn(defaultUpdate);
-  const deleteBehavior = jest.fn(defaultDelete);
+  const insertBehavior: jest.Mock<ReturnType<typeof defaultInsert>, Parameters<typeof defaultInsert>> =
+    jest.fn(defaultInsert);
+  const updateBehavior: jest.Mock<ReturnType<typeof defaultUpdate>, Parameters<typeof defaultUpdate>> =
+    jest.fn(defaultUpdate);
+  const deleteBehavior: jest.Mock<ReturnType<typeof defaultDelete>, Parameters<typeof defaultDelete>> =
+    jest.fn(defaultDelete);
 
   const fromMock = jest.fn((table: string) => ({
     insert: async (payload: any) => {
