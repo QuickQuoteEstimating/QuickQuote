@@ -1,8 +1,9 @@
 {
+  "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "target": "esnext",
-    "module": "esnext",
-    "jsx": "react-native",
+    "target": "ES2020",
+    "module": "ESNext",
+    "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
     "isolatedModules": true,
@@ -10,16 +11,13 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "moduleResolution": "bundler",
-    "customConditions": [
-      "react-native"
-    ]
+    "customConditions": ["react-native"],
+    "types": ["react", "react-native", "expo-router"],
+    "lib": ["ES2021", "DOM"]
   },
   "include": [
     "**/*.ts",
     "**/*.tsx"
   ],
-  "exclude": [
-    "node_modules"
-  ],
-  "extends": "expo/tsconfig.base"
+  "exclude": ["node_modules"]
 }
