@@ -1,6 +1,6 @@
 // components/CustomerPicker.tsx
 import React, { useEffect, useState } from "react";
-import { View, Text, ActivityIndicator, Button } from "react-native";
+import { View, Text, ActivityIndicator, Button, Alert } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { openDB } from "../lib/sqlite";
 import CustomerForm from "./CustomerForm";
@@ -24,16 +24,28 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
 
   async function loadCustomers() {
     setLoading(true);
-    const db = await openDB();
-    const rows = await db.getAllAsync<Customer>(
-      "SELECT id, name, phone, email FROM customers WHERE deleted_at IS NULL ORDER BY name ASC"
-    );
-    setCustomers(rows);
-    setLoading(false);
+    try {
+      const db = await openDB();
+      const rows = await db.getAllAsync<Customer>(
+        "SELECT id, name, phone, email FROM customers WHERE deleted_at IS NULL ORDER BY name ASC"
+      );
+      setCustomers(rows);
+    } catch (error) {
+      console.error("Failed to load customers", error);
+      Alert.alert(
+        "Unable to load customers",
+        "Please try again later or contact support if the issue persists."
+      );
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    loadCustomers();
+    loadCustomers().catch(() => {
+      // Error is already handled within loadCustomers; this catch prevents unhandled rejections.
+    });
   }, []);
 
   if (addingNew) {
