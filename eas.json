@@ -6,18 +6,15 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "node": "18.18.2",
-      "yarn": "3.6.4"
+      "node": "18.18.2"
     },
     "preview": {
       "distribution": "internal",
-      "node": "18.18.2",
-      "yarn": "3.6.4"
+      "node": "18.18.2"
     },
     "production": {
       "autoIncrement": true,
-      "node": "18.18.2",
-      "yarn": "3.6.4"
+      "node": "18.18.2"
     }
   },
   "submit": {
