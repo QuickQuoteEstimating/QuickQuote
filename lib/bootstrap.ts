@@ -86,6 +86,8 @@ export async function bootstrapUserData(userId: string) {
 
   const db = await openDB();
 
+  // Purge delivery logs so stale deliveries don't reapply after we refresh local data.
+  await db.runAsync("DELETE FROM estimate_delivery_logs");
   await db.runAsync("DELETE FROM sync_queue");
   await db.runAsync("DELETE FROM photos");
   await db.runAsync("DELETE FROM estimate_items");
@@ -165,6 +167,7 @@ export async function bootstrapUserData(userId: string) {
 
 export async function clearLocalData() {
   const db = await openDB();
+  await db.runAsync("DELETE FROM estimate_delivery_logs");
   await db.runAsync("DELETE FROM sync_queue");
   await db.runAsync("DELETE FROM photos");
   await db.runAsync("DELETE FROM estimate_items");
