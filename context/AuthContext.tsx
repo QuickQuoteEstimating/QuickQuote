@@ -11,7 +11,11 @@ import React, {
 } from "react";
 import { Alert } from "react-native";
 import { bootstrapUserData, clearLocalData } from "../lib/bootstrap";
-import { supabase } from "../lib/supabase";
+import {
+  isSupabaseConfigured,
+  supabase,
+  supabaseConfigError,
+} from "../lib/supabase";
 
 type AuthContextValue = {
   session: Session | null;
@@ -19,6 +23,8 @@ type AuthContextValue = {
   isLoading: boolean;
   signOut: () => Promise<void>;
   signOutLoading: boolean;
+  configError: string | null;
+  isConfigReady: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -35,6 +41,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const bootstrappedUserRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setIsLoadingSession(false);
+      return;
+    }
+
     let isMounted = true;
 
     const init = async () => {
@@ -80,6 +91,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      return;
+    }
+
     const userId = session?.user?.id;
     if (!userId) {
       return;
@@ -119,6 +134,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [session?.user?.id]);
 
   const handleSignOut = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      Alert.alert(
+        "Configuration required",
+        supabaseConfigError ??
+          "Update your environment variables before signing out."
+      );
+      return;
+    }
+
     setSignOutLoading(true);
     try {
       const { error } = await supabase.auth.signOut();
@@ -142,8 +166,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isLoading: isLoadingSession || isBootstrapping,
       signOut: handleSignOut,
       signOutLoading,
+      configError: supabaseConfigError,
+      isConfigReady: isSupabaseConfigured,
     }),
-    [session, isLoadingSession, isBootstrapping, handleSignOut, signOutLoading]
+    [
+      session,
+      isLoadingSession,
+      isBootstrapping,
+      handleSignOut,
+      signOutLoading,
+      supabaseConfigError,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

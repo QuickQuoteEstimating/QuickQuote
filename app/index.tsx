@@ -1,9 +1,10 @@
 import { Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
+import ConfigErrorNotice from "../components/ConfigErrorNotice";
 import { useAuth } from "../context/AuthContext";
 
 export default function Index() {
-  const { session, isLoading } = useAuth();
+  const { session, isLoading, configError } = useAuth();
 
   if (isLoading) {
     return (
@@ -11,6 +12,10 @@ export default function Index() {
         <ActivityIndicator size="large" />
       </View>
     );
+  }
+
+  if (configError) {
+    return <ConfigErrorNotice message={configError} />;
   }
 
   if (session) {
