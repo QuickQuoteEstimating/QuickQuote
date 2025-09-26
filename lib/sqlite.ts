@@ -58,12 +58,22 @@ export async function initLocalDB(): Promise<void> {
       date TEXT DEFAULT (datetime('now')),
       total REAL DEFAULT 0,
       notes TEXT,
+      status TEXT DEFAULT 'draft',
       version INTEGER DEFAULT 1,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT,
       FOREIGN KEY (customer_id) REFERENCES customers(id)
     );
   `);
+
+  const estimateColumns = await db.getAllAsync<{ name: string }>(
+    "PRAGMA table_info(estimates)"
+  );
+  if (!estimateColumns.some((column) => column.name === "status")) {
+    await db.execAsync(
+      "ALTER TABLE estimates ADD COLUMN status TEXT DEFAULT 'draft'"
+    );
+  }
 
   // Estimate Items
   await db.execAsync(`
