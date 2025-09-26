@@ -13,8 +13,8 @@ import { Picker } from "@react-native-picker/picker";
 import { v4 as uuidv4 } from "uuid";
 import CustomerPicker from "./CustomerPicker";
 import { openDB, queueChange } from "../lib/sqlite";
-import { supabase } from "../lib/supabase";
 import { runSync } from "../lib/sync";
+import { useAuth } from "../context/AuthContext";
 
 export type EstimateStatus = "draft" | "sent" | "accepted";
 
@@ -78,6 +78,7 @@ export default function EstimateEditor({
   onSaved,
   onDeleted,
 }: EstimateEditorProps) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState<boolean>(Boolean(estimateId));
   const [saving, setSaving] = useState(false);
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -251,13 +252,20 @@ export default function EstimateEditor({
     const total = normalizedItems.reduce((sum, item) => sum + item.total, 0);
     const now = new Date().toISOString();
 
+    const userId = persistedEstimate?.user_id ?? user?.id;
+
+    if (!userId) {
+      Alert.alert(
+        "Authentication required",
+        "Please sign in before saving estimates."
+      );
+      return;
+    }
+
     setSaving(true);
 
     try {
       const db = await openDB();
-      const { data } = await supabase.auth.getUser();
-      const userId =
-        persistedEstimate?.user_id ?? data.user?.id ?? "unknown-user";
 
       const estimateRecord: EstimateRecord = {
         id: estimateId ?? uuidv4(),
@@ -428,6 +436,7 @@ export default function EstimateEditor({
     persistedItems,
     estimateId,
     onSaved,
+    user?.id,
   ]);
 
   const handleDelete = useCallback(() => {
