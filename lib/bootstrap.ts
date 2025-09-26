@@ -20,6 +20,7 @@ type Estimate = {
   date: string | null;
   total: number | null;
   notes: string | null;
+  status: string | null;
   version: number | null;
   updated_at: string | null;
   deleted_at: string | null;
@@ -112,8 +113,8 @@ export async function bootstrapUserData(userId: string) {
 
   for (const estimate of (estimates ?? []) as Estimate[]) {
     await db.runAsync(
-      `INSERT OR REPLACE INTO estimates (id, user_id, customer_id, date, total, notes, version, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO estimates (id, user_id, customer_id, date, total, notes, status, version, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         estimate.id,
         estimate.user_id,
@@ -121,6 +122,7 @@ export async function bootstrapUserData(userId: string) {
         estimate.date,
         estimate.total ?? 0,
         estimate.notes,
+        estimate.status ?? "draft",
         estimate.version ?? 1,
         estimate.updated_at ?? new Date().toISOString(),
         estimate.deleted_at,
