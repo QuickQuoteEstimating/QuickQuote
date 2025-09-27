@@ -7,6 +7,8 @@ the latest stable Expo SDK (51) and the corresponding React Native 0.74 release.
 ## Getting started
 
 1. Copy the provided `.env.example` file to `.env` and fill in your Supabase project details.
+   Without these values the app boots in a degraded mode and any Supabase call throws an
+   explicit configuration error.
 2. Install dependencies:
    ```bash
    npm install
