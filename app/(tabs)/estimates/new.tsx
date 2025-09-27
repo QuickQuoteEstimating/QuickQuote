@@ -1,8 +1,10 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { router } from "expo-router";
 import {
   Alert,
   Button,
+  FlatList,
+  Modal,
   ScrollView,
   Text,
   TextInput,
@@ -12,9 +14,32 @@ import { Picker } from "@react-native-picker/picker";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
 import CustomerPicker from "../../../components/CustomerPicker";
+import EstimateItemForm, {
+  type EstimateItemFormValues,
+} from "../../../components/EstimateItemForm";
 import { useAuth } from "../../../context/AuthContext";
 import { openDB, queueChange } from "../../../lib/sqlite";
 import { runSync } from "../../../lib/sync";
+
+type EstimateItemRecord = {
+  id: string;
+  estimate_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  version: number;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(value);
+}
 
 const STATUS_OPTIONS = [
   { label: "Draft", value: "draft" },
@@ -25,14 +50,123 @@ const STATUS_OPTIONS = [
 
 export default function NewEstimateScreen() {
   const { user, session } = useAuth();
+  const [estimateId] = useState(() => uuidv4());
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [estimateDate, setEstimateDate] = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [total, setTotal] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState("draft");
+  const [items, setItems] = useState<EstimateItemRecord[]>([]);
+  const [itemModalVisible, setItemModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState<EstimateItemRecord | null>(
+    null
+  );
   const [saving, setSaving] = useState(false);
+
+  const total = useMemo(() => {
+    const sum = items.reduce((acc, item) => acc + item.total, 0);
+    return Math.round(sum * 100) / 100;
+  }, [items]);
+
+  const closeItemModal = () => {
+    setItemModalVisible(false);
+    setEditingItem(null);
+  };
+
+  const handleSubmitItem = (values: EstimateItemFormValues) => {
+    const now = new Date().toISOString();
+
+    if (editingItem) {
+      const updated: EstimateItemRecord = {
+        ...editingItem,
+        description: values.description,
+        quantity: values.quantity,
+        unit_price: values.unit_price,
+        total: values.total,
+        updated_at: now,
+        deleted_at: null,
+      };
+
+      setItems((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item))
+      );
+    } else {
+      const newItem: EstimateItemRecord = {
+        id: uuidv4(),
+        estimate_id: estimateId,
+        description: values.description,
+        quantity: values.quantity,
+        unit_price: values.unit_price,
+        total: values.total,
+        version: 1,
+        updated_at: now,
+        deleted_at: null,
+      };
+
+      setItems((prev) => [...prev, newItem]);
+    }
+
+    closeItemModal();
+  };
+
+  const handleDeleteItem = (item: EstimateItemRecord) => {
+    Alert.alert(
+      "Delete Item",
+      "Are you sure you want to remove this item?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            setItems((prev) => prev.filter((existing) => existing.id !== item.id));
+            if (editingItem?.id === item.id) {
+              setEditingItem(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const renderItem = ({ item }: { item: EstimateItemRecord }) => (
+    <View
+      style={{
+        padding: 12,
+        borderWidth: 1,
+        borderRadius: 8,
+        backgroundColor: "#fafafa",
+        gap: 8,
+      }}
+    >
+      <View style={{ gap: 2 }}>
+        <Text style={{ fontWeight: "600" }}>{item.description}</Text>
+        <Text style={{ color: "#555" }}>
+          Qty: {item.quantity} @ {formatCurrency(item.unit_price)}
+        </Text>
+        <Text style={{ color: "#555" }}>Line Total: {formatCurrency(item.total)}</Text>
+      </View>
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Button
+            title="Edit"
+            onPress={() => {
+              setEditingItem(item);
+              setItemModalVisible(true);
+            }}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button
+            title="Remove"
+            color="#b00020"
+            onPress={() => handleDeleteItem(item)}
+          />
+        </View>
+      </View>
+    </View>
+  );
 
   const handleCancel = () => {
     if (!saving) {
@@ -48,6 +182,11 @@ export default function NewEstimateScreen() {
       return;
     }
 
+    if (items.length === 0) {
+      Alert.alert("Validation", "Please add at least one item to the estimate.");
+      return;
+    }
+
     const userId = user?.id ?? session?.user?.id;
     if (!userId) {
       Alert.alert("Authentication required", "Please sign in to continue.");
@@ -57,8 +196,7 @@ export default function NewEstimateScreen() {
     setSaving(true);
 
     try {
-      const parsedTotal = parseFloat(total);
-      const safeTotal = Number.isFinite(parsedTotal) ? parsedTotal : 0;
+      const safeTotal = Math.round(total * 100) / 100;
       const now = new Date().toISOString();
       let isoDate: string | null = null;
       if (estimateDate) {
@@ -69,7 +207,7 @@ export default function NewEstimateScreen() {
       }
 
       const newEstimate = {
-        id: uuidv4(),
+        id: estimateId,
         user_id: userId,
         customer_id: customerId,
         date: isoDate,
@@ -99,6 +237,34 @@ export default function NewEstimateScreen() {
           newEstimate.deleted_at,
         ]
       );
+
+      for (const item of items) {
+        const itemRecord: EstimateItemRecord = {
+          ...item,
+          estimate_id: estimateId,
+          version: item.version ?? 1,
+          updated_at: item.updated_at ?? now,
+          deleted_at: null,
+        };
+
+        await db.runAsync(
+          `INSERT OR REPLACE INTO estimate_items (id, estimate_id, description, quantity, unit_price, total, version, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            itemRecord.id,
+            itemRecord.estimate_id,
+            itemRecord.description,
+            itemRecord.quantity,
+            itemRecord.unit_price,
+            itemRecord.total,
+            itemRecord.version,
+            itemRecord.updated_at,
+            itemRecord.deleted_at,
+          ]
+        );
+
+        await queueChange("estimate_items", "insert", itemRecord);
+      }
 
       await queueChange("estimates", "insert", newEstimate);
       await runSync();
@@ -132,15 +298,41 @@ export default function NewEstimateScreen() {
         />
       </View>
 
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Total</Text>
-        <TextInput
-          placeholder="0.00"
-          value={total}
-          onChangeText={setTotal}
-          keyboardType="decimal-pad"
-          style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
+      <View style={{ gap: 12 }}>
+        <Text style={{ fontWeight: "600" }}>Items</Text>
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          scrollEnabled={false}
+          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          ListEmptyComponent={
+            <View
+              style={{
+                padding: 16,
+                borderWidth: 1,
+                borderRadius: 8,
+                borderStyle: "dashed",
+                alignItems: "center",
+                backgroundColor: "#fafafa",
+              }}
+            >
+              <Text style={{ color: "#666" }}>No items added yet.</Text>
+            </View>
+          }
         />
+        <Button
+          title="Add Item"
+          onPress={() => {
+            setEditingItem(null);
+            setItemModalVisible(true);
+          }}
+        />
+      </View>
+
+      <View style={{ gap: 6 }}>
+        <Text style={{ fontWeight: "600" }}>Estimate Total</Text>
+        <Text>{formatCurrency(total)}</Text>
       </View>
 
       <View style={{ gap: 6 }}>
@@ -184,6 +376,48 @@ export default function NewEstimateScreen() {
           <Button title="Save" onPress={handleSave} disabled={saving} />
         </View>
       </View>
+
+      <Modal
+        visible={itemModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={closeItemModal}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.35)",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              padding: 20,
+            }}
+          >
+            <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}>
+              {editingItem ? "Edit Item" : "Add Item"}
+            </Text>
+            <EstimateItemForm
+              initialValue={
+                editingItem
+                  ? {
+                      description: editingItem.description,
+                      quantity: editingItem.quantity,
+                      unit_price: editingItem.unit_price,
+                    }
+                  : undefined
+              }
+              onSubmit={handleSubmitItem}
+              onCancel={closeItemModal}
+              submitLabel={editingItem ? "Update Item" : "Add Item"}
+            />
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
