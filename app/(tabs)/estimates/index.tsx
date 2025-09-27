@@ -17,6 +17,9 @@ export type EstimateListItem = {
   user_id: string;
   customer_id: string;
   customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  customer_address: string | null;
   date: string | null;
   total: number | null;
   notes: string | null;
@@ -60,7 +63,11 @@ export default function EstimatesScreen() {
       try {
         const db = await openDB();
         const rows = await db.getAllAsync<EstimateListItem>(
-          `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.notes, e.status, e.version, e.updated_at, e.deleted_at, c.name AS customer_name
+          `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.notes, e.status, e.version, e.updated_at, e.deleted_at,
+                  c.name AS customer_name,
+                  c.email AS customer_email,
+                  c.phone AS customer_phone,
+                  c.address AS customer_address
            FROM estimates e
            LEFT JOIN customers c ON c.id = e.customer_id
            WHERE e.deleted_at IS NULL

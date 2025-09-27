@@ -1,11 +1,22 @@
 // lib/sqlite.ts
 import * as SQLite from "expo-sqlite";
+import { v4 as uuidv4 } from "uuid";
 
 export type Change = {
   id: number;
   table_name: "customers" | "estimates" | "estimate_items" | "photos";
   op: "insert" | "update" | "delete";
   payload: string; // JSON string
+  created_at: string;
+};
+
+export type DeliveryLogRecord = {
+  id: string;
+  estimate_id: string;
+  channel: string;
+  recipient: string | null;
+  message_preview: string | null;
+  metadata: string | null;
   created_at: string;
 };
 
@@ -113,6 +124,19 @@ export async function initLocalDB(): Promise<void> {
     await db.execAsync("ALTER TABLE photos ADD COLUMN local_uri TEXT");
   }
 
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS delivery_logs (
+      id TEXT PRIMARY KEY,
+      estimate_id TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      recipient TEXT,
+      message_preview TEXT,
+      metadata TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (estimate_id) REFERENCES estimates(id)
+    );
+  `);
+
   console.log("✅ Local SQLite DB initialized");
 }
 
@@ -143,4 +167,31 @@ export async function getQueuedChanges(): Promise<Change[]> {
 export async function clearQueuedChange(id: number): Promise<void> {
   const db = await openDB();
   await db.runAsync("DELETE FROM sync_queue WHERE id = ?", [id]);
+}
+
+export async function logEstimateDelivery(params: {
+  estimateId: string;
+  channel: string;
+  recipient?: string | null;
+  messagePreview?: string | null;
+  metadata?: Record<string, unknown> | null;
+}): Promise<void> {
+  const db = await openDB();
+  const now = new Date().toISOString();
+  const id = uuidv4();
+  const metadata = params.metadata ? JSON.stringify(params.metadata) : null;
+
+  await db.runAsync(
+    `INSERT INTO delivery_logs (id, estimate_id, channel, recipient, message_preview, metadata, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      params.estimateId,
+      params.channel,
+      params.recipient ?? null,
+      params.messagePreview ?? null,
+      metadata,
+      now,
+    ]
+  );
 }
