@@ -31,7 +31,7 @@ Follow these steps each time you log in to work on the project:
    ```bash
    npm run start
    ```
-   Use the Expo CLI output to launch the app on your preferred platform (see "Viewing the mobile app" below). Leave the server running while you work so the app reloads as you make changes.
+   The command runs Expo in offline mode so that the Metro bundler starts even when external network requests fail (for example, when the CLI cannot reach Expo's version service). You should now see the familiar QR code and device options in the terminal. Leave the server running while you work so the app reloads as you make changes.
 4. **Implement your changes.** Save files frequently and monitor the terminal for TypeScript or bundler errors.
 5. **Run the automated tests before committing:**
    ```bash
