@@ -57,6 +57,7 @@ The project uses [Expo](https://expo.dev/) for local development. After running 
 - **Android emulator:** With an Android emulator running, press `a` in the Expo CLI terminal or run `npm run android` to open the project.
 - **iOS simulator (macOS only):** Press `i` in the Expo CLI terminal or run `npm run ios`.
 - **Web preview:** Press `w` in the Expo CLI terminal or run `npm run web` to launch the Expo web build in a browser.
+- **Architecture compatibility:** Expo Go currently ships without the React Native New Architecture enabled. Keep `newArchEnabled` disabled in `app.config.ts` when developing with Expo Go, otherwise the client will fail to download the JavaScript bundle.
 
 If you change native modules or dependencies, stop the dev server (`Ctrl+C`) and restart it to ensure updates are picked up.
 
