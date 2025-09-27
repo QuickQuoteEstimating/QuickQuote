@@ -5,6 +5,7 @@ import {
   Alert,
   Button,
   FlatList,
+  Image,
   Modal,
   ScrollView,
   Text,
@@ -12,12 +13,20 @@ import {
   View,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import * as ImagePicker from "expo-image-picker";
 import CustomerPicker from "../../../components/CustomerPicker";
 import EstimateItemForm, {
   type EstimateItemFormValues,
 } from "../../../components/EstimateItemForm";
 import { openDB, queueChange } from "../../../lib/sqlite";
 import { runSync } from "../../../lib/sync";
+import {
+  createPhotoStoragePath,
+  deleteLocalPhoto,
+  deriveLocalPhotoUri,
+  persistLocalPhotoCopy,
+  syncPhotoBinaries,
+} from "../../../lib/storage";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
 
@@ -28,6 +37,17 @@ type EstimateItemRecord = {
   quantity: number;
   unit_price: number;
   total: number;
+  version: number | null;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+type PhotoRecord = {
+  id: string;
+  estimate_id: string;
+  uri: string;
+  local_uri: string | null;
+  description: string | null;
   version: number | null;
   updated_at: string;
   deleted_at: string | null;
@@ -44,6 +64,18 @@ function formatCurrency(value: number): string {
 function calculateTotal(items: EstimateItemRecord[]): number {
   const sum = items.reduce((acc, item) => acc + item.total, 0);
   return Math.round(sum * 100) / 100;
+}
+
+function toPhotoPayload(photo: PhotoRecord) {
+  return {
+    id: photo.id,
+    estimate_id: photo.estimate_id,
+    uri: photo.uri,
+    description: photo.description,
+    version: photo.version ?? 1,
+    updated_at: photo.updated_at,
+    deleted_at: photo.deleted_at,
+  };
 }
 
 const STATUS_OPTIONS = [
@@ -67,6 +99,12 @@ export default function EditEstimateScreen() {
   const [editingItem, setEditingItem] = useState<EstimateItemRecord | null>(
     null
   );
+  const [photos, setPhotos] = useState<PhotoRecord[]>([]);
+  const [photoDrafts, setPhotoDrafts] = useState<Record<string, string>>({});
+  const [addingPhoto, setAddingPhoto] = useState(false);
+  const [photoSavingId, setPhotoSavingId] = useState<string | null>(null);
+  const [photoDeletingId, setPhotoDeletingId] = useState<string | null>(null);
+  const [photoSyncing, setPhotoSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const estimateRef = useRef<EstimateListItem | null>(null);
@@ -74,6 +112,48 @@ export default function EditEstimateScreen() {
   useEffect(() => {
     estimateRef.current = estimate;
   }, [estimate]);
+
+  const applyPhotoState = useCallback(
+    (rows: PhotoRecord[]) => {
+      setPhotos(rows);
+      setPhotoDrafts((current) => {
+        const next: Record<string, string> = {};
+        for (const row of rows) {
+          const dbValue = row.description ?? "";
+          const existing = current[row.id];
+          if (
+            existing === undefined ||
+            existing === dbValue ||
+            photoSavingId === row.id
+          ) {
+            next[row.id] = dbValue;
+          } else {
+            next[row.id] = existing;
+          }
+        }
+        return next;
+      });
+    },
+    [photoSavingId]
+  );
+
+  const refreshPhotosFromDb = useCallback(async () => {
+    if (!estimateId) {
+      return;
+    }
+
+    const db = await openDB();
+    const rows = await db.getAllAsync<PhotoRecord>(
+      `SELECT id, estimate_id, uri, local_uri, description, version, updated_at, deleted_at
+       FROM photos
+       WHERE estimate_id = ?
+       ORDER BY datetime(updated_at) ASC`,
+      [estimateId]
+    );
+
+    const activePhotos = rows.filter((row) => !row.deleted_at);
+    applyPhotoState(activePhotos);
+  }, [estimateId, applyPhotoState]);
 
   const computedTotal = useMemo(() => {
     const sum = items.reduce((acc, item) => acc + item.total, 0);
@@ -325,6 +405,196 @@ export default function EditEstimateScreen() {
     [handleDeleteItem]
   );
 
+  const handlePhotoDraftChange = useCallback((photoId: string, value: string) => {
+    setPhotoDrafts((current) => ({
+      ...current,
+      [photoId]: value,
+    }));
+  }, []);
+
+  const handleAddPhoto = useCallback(async () => {
+    if (!estimateId || addingPhoto) {
+      return;
+    }
+
+    try {
+      setAddingPhoto(true);
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== "granted") {
+        Alert.alert(
+          "Permission required",
+          "Photo library access is required to attach photos to this estimate."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.7,
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      if (!asset?.uri) {
+        return;
+      }
+
+      const db = await openDB();
+      const now = new Date().toISOString();
+      const id = uuidv4();
+      const storagePath = createPhotoStoragePath(estimateId, id, asset.uri);
+      const localUri = await persistLocalPhotoCopy(id, storagePath, asset.uri);
+
+      const newPhoto: PhotoRecord = {
+        id,
+        estimate_id: estimateId,
+        uri: storagePath,
+        local_uri: localUri,
+        description: null,
+        version: 1,
+        updated_at: now,
+        deleted_at: null,
+      };
+
+      await db.runAsync(
+        `INSERT OR REPLACE INTO photos (id, estimate_id, uri, local_uri, description, version, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newPhoto.id,
+          newPhoto.estimate_id,
+          newPhoto.uri,
+          newPhoto.local_uri,
+          newPhoto.description,
+          newPhoto.version,
+          newPhoto.updated_at,
+          newPhoto.deleted_at,
+        ]
+      );
+
+      await queueChange("photos", "insert", toPhotoPayload(newPhoto));
+
+      await runSync();
+      await refreshPhotosFromDb();
+    } catch (error) {
+      console.error("Failed to add photo", error);
+      Alert.alert("Error", "Unable to add the photo. Please try again.");
+    } finally {
+      setAddingPhoto(false);
+    }
+  }, [estimateId, addingPhoto, refreshPhotosFromDb]);
+
+  const handleSavePhotoDescription = useCallback(
+    async (photo: PhotoRecord) => {
+      const draft = photoDrafts[photo.id]?.trim() ?? "";
+      const normalized = draft ? draft : null;
+
+      if ((photo.description ?? null) === normalized) {
+        return;
+      }
+
+      try {
+        setPhotoSavingId(photo.id);
+        const db = await openDB();
+        const now = new Date().toISOString();
+        const nextVersion = (photo.version ?? 1) + 1;
+
+        await db.runAsync(
+          `UPDATE photos
+           SET description = ?, version = ?, updated_at = ?, deleted_at = NULL
+           WHERE id = ?`,
+          [normalized, nextVersion, now, photo.id]
+        );
+
+        const updated: PhotoRecord = {
+          ...photo,
+          description: normalized,
+          version: nextVersion,
+          updated_at: now,
+          deleted_at: null,
+        };
+
+        await queueChange("photos", "update", toPhotoPayload(updated));
+
+        await runSync();
+        await refreshPhotosFromDb();
+      } catch (error) {
+        console.error("Failed to update photo description", error);
+        Alert.alert(
+          "Error",
+          "Unable to update the photo description. Please try again."
+        );
+      } finally {
+        setPhotoSavingId(null);
+      }
+    },
+    [photoDrafts, refreshPhotosFromDb]
+  );
+
+  const handleDeletePhoto = useCallback(
+    (photo: PhotoRecord) => {
+      Alert.alert(
+        "Remove Photo",
+        "Are you sure you want to remove this photo?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                setPhotoDeletingId(photo.id);
+                const db = await openDB();
+                const now = new Date().toISOString();
+                const nextVersion = (photo.version ?? 1) + 1;
+
+                await db.runAsync(
+                  `UPDATE photos
+                   SET deleted_at = ?, updated_at = ?, version = ?, local_uri = NULL
+                   WHERE id = ?`,
+                  [now, now, nextVersion, photo.id]
+                );
+
+                await deleteLocalPhoto(
+                  photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri)
+                );
+
+                await queueChange("photos", "delete", { id: photo.id });
+
+                await runSync();
+                await refreshPhotosFromDb();
+              } catch (error) {
+                console.error("Failed to delete photo", error);
+                Alert.alert(
+                  "Error",
+                  "Unable to delete the photo. Please try again."
+                );
+              } finally {
+                setPhotoDeletingId(null);
+              }
+            },
+          },
+        ]
+      );
+    },
+    [refreshPhotosFromDb]
+  );
+
+  const handleRetryPhotoSync = useCallback(async () => {
+    try {
+      setPhotoSyncing(true);
+      await syncPhotoBinaries();
+      await refreshPhotosFromDb();
+    } catch (error) {
+      console.error("Failed to sync photos", error);
+      Alert.alert("Error", "Unable to sync photos. Please try again later.");
+    } finally {
+      setPhotoSyncing(false);
+    }
+  }, [refreshPhotosFromDb]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -375,6 +645,20 @@ export default function EditEstimateScreen() {
           setItems(activeItems);
         }
 
+        const photoRows = await db.getAllAsync<PhotoRecord>(
+          `SELECT id, estimate_id, uri, local_uri, description, version, updated_at, deleted_at
+           FROM photos
+           WHERE estimate_id = ?
+           ORDER BY datetime(updated_at) ASC`,
+          [estimateId]
+        );
+
+        const activePhotos = photoRows.filter((photo) => !photo.deleted_at);
+
+        if (isMounted) {
+          applyPhotoState(activePhotos);
+        }
+
         const recalculatedTotal = calculateTotal(activeItems);
         if (
           Math.abs((record.total ?? 0) - recalculatedTotal) >= 0.005 &&
@@ -409,7 +693,7 @@ export default function EditEstimateScreen() {
     return () => {
       isMounted = false;
     };
-  }, [estimateId, persistEstimateTotal]);
+  }, [estimateId, persistEstimateTotal, applyPhotoState]);
 
   const handleCancel = () => {
     if (!saving) {
@@ -527,6 +811,111 @@ export default function EditEstimateScreen() {
           value={estimateDate}
           onChangeText={setEstimateDate}
           style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
+        />
+      </View>
+
+      <View style={{ gap: 12 }}>
+        <Text style={{ fontWeight: "600" }}>Photos</Text>
+        {photos.length === 0 ? (
+          <View
+            style={{
+              padding: 16,
+              borderWidth: 1,
+              borderRadius: 8,
+              borderStyle: "dashed",
+              alignItems: "center",
+              backgroundColor: "#fafafa",
+            }}
+          >
+            <Text style={{ color: "#666" }}>No photos attached yet.</Text>
+          </View>
+        ) : (
+          photos.map((photo) => {
+            const draft = photoDrafts[photo.id] ?? "";
+            const isSaving = photoSavingId === photo.id;
+            const isDeleting = photoDeletingId === photo.id;
+
+            return (
+              <View
+                key={photo.id}
+                style={{
+                  borderWidth: 1,
+                  borderRadius: 8,
+                  padding: 12,
+                  gap: 12,
+                  backgroundColor: "#fafafa",
+                }}
+              >
+                {photo.local_uri ? (
+                  <Image
+                    source={{ uri: photo.local_uri }}
+                    style={{ width: "100%", height: 180, borderRadius: 8 }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      height: 180,
+                      borderRadius: 8,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "#eee",
+                      paddingHorizontal: 12,
+                    }}
+                  >
+                    <Text style={{ color: "#555", textAlign: "center" }}>
+                      Photo unavailable offline. Use sync to restore the local
+                      copy.
+                    </Text>
+                  </View>
+                )}
+                <TextInput
+                  placeholder="Add a description"
+                  value={draft}
+                  onChangeText={(text) => handlePhotoDraftChange(photo.id, text)}
+                  multiline
+                  numberOfLines={3}
+                  style={{
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    padding: 10,
+                    minHeight: 80,
+                    textAlignVertical: "top",
+                    backgroundColor: "#fff",
+                  }}
+                />
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      title="Save"
+                      onPress={() => handleSavePhotoDescription(photo)}
+                      disabled={isSaving}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      title="Remove"
+                      color="#b00020"
+                      onPress={() => handleDeletePhoto(photo)}
+                      disabled={isDeleting}
+                    />
+                  </View>
+                </View>
+              </View>
+            );
+          })
+        )}
+        {photos.length > 0 ? (
+          <Button
+            title={photoSyncing ? "Syncing photos..." : "Sync photos"}
+            onPress={handleRetryPhotoSync}
+            disabled={photoSyncing}
+          />
+        ) : null}
+        <Button
+          title={addingPhoto ? "Adding photo..." : "Add Photo"}
+          onPress={handleAddPhoto}
+          disabled={addingPhoto}
         />
       </View>
 

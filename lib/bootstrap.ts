@@ -1,5 +1,12 @@
+import * as FileSystem from "expo-file-system";
 import { supabase } from "./supabase";
 import { openDB } from "./sqlite";
+import {
+  deriveLocalPhotoUri,
+  downloadPhotoBinary,
+  deleteLocalPhoto,
+  ensurePhotoDirectory,
+} from "./storage";
 
 type Customer = {
   id: string;
@@ -93,6 +100,16 @@ export async function bootstrapUserData(userId: string) {
   await db.runAsync("DELETE FROM estimates");
   await db.runAsync("DELETE FROM customers");
 
+  await ensurePhotoDirectory();
+  const expectedLocalPaths = new Set<string>();
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.getSession();
+  if (sessionError) {
+    console.warn("Failed to resolve Supabase session during bootstrap", sessionError);
+  }
+  const bootstrapAccessToken = sessionData?.session?.access_token ?? null;
+  const canDownloadPhotos = !!bootstrapAccessToken;
+
   for (const customer of (customers ?? []) as Customer[]) {
     await db.runAsync(
       `INSERT OR REPLACE INTO customers (id, user_id, name, phone, email, address, version, updated_at, deleted_at)
@@ -149,19 +166,62 @@ export async function bootstrapUserData(userId: string) {
   }
 
   for (const photo of photos) {
+    let localUri: string | null = null;
+    if (photo.uri) {
+      const derivedPath = deriveLocalPhotoUri(photo.id, photo.uri);
+      if (!photo.deleted_at) {
+        expectedLocalPaths.add(derivedPath);
+        try {
+          const info = await FileSystem.getInfoAsync(derivedPath);
+          if (info.exists) {
+            localUri = derivedPath;
+          } else if (canDownloadPhotos) {
+            const downloaded = await downloadPhotoBinary(
+              photo.uri,
+              derivedPath,
+              bootstrapAccessToken
+            );
+            if (downloaded) {
+              localUri = derivedPath;
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to prepare local copy for photo ${photo.id}`, error);
+        }
+      } else {
+        await deleteLocalPhoto(derivedPath);
+      }
+    }
+
     await db.runAsync(
-      `INSERT OR REPLACE INTO photos (id, estimate_id, uri, description, version, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO photos (id, estimate_id, uri, local_uri, description, version, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         photo.id,
         photo.estimate_id,
         photo.uri,
+        localUri,
         photo.description,
         photo.version ?? 1,
         photo.updated_at ?? new Date().toISOString(),
         photo.deleted_at,
       ]
     );
+  }
+
+  if (FileSystem.documentDirectory) {
+    try {
+      const baseDir = `${FileSystem.documentDirectory}photos`;
+      const files = await FileSystem.readDirectoryAsync(baseDir);
+      for (const fileName of files) {
+        const fullPath = `${baseDir}/${fileName}`;
+        if (!expectedLocalPaths.has(fullPath)) {
+          await FileSystem.deleteAsync(fullPath, { idempotent: true });
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to reconcile local photo directory", error);
+    }
   }
 }
 

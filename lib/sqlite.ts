@@ -97,6 +97,7 @@ export async function initLocalDB(): Promise<void> {
       id TEXT PRIMARY KEY,
       estimate_id TEXT NOT NULL,
       uri TEXT NOT NULL,
+      local_uri TEXT,
       description TEXT,
       version INTEGER DEFAULT 1,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -104,6 +105,13 @@ export async function initLocalDB(): Promise<void> {
       FOREIGN KEY (estimate_id) REFERENCES estimates(id)
     );
   `);
+
+  const photoColumns = await db.getAllAsync<{ name: string }>(
+    "PRAGMA table_info(photos)"
+  );
+  if (!photoColumns.some((column) => column.name === "local_uri")) {
+    await db.execAsync("ALTER TABLE photos ADD COLUMN local_uri TEXT");
+  }
 
   console.log("✅ Local SQLite DB initialized");
 }
