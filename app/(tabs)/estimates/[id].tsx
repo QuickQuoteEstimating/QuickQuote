@@ -6,7 +6,9 @@ import {
   Button,
   FlatList,
   Image,
+  Linking,
   Modal,
+  Platform,
   ScrollView,
   Text,
   TextInput,
@@ -14,11 +16,17 @@ import {
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import * as ImagePicker from "expo-image-picker";
+import * as Print from "expo-print";
+import * as SMS from "expo-sms";
 import CustomerPicker from "../../../components/CustomerPicker";
 import EstimateItemForm, {
   type EstimateItemFormValues,
 } from "../../../components/EstimateItemForm";
-import { openDB, queueChange } from "../../../lib/sqlite";
+import {
+  logEstimateDelivery,
+  openDB,
+  queueChange,
+} from "../../../lib/sqlite";
 import { runSync } from "../../../lib/sync";
 import {
   createPhotoStoragePath,
@@ -27,6 +35,11 @@ import {
   persistLocalPhotoCopy,
   syncPhotoBinaries,
 } from "../../../lib/storage";
+import {
+  renderEstimatePdf,
+  type EstimatePdfOptions,
+  type EstimatePdfResult,
+} from "../../../lib/pdf";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
 
@@ -51,6 +64,14 @@ type PhotoRecord = {
   version: number | null;
   updated_at: string;
   deleted_at: string | null;
+};
+
+type CustomerRecord = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
 };
 
 function formatCurrency(value: number): string {
@@ -107,7 +128,13 @@ export default function EditEstimateScreen() {
   const [photoSyncing, setPhotoSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pdfWorking, setPdfWorking] = useState(false);
+  const [smsSending, setSmsSending] = useState(false);
+  const [customerContact, setCustomerContact] = useState<CustomerRecord | null>(
+    null
+  );
   const estimateRef = useRef<EstimateListItem | null>(null);
+  const lastPdfRef = useRef<EstimatePdfResult | null>(null);
 
   useEffect(() => {
     estimateRef.current = estimate;
@@ -137,6 +164,48 @@ export default function EditEstimateScreen() {
     [photoSavingId]
   );
 
+  useEffect(() => {
+    if (!customerId) {
+      setCustomerContact(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const db = await openDB();
+        const rows = await db.getAllAsync<CustomerRecord>(
+          `SELECT id, name, email, phone, address FROM customers WHERE id = ? LIMIT 1`,
+          [customerId]
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        const record = rows[0];
+        if (record) {
+          setCustomerContact({
+            id: record.id,
+            name: record.name,
+            email: record.email ?? null,
+            phone: record.phone ?? null,
+            address: record.address ?? null,
+          });
+        } else {
+          setCustomerContact(null);
+        }
+      } catch (error) {
+        console.error("Failed to load customer contact", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId]);
+
   const refreshPhotosFromDb = useCallback(async () => {
     if (!estimateId) {
       return;
@@ -159,6 +228,74 @@ export default function EditEstimateScreen() {
     const sum = items.reduce((acc, item) => acc + item.total, 0);
     return Math.round(sum * 100) / 100;
   }, [items]);
+
+  const pdfOptions = useMemo<EstimatePdfOptions | null>(() => {
+    if (!estimate) {
+      return null;
+    }
+
+    const isoDate = estimateDate
+      ? new Date(estimateDate).toISOString()
+      : estimate.date;
+
+    const trimmedNotes = notes.trim();
+
+    return {
+      estimate: {
+        id: estimate.id,
+        date: isoDate,
+        status,
+        notes: trimmedNotes ? trimmedNotes : null,
+        total: computedTotal,
+        customer: {
+          name:
+            customerContact?.name ?? estimate.customer_name ?? "Customer",
+          email: customerContact?.email ?? estimate.customer_email ?? null,
+          phone: customerContact?.phone ?? estimate.customer_phone ?? null,
+          address:
+            customerContact?.address ?? estimate.customer_address ?? null,
+        },
+      },
+      items: items.map((item) => ({
+        id: item.id,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+        total: item.total,
+      })),
+      photos: photos.map((photo) => ({
+        id: photo.id,
+        description: photo.description,
+        localUri:
+          photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri),
+        remoteUri: photo.uri,
+      })),
+    };
+  }, [
+    computedTotal,
+    customerContact,
+    estimate,
+    estimateDate,
+    items,
+    notes,
+    photos,
+    status,
+  ]);
+
+  useEffect(() => {
+    lastPdfRef.current = null;
+  }, [pdfOptions]);
+
+  const ensureNativePdfSupport = useCallback(() => {
+    if (Platform.OS === "web") {
+      Alert.alert(
+        "Unavailable",
+        "PDF preview and sharing are only available on iOS and Android."
+      );
+      return false;
+    }
+    return true;
+  }, []);
 
   const closeItemModal = useCallback(() => {
     setItemModalVisible(false);
@@ -595,6 +732,196 @@ export default function EditEstimateScreen() {
     }
   }, [refreshPhotosFromDb]);
 
+  const ensurePdfReady = useCallback(async () => {
+    if (!ensureNativePdfSupport()) {
+      return null;
+    }
+
+    if (!pdfOptions) {
+      Alert.alert("Missing data", "Unable to build the estimate PDF.");
+      return null;
+    }
+
+    try {
+      const cached = lastPdfRef.current;
+      if (cached) {
+        return cached;
+      }
+      const result = await renderEstimatePdf(pdfOptions);
+      lastPdfRef.current = result;
+      return result;
+    } catch (error) {
+      console.error("Failed to generate PDF", error);
+      Alert.alert("Error", "Unable to prepare the PDF. Please try again.");
+      return null;
+    }
+  }, [ensureNativePdfSupport, pdfOptions]);
+
+  const handlePreviewPdf = useCallback(async () => {
+    setPdfWorking(true);
+    try {
+      const pdf = await ensurePdfReady();
+      if (!pdf) {
+        return;
+      }
+
+      await Print.printAsync({ html: pdf.html });
+    } catch (error) {
+      console.error("Failed to preview PDF", error);
+      Alert.alert("Error", "Unable to preview the PDF. Please try again.");
+    } finally {
+      setPdfWorking(false);
+    }
+  }, [ensurePdfReady]);
+
+  const handleShareEmail = useCallback(async () => {
+    if (!estimate) {
+      return;
+    }
+
+    if (!customerContact?.email) {
+      Alert.alert(
+        "Missing email",
+        "Add an email address for this customer to share the estimate via email."
+      );
+      return;
+    }
+
+    try {
+      setPdfWorking(true);
+      const pdf = await ensurePdfReady();
+      if (!pdf) {
+        return;
+      }
+      const emailAddress = customerContact.email;
+      const subject = encodeURIComponent(
+        `Estimate ${estimate.id} from QuickQuote`
+      );
+      const bodyLines = [
+        `Hi ${customerContact.name || "there"},`,
+        "",
+        "Please review your estimate from QuickQuote.",
+        `Total: ${formatCurrency(computedTotal)}`,
+        `PDF saved at: ${pdf.uri}`,
+        "",
+        "Thank you!",
+      ];
+      const bodyPlain = bodyLines.join("\n");
+      const body = encodeURIComponent(bodyPlain);
+      const mailto = `mailto:${encodeURIComponent(
+        emailAddress
+      )}?subject=${subject}&body=${body}`;
+
+      const canOpen = await Linking.canOpenURL(mailto);
+      if (!canOpen) {
+        Alert.alert(
+          "Unavailable",
+          "No email client is configured on this device."
+        );
+        return;
+      }
+
+      await Linking.openURL(mailto);
+
+      await logEstimateDelivery({
+        estimateId: estimate.id,
+        channel: "email",
+        recipient: emailAddress,
+        messagePreview:
+          bodyPlain.length > 240
+            ? `${bodyPlain.slice(0, 237)}...`
+            : bodyPlain,
+        metadata: { pdfUri: pdf.uri, mailto },
+      });
+    } catch (error) {
+      console.error("Failed to share via email", error);
+      Alert.alert("Error", "Unable to share the estimate via email.");
+    } finally {
+      setPdfWorking(false);
+    }
+  }, [
+    ensurePdfReady,
+    customerContact,
+    estimate,
+    computedTotal,
+    logEstimateDelivery,
+  ]);
+
+  const handleShareSms = useCallback(async () => {
+    if (!estimate) {
+      return;
+    }
+
+    if (!customerContact?.phone) {
+      Alert.alert(
+        "Missing phone",
+        "Add a mobile number for this customer to share the estimate via SMS."
+      );
+      return;
+    }
+
+    if (!(await SMS.isAvailableAsync())) {
+      Alert.alert("Unavailable", "SMS is not supported on this device.");
+      return;
+    }
+
+    try {
+      setSmsSending(true);
+      const pdf = await ensurePdfReady();
+      if (!pdf) {
+        return;
+      }
+      const message = `Estimate ${estimate.id} total ${formatCurrency(
+        computedTotal
+      )}. PDF: ${pdf.uri}`;
+
+      let smsResponse;
+      try {
+        smsResponse = await SMS.sendSMSAsync(
+          [customerContact.phone],
+          message,
+          pdf.uri
+            ? {
+                attachments: [
+                  {
+                    uri: pdf.uri,
+                    mimeType: "application/pdf",
+                    filename: pdf.fileName,
+                  },
+                ],
+              }
+            : undefined
+        );
+      } catch (error) {
+        console.warn("Failed to send SMS with attachment", error);
+        smsResponse = await SMS.sendSMSAsync([customerContact.phone], message);
+      }
+
+      await logEstimateDelivery({
+        estimateId: estimate.id,
+        channel: "sms",
+        recipient: customerContact.phone,
+        messagePreview:
+          message.length > 240 ? `${message.slice(0, 237)}...` : message,
+        metadata: {
+          pdfUri: pdf.uri,
+          smsResult: smsResponse?.result ?? null,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to share via SMS", error);
+      Alert.alert("Error", "Unable to share the estimate via SMS.");
+    } finally {
+      setSmsSending(false);
+    }
+  }, [
+    ensurePdfReady,
+    customerContact,
+    estimate,
+    computedTotal,
+    logEstimateDelivery,
+  ]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -602,7 +929,11 @@ export default function EditEstimateScreen() {
       try {
         const db = await openDB();
         const rows = await db.getAllAsync<EstimateListItem>(
-          `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.notes, e.status, e.version, e.updated_at, e.deleted_at, c.name AS customer_name
+          `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.notes, e.status, e.version, e.updated_at, e.deleted_at,
+                  c.name AS customer_name,
+                  c.email AS customer_email,
+                  c.phone AS customer_phone,
+                  c.address AS customer_address
            FROM estimates e
            LEFT JOIN customers c ON c.id = e.customer_id
            WHERE e.id = ?
@@ -630,6 +961,13 @@ export default function EditEstimateScreen() {
         );
         setNotes(record.notes ?? "");
         setStatus(record.status ?? "draft");
+        setCustomerContact({
+          id: record.customer_id,
+          name: record.customer_name ?? "Customer",
+          email: record.customer_email ?? null,
+          phone: record.customer_phone ?? null,
+          address: record.customer_address ?? null,
+        });
 
         const itemRows = await db.getAllAsync<EstimateItemRecord>(
           `SELECT id, estimate_id, description, quantity, unit_price, total, version, updated_at, deleted_at
@@ -745,18 +1083,33 @@ export default function EditEstimateScreen() {
       );
 
       let customerName = estimate.customer_name;
+      let customerEmail = estimate.customer_email;
+      let customerPhone = estimate.customer_phone;
+      let customerAddress = estimate.customer_address;
       if (customerId !== estimate.customer_id) {
-        const customerRows = await db.getAllAsync<{ name: string }>(
-          `SELECT name FROM customers WHERE id = ? LIMIT 1`,
+        const customerRows = await db.getAllAsync<{
+          name: string | null;
+          email: string | null;
+          phone: string | null;
+          address: string | null;
+        }>(
+          `SELECT name, email, phone, address FROM customers WHERE id = ? LIMIT 1`,
           [customerId]
         );
-        customerName = customerRows[0]?.name ?? customerName ?? null;
+        const customerRecord = customerRows[0];
+        customerName = customerRecord?.name ?? customerName ?? null;
+        customerEmail = customerRecord?.email ?? null;
+        customerPhone = customerRecord?.phone ?? null;
+        customerAddress = customerRecord?.address ?? null;
       }
 
       const updatedEstimate: EstimateListItem = {
         ...estimate,
         customer_id: customerId,
         customer_name: customerName,
+        customer_email: customerEmail ?? null,
+        customer_phone: customerPhone ?? null,
+        customer_address: customerAddress ?? null,
         date: isoDate,
         total: safeTotal,
         notes: trimmedNotes,
@@ -772,6 +1125,13 @@ export default function EditEstimateScreen() {
       await runSync();
 
       setEstimate(updatedEstimate);
+      setCustomerContact({
+        id: customerId,
+        name: customerName ?? "Customer",
+        email: customerEmail ?? null,
+        phone: customerPhone ?? null,
+        address: customerAddress ?? null,
+      });
 
       Alert.alert("Success", "Estimate updated successfully.", [
         { text: "OK", onPress: () => router.back() },
@@ -988,6 +1348,33 @@ export default function EditEstimateScreen() {
           }}
         />
       </View>
+
+      {Platform.OS !== "web" && (
+        <View style={{ gap: 8 }}>
+          <Text style={{ fontWeight: "600" }}>PDF &amp; Sharing</Text>
+          <View>
+            <Button
+              title="Preview PDF"
+              onPress={handlePreviewPdf}
+              disabled={pdfWorking || smsSending}
+            />
+          </View>
+          <View>
+            <Button
+              title="Share via Email"
+              onPress={handleShareEmail}
+              disabled={pdfWorking || smsSending}
+            />
+          </View>
+          <View>
+            <Button
+              title="Share via SMS"
+              onPress={handleShareSms}
+              disabled={smsSending || pdfWorking}
+            />
+          </View>
+        </View>
+      )}
 
       <View style={{ flexDirection: "row", gap: 12 }}>
         <View style={{ flex: 1 }}>
