@@ -27,6 +27,7 @@ import {
   openDB,
   queueChange,
 } from "../../../lib/sqlite";
+import { sanitizeEstimateForQueue } from "../../../lib/estimates";
 import { runSync } from "../../../lib/sync";
 import {
   createPhotoStoragePath,
@@ -339,8 +340,11 @@ export default function EditEstimateScreen() {
       estimateRef.current = updatedEstimate;
       setEstimate(updatedEstimate);
 
-      const { customer_name: _customerName, ...queuePayload } = updatedEstimate;
-      await queueChange("estimates", "update", queuePayload);
+      await queueChange(
+        "estimates",
+        "update",
+        sanitizeEstimateForQueue(updatedEstimate)
+      );
     } catch (error) {
       console.error("Failed to update estimate total", error);
       Alert.alert(
@@ -1119,9 +1123,11 @@ export default function EditEstimateScreen() {
         deleted_at: null,
       };
 
-      const { customer_name: _customerName, ...queuePayload } = updatedEstimate;
-
-      await queueChange("estimates", "update", queuePayload);
+      await queueChange(
+        "estimates",
+        "update",
+        sanitizeEstimateForQueue(updatedEstimate)
+      );
       await runSync();
 
       setEstimate(updatedEstimate);

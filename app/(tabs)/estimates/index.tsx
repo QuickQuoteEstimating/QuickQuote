@@ -10,6 +10,7 @@ import {
   Button,
 } from "react-native";
 import { openDB, queueChange } from "../../../lib/sqlite";
+import { sanitizeEstimateForQueue } from "../../../lib/estimates";
 import { runSync } from "../../../lib/sync";
 
 export type EstimateListItem = {
@@ -140,10 +141,11 @@ export default function EstimatesScreen() {
                   version: nextVersion,
                 };
 
-                const { customer_name: _customerName, ...queuePayload } =
-                  deletedEstimate;
-
-                await queueChange("estimates", "update", queuePayload);
+                await queueChange(
+                  "estimates",
+                  "update",
+                  sanitizeEstimateForQueue(deletedEstimate)
+                );
                 await runSync();
 
                 setEstimates((prev) =>
