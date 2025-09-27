@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { getQueuedChanges, clearQueuedChange, Change } from "./sqlite";
+import { syncPhotoBinaries } from "./storage";
 
 // ✅ Process a single change
 async function processChange(change: Change) {
@@ -52,4 +53,6 @@ export async function runSync() {
       console.warn("⚠️ Skipping unknown table:", change.table_name);
     }
   }
+
+  await syncPhotoBinaries();
 }

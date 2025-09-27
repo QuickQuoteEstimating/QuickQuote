@@ -13,6 +13,10 @@ jest.mock("../sqlite", () => ({
   clearQueuedChange: jest.fn(),
 }));
 
+jest.mock("../storage", () => ({
+  syncPhotoBinaries: jest.fn(),
+}));
+
 jest.mock("../supabase", () => {
   const operations: any[] = [];
   const defaultInsert = async (payload: any, _table: string) => ({ data: [payload], error: null });
@@ -78,6 +82,10 @@ const sqliteModule = require("../sqlite") as {
   clearQueuedChange: jest.Mock;
 };
 
+const storageModule = require("../storage") as {
+  syncPhotoBinaries: jest.Mock;
+};
+
 const supabaseModule = require("../supabase") as {
   supabase: { from: jest.Mock };
   __supabaseMock: {
@@ -98,6 +106,7 @@ describe("runSync", () => {
   beforeEach(() => {
     sqlite.getQueuedChanges.mockReset();
     sqlite.clearQueuedChange.mockReset();
+    storageModule.syncPhotoBinaries.mockReset();
     supabaseHelpers.reset();
   });
 
@@ -146,6 +155,7 @@ describe("runSync", () => {
     expect(sqlite.clearQueuedChange).toHaveBeenNthCalledWith(1, 1);
     expect(sqlite.clearQueuedChange).toHaveBeenNthCalledWith(2, 2);
     expect(sqlite.clearQueuedChange).toHaveBeenNthCalledWith(3, 3);
+    expect(storageModule.syncPhotoBinaries).toHaveBeenCalledTimes(1);
   });
 
   it("leaves entries in the queue when Supabase returns an error", async () => {
@@ -168,5 +178,6 @@ describe("runSync", () => {
     await runSync();
 
     expect(sqlite.clearQueuedChange).not.toHaveBeenCalled();
+    expect(storageModule.syncPhotoBinaries).toHaveBeenCalledTimes(1);
   });
 });
