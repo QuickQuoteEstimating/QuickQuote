@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { AuthProvider, useAuth } from "../context/AuthContext";
+import { SettingsProvider } from "../context/SettingsContext";
 import { initLocalDB } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
 
@@ -105,9 +106,11 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <AuthProvider>
-      <RootNavigator />
-    </AuthProvider>
+    <SettingsProvider>
+      <AuthProvider>
+        <RootNavigator />
+      </AuthProvider>
+    </SettingsProvider>
   );
 }
 
