@@ -7,11 +7,11 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
@@ -66,6 +66,7 @@ const itemModalStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.35)",
     justifyContent: "center",
+    position: "relative",
     padding: 24,
   },
   card: {
@@ -597,33 +598,35 @@ export default function NewEstimateScreen() {
           keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
           style={{ flex: 1 }}
         >
-          <TouchableWithoutFeedback onPress={closeItemModal} accessible={false}>
-            <View style={itemModalStyles.overlay}>
-              <TouchableWithoutFeedback onPress={() => {}} accessible={false}>
-                <View style={itemModalStyles.card}>
-                  <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}>
-                    {editingItem ? "Edit Item" : "Add Item"}
-                  </Text>
-                  <EstimateItemForm
-                    initialValue={
-                      editingItem
-                        ? {
-                            description: editingItem.description,
-                            quantity: editingItem.quantity,
-                            unit_price: editingItem.unit_price,
-                          }
-                        : undefined
-                    }
-                    initialTemplateId={editingItem?.catalog_item_id ?? null}
-                    templates={savedItemTemplates}
-                    onSubmit={handleSubmitItem}
-                    onCancel={closeItemModal}
-                    submitLabel={editingItem ? "Update Item" : "Add Item"}
-                  />
-                </View>
-              </TouchableWithoutFeedback>
+          <View style={itemModalStyles.overlay}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={closeItemModal}
+              accessibilityRole="button"
+              accessibilityLabel="Close add item modal"
+            />
+            <View style={itemModalStyles.card}>
+              <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}>
+                {editingItem ? "Edit Item" : "Add Item"}
+              </Text>
+              <EstimateItemForm
+                initialValue={
+                  editingItem
+                    ? {
+                        description: editingItem.description,
+                        quantity: editingItem.quantity,
+                        unit_price: editingItem.unit_price,
+                      }
+                    : undefined
+                }
+                initialTemplateId={editingItem?.catalog_item_id ?? null}
+                templates={savedItemTemplates}
+                onSubmit={handleSubmitItem}
+                onCancel={closeItemModal}
+                submitLabel={editingItem ? "Update Item" : "Add Item"}
+              />
             </View>
-          </TouchableWithoutFeedback>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
     </ScrollView>
