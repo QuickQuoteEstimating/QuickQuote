@@ -23,6 +23,13 @@ export type EstimateListItem = {
   customer_address: string | null;
   date: string | null;
   total: number | null;
+  material_total: number | null;
+  labor_hours: number | null;
+  labor_rate: number | null;
+  labor_total: number | null;
+  subtotal: number | null;
+  tax_rate: number | null;
+  tax_total: number | null;
   notes: string | null;
   status: string | null;
   version: number | null;
@@ -65,6 +72,7 @@ export default function EstimatesScreen() {
         const db = await openDB();
         const rows = await db.getAllAsync<EstimateListItem>(
           `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.notes, e.status, e.version, e.updated_at, e.deleted_at,
+                  e.material_total, e.labor_hours, e.labor_rate, e.labor_total, e.subtotal, e.tax_rate, e.tax_total,
                   c.name AS customer_name,
                   c.email AS customer_email,
                   c.phone AS customer_phone,
@@ -187,6 +195,12 @@ export default function EstimatesScreen() {
           </Text>
           <Text style={{ color: "#555", marginTop: 2 }}>
             Total: {formatCurrency(item.total)}
+          </Text>
+          <Text style={{ color: "#555", marginTop: 2 }}>
+            Labor: {formatCurrency(item.labor_total ?? 0)}
+          </Text>
+          <Text style={{ color: "#555", marginTop: 2 }}>
+            Materials: {formatCurrency(item.material_total ?? 0)}
           </Text>
           {item.date ? (
             <Text style={{ color: "#777", marginTop: 2 }}>
