@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable
   ScrollView,
   StyleSheet,
   Text,
@@ -72,6 +73,10 @@ const itemModalStyles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 20,
+
+
+    zIndex: 1,
+
   },
 });
 
@@ -504,6 +509,7 @@ export default function NewEstimateScreen() {
         </View>
       </View>
 
+
       <View style={{ gap: 6 }}>
         <Text style={{ fontWeight: "600" }}>Tax rate</Text>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -519,6 +525,23 @@ export default function NewEstimateScreen() {
       </View>
 
       <View style={{ gap: 6 }}>
+
+      <View style={{ gap: 6 }}>
+        <Text style={{ fontWeight: "600" }}>Tax rate</Text>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <TextInput
+            placeholder="0"
+            value={taxRateText}
+            onChangeText={setTaxRateText}
+            keyboardType="decimal-pad"
+            style={{ flex: 1, borderWidth: 1, borderRadius: 8, padding: 10 }}
+          />
+          <Text style={{ fontWeight: "600", marginLeft: 8 }}>%</Text>
+        </View>
+      </View>
+
+      <View style={{ gap: 6 }}>
+
         <Text style={{ fontWeight: "600" }}>Estimate summary</Text>
         <View style={{ gap: 4 }}>
           <Text>Materials: {formatCurrency(totals.materialTotal)}</Text>
@@ -581,6 +604,7 @@ export default function NewEstimateScreen() {
           keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
           style={{ flex: 1 }}
         >
+
           <TouchableWithoutFeedback onPress={closeItemModal} accessible={false}>
             <View style={itemModalStyles.overlay}>
               <TouchableWithoutFeedback onPress={() => {}} accessible={false}>
@@ -608,6 +632,44 @@ export default function NewEstimateScreen() {
               </TouchableWithoutFeedback>
             </View>
           </TouchableWithoutFeedback>
+          <View style={itemModalStyles.overlay}>
+            <Pressable
+              accessibilityLabel="Close item editor"
+              accessibilityRole="button"
+              onPress={closeItemModal}
+              style={({ pressed }) => [
+                {
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  left: 0,
+                },
+                pressed ? { opacity: 0.85 } : null,
+              ]}
+            />
+            <View style={itemModalStyles.card}>
+              <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}>
+                {editingItem ? "Edit Item" : "Add Item"}
+              </Text>
+              <EstimateItemForm
+                initialValue={
+                  editingItem
+                    ? {
+                        description: editingItem.description,
+                        quantity: editingItem.quantity,
+                        unit_price: editingItem.unit_price,
+                      }
+                    : undefined
+                }
+                initialTemplateId={editingItem?.catalog_item_id ?? null}
+                templates={savedItemTemplates}
+                onSubmit={handleSubmitItem}
+                onCancel={closeItemModal}
+                submitLabel={editingItem ? "Update Item" : "Add Item"}
+              />
+            </View>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
     </ScrollView>

@@ -54,11 +54,19 @@ export async function initLocalDB(): Promise<void> {
       phone TEXT,
       email TEXT,
       address TEXT,
+      notes TEXT,
       version INTEGER DEFAULT 1,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT
     );
   `);
+
+  const customerColumns = await db.getAllAsync<{ name: string }>(
+    "PRAGMA table_info(customers)"
+  );
+  if (!customerColumns.some((column) => column.name === "notes")) {
+    await db.execAsync("ALTER TABLE customers ADD COLUMN notes TEXT");
+  }
 
   // Estimates
   await db.execAsync(`

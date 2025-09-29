@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "strict": true,
-    "types": ["jest"]
+    "types": [
+      "jest"
+    ]
   },
   "include": [
     "app",
@@ -12,7 +14,9 @@
     "__tests__",
     "jest.setup.ts",
     "jest.config.js",
-    "types"
+    "types",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
   ],
   "extends": "expo/tsconfig.base"
 }

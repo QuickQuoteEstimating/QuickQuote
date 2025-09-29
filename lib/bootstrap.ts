@@ -15,6 +15,7 @@ type Customer = {
   phone: string | null;
   email: string | null;
   address: string | null;
+  notes: string | null;
   version: number | null;
   updated_at: string | null;
   deleted_at: string | null;
@@ -94,12 +95,6 @@ export async function bootstrapUserData(userId: string) {
 
   const db = await openDB();
 
-  await db.runAsync("DELETE FROM sync_queue");
-  await db.runAsync("DELETE FROM photos");
-  await db.runAsync("DELETE FROM estimate_items");
-  await db.runAsync("DELETE FROM estimates");
-  await db.runAsync("DELETE FROM customers");
-
   await ensurePhotoDirectory();
   const expectedLocalPaths = new Set<string>();
   const { data: sessionData, error: sessionError } =
@@ -112,8 +107,8 @@ export async function bootstrapUserData(userId: string) {
 
   for (const customer of (customers ?? []) as Customer[]) {
     await db.runAsync(
-      `INSERT OR REPLACE INTO customers (id, user_id, name, phone, email, address, version, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO customers (id, user_id, name, phone, email, address, notes, version, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         customer.id,
         customer.user_id,
@@ -121,6 +116,7 @@ export async function bootstrapUserData(userId: string) {
         customer.phone,
         customer.email,
         customer.address,
+        customer.notes,
         customer.version ?? 1,
         customer.updated_at ?? new Date().toISOString(),
         customer.deleted_at,
@@ -207,6 +203,15 @@ export async function bootstrapUserData(userId: string) {
         photo.deleted_at,
       ]
     );
+  }
+
+  const localPhotoRows = await db.getAllAsync<{ local_uri: string | null }>(
+    "SELECT local_uri FROM photos WHERE local_uri IS NOT NULL"
+  );
+  for (const { local_uri } of localPhotoRows) {
+    if (local_uri) {
+      expectedLocalPaths.add(local_uri);
+    }
   }
 
   if (FileSystem.documentDirectory) {

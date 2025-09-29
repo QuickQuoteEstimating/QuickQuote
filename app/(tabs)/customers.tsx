@@ -19,6 +19,7 @@ type CustomerRecord = {
   phone: string | null;
   email: string | null;
   address: string | null;
+  notes: string | null;
   version: number;
   updated_at: string;
   deleted_at: string | null;
@@ -34,12 +35,16 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
   const [name, setName] = useState(customer.name);
   const [phone, setPhone] = useState(customer.phone ?? "");
   const [email, setEmail] = useState(customer.email ?? "");
+  const [address, setAddress] = useState(customer.address ?? "");
+  const [notes, setNotes] = useState(customer.notes ?? "");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setName(customer.name);
     setPhone(customer.phone ?? "");
     setEmail(customer.email ?? "");
+    setAddress(customer.address ?? "");
+    setNotes(customer.notes ?? "");
   }, [customer]);
 
   const saveChanges = useCallback(async () => {
@@ -53,18 +58,22 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
       const trimmedName = name.trim();
       const trimmedPhone = phone.trim() || null;
       const trimmedEmail = email.trim() || null;
+      const trimmedAddress = address.trim() || null;
+      const trimmedNotes = notes.trim() || null;
       const updatedAt = new Date().toISOString();
       const nextVersion = (customer.version ?? 1) + 1;
 
       const db = await openDB();
       await db.runAsync(
         `UPDATE customers
-         SET name = ?, phone = ?, email = ?, version = ?, updated_at = ?, deleted_at = NULL
+         SET name = ?, phone = ?, email = ?, address = ?, notes = ?, version = ?, updated_at = ?, deleted_at = NULL
          WHERE id = ?`,
         [
           trimmedName,
           trimmedPhone,
           trimmedEmail,
+          trimmedAddress,
+          trimmedNotes,
           nextVersion,
           updatedAt,
           customer.id,
@@ -76,6 +85,8 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
         name: trimmedName,
         phone: trimmedPhone,
         email: trimmedEmail,
+        address: trimmedAddress,
+        notes: trimmedNotes,
         version: nextVersion,
         updated_at: updatedAt,
         deleted_at: null,
@@ -92,7 +103,7 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
     } finally {
       setSaving(false);
     }
-  }, [customer, email, name, phone, onSaved]);
+  }, [address, customer, email, name, notes, phone, onSaved]);
 
   return (
     <View style={{ gap: 8, padding: 12, borderWidth: 1, borderRadius: 8 }}>
@@ -117,6 +128,26 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
         keyboardType="email-address"
         style={{ borderWidth: 1, borderRadius: 6, padding: 10 }}
       />
+      <TextInput
+        placeholder="Address"
+        value={address}
+        onChangeText={setAddress}
+        style={{ borderWidth: 1, borderRadius: 6, padding: 10 }}
+      />
+      <TextInput
+        placeholder="Account notes"
+        value={notes}
+        onChangeText={setNotes}
+        multiline
+        numberOfLines={3}
+        style={{
+          borderWidth: 1,
+          borderRadius: 6,
+          padding: 10,
+          textAlignVertical: "top",
+          minHeight: 90,
+        }}
+      />
       <View style={{ flexDirection: "row", gap: 12, justifyContent: "flex-end" }}>
         <Button title="Cancel" onPress={onCancel} disabled={saving} />
         <Button title="Save" onPress={saveChanges} disabled={saving} />
@@ -139,7 +170,7 @@ export default function Customers() {
     try {
       const db = await openDB();
       const rows = await db.getAllAsync<CustomerRecord>(
-        `SELECT id, user_id, name, phone, email, address, version, updated_at, deleted_at
+        `SELECT id, user_id, name, phone, email, address, notes, version, updated_at, deleted_at
          FROM customers
          WHERE deleted_at IS NULL
          ORDER BY name COLLATE NOCASE ASC`
@@ -173,7 +204,9 @@ export default function Customers() {
       const nameMatch = customer.name.toLowerCase().includes(query);
       const emailMatch = (customer.email ?? "").toLowerCase().includes(query);
       const phoneMatch = (customer.phone ?? "").toLowerCase().includes(query);
-      return nameMatch || emailMatch || phoneMatch;
+      const addressMatch = (customer.address ?? "").toLowerCase().includes(query);
+      const notesMatch = (customer.notes ?? "").toLowerCase().includes(query);
+      return nameMatch || emailMatch || phoneMatch || addressMatch || notesMatch;
     });
   }, [customers, search]);
 
@@ -249,6 +282,14 @@ export default function Customers() {
         {item.phone ? (
           <Text style={{ color: "#555", marginTop: 2 }}>{item.phone}</Text>
         ) : null}
+        {item.address ? (
+          <Text style={{ color: "#555", marginTop: 2 }}>{item.address}</Text>
+        ) : null}
+        {item.notes ? (
+          <Text style={{ color: "#777", marginTop: 6, fontStyle: "italic" }}>
+            {item.notes}
+          </Text>
+        ) : null}
         <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
           <View style={{ flex: 1 }}>
             <Button
@@ -284,7 +325,7 @@ export default function Customers() {
               Customer Management
             </Text>
             <TextInput
-              placeholder="Search by name, email, or phone"
+              placeholder="Search by name, email, phone, address, or notes"
               value={search}
               onChangeText={setSearch}
               style={{
