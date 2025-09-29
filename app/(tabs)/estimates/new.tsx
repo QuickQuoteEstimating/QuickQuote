@@ -521,8 +521,6 @@ export default function NewEstimateScreen() {
       </View>
 
       <View style={{ gap: 6 }}>
-
-      <View style={{ gap: 6 }}>
         <Text style={{ fontWeight: "600" }}>Tax rate</Text>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <TextInput
@@ -537,7 +535,6 @@ export default function NewEstimateScreen() {
       </View>
 
       <View style={{ gap: 6 }}>
-
         <Text style={{ fontWeight: "600" }}>Estimate summary</Text>
         <View style={{ gap: 4 }}>
           <Text>Materials: {formatCurrency(totals.materialTotal)}</Text>
