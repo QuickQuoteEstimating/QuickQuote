@@ -47,7 +47,11 @@ export async function runSync() {
   console.log(`📋 Found ${changes.length} queued change(s)`);
 
   for (const change of changes) {
-    if (["customers", "estimates", "estimate_items", "photos"].includes(change.table_name)) {
+    if (
+      ["customers", "estimates", "estimate_items", "photos", "item_catalog"].includes(
+        change.table_name
+      )
+    ) {
       await processChange(change);
     } else {
       console.warn("⚠️ Skipping unknown table:", change.table_name);

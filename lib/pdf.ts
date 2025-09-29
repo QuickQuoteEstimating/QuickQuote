@@ -30,6 +30,10 @@ export type EstimatePdfEstimate = {
   status?: string | null;
   notes?: string | null;
   total?: number | null;
+  materialTotal?: number | null;
+  laborTotal?: number | null;
+  taxTotal?: number | null;
+  subtotal?: number | null;
   customer?: EstimatePdfCustomer;
 };
 
@@ -117,6 +121,22 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
     : "Not provided";
   const statusLabel = estimate.status ? estimate.status : "Draft";
   const total = typeof estimate.total === "number" ? estimate.total : 0;
+  const coerceCurrency = (value: number | null | undefined) =>
+    typeof value === "number" && Number.isFinite(value) ? value : 0;
+  const laborTotal = coerceCurrency(estimate.laborTotal);
+  const taxTotal = coerceCurrency(estimate.taxTotal);
+  const subtotal = coerceCurrency(estimate.subtotal);
+  const materialTotal = (() => {
+    if (
+      typeof estimate.materialTotal === "number" &&
+      Number.isFinite(estimate.materialTotal)
+    ) {
+      return estimate.materialTotal;
+    }
+    const base = subtotal > 0 ? subtotal : total - taxTotal;
+    const fallback = Math.max(0, Math.round((base - laborTotal) * 100) / 100);
+    return fallback;
+  })();
   const customer = estimate.customer ?? {};
 
   const photoSources = await Promise.all(
@@ -204,7 +224,10 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
         <section style=\"margin-bottom:24px;\">
           <h2>Estimate Summary</h2>
           <div>Date: ${escapeHtml(issueDate)}</div>
-          <div>Total: ${formatCurrency(total)}</div>
+          <div>Materials: ${formatCurrency(materialTotal)}</div>
+          <div>Labor: ${formatCurrency(laborTotal)}</div>
+          <div>Tax: ${formatCurrency(taxTotal)}</div>
+          <div><strong>Total: ${formatCurrency(total)}</strong></div>
         </section>
 
         <section style=\"margin-bottom:24px;\">

@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 
 export type Change = {
   id: number;
-  table_name: "customers" | "estimates" | "estimate_items" | "photos";
+  table_name: "customers" | "estimates" | "estimate_items" | "photos" | "item_catalog";
   op: "insert" | "update" | "delete";
   payload: string; // JSON string
   created_at: string;
@@ -76,6 +76,13 @@ export async function initLocalDB(): Promise<void> {
       customer_id TEXT NOT NULL,
       date TEXT DEFAULT (datetime('now')),
       total REAL DEFAULT 0,
+      material_total REAL DEFAULT 0,
+      labor_hours REAL DEFAULT 0,
+      labor_rate REAL DEFAULT 0,
+      labor_total REAL DEFAULT 0,
+      subtotal REAL DEFAULT 0,
+      tax_rate REAL DEFAULT 0,
+      tax_total REAL DEFAULT 0,
       notes TEXT,
       status TEXT DEFAULT 'draft',
       version INTEGER DEFAULT 1,
@@ -93,6 +100,41 @@ export async function initLocalDB(): Promise<void> {
       "ALTER TABLE estimates ADD COLUMN status TEXT DEFAULT 'draft'"
     );
   }
+  if (!estimateColumns.some((column) => column.name === "material_total")) {
+    await db.execAsync(
+      "ALTER TABLE estimates ADD COLUMN material_total REAL DEFAULT 0"
+    );
+  }
+  if (!estimateColumns.some((column) => column.name === "labor_hours")) {
+    await db.execAsync(
+      "ALTER TABLE estimates ADD COLUMN labor_hours REAL DEFAULT 0"
+    );
+  }
+  if (!estimateColumns.some((column) => column.name === "labor_rate")) {
+    await db.execAsync(
+      "ALTER TABLE estimates ADD COLUMN labor_rate REAL DEFAULT 0"
+    );
+  }
+  if (!estimateColumns.some((column) => column.name === "labor_total")) {
+    await db.execAsync(
+      "ALTER TABLE estimates ADD COLUMN labor_total REAL DEFAULT 0"
+    );
+  }
+  if (!estimateColumns.some((column) => column.name === "subtotal")) {
+    await db.execAsync(
+      "ALTER TABLE estimates ADD COLUMN subtotal REAL DEFAULT 0"
+    );
+  }
+  if (!estimateColumns.some((column) => column.name === "tax_rate")) {
+    await db.execAsync(
+      "ALTER TABLE estimates ADD COLUMN tax_rate REAL DEFAULT 0"
+    );
+  }
+  if (!estimateColumns.some((column) => column.name === "tax_total")) {
+    await db.execAsync(
+      "ALTER TABLE estimates ADD COLUMN tax_total REAL DEFAULT 0"
+    );
+  }
 
   // Estimate Items
   await db.execAsync(`
@@ -103,12 +145,22 @@ export async function initLocalDB(): Promise<void> {
       quantity INTEGER NOT NULL,
       unit_price REAL NOT NULL,
       total REAL NOT NULL,
+      catalog_item_id TEXT,
       version INTEGER DEFAULT 1,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT,
       FOREIGN KEY (estimate_id) REFERENCES estimates(id)
     );
   `);
+
+  const estimateItemColumns = await db.getAllAsync<{ name: string }>(
+    "PRAGMA table_info(estimate_items)"
+  );
+  if (!estimateItemColumns.some((column) => column.name === "catalog_item_id")) {
+    await db.execAsync(
+      "ALTER TABLE estimate_items ADD COLUMN catalog_item_id TEXT"
+    );
+  }
 
   // Photos
   await db.execAsync(`
@@ -122,6 +174,20 @@ export async function initLocalDB(): Promise<void> {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT,
       FOREIGN KEY (estimate_id) REFERENCES estimates(id)
+    );
+  `);
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS item_catalog (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      description TEXT NOT NULL,
+      default_quantity INTEGER DEFAULT 1,
+      unit_price REAL NOT NULL,
+      notes TEXT,
+      version INTEGER DEFAULT 1,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
     );
   `);
 

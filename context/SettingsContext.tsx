@@ -20,6 +20,7 @@ export interface SettingsState {
   themePreference: ThemePreference;
   materialMarkup: number;
   laborMarkup: number;
+  hourlyRate: number;
   hapticsEnabled: boolean;
   hapticIntensity: HapticIntensity;
   notificationsEnabled: boolean;
@@ -33,6 +34,7 @@ interface SettingsContextValue {
   setThemePreference: (preference: ThemePreference) => void;
   setMaterialMarkup: (value: number) => void;
   setLaborMarkup: (value: number) => void;
+  setHourlyRate: (value: number) => void;
   setHapticsEnabled: (value: boolean) => void;
   setHapticIntensity: (value: HapticIntensity) => void;
   setNotificationsEnabled: (value: boolean) => void;
@@ -45,6 +47,7 @@ const DEFAULT_SETTINGS: SettingsState = {
   themePreference: "system",
   materialMarkup: 15,
   laborMarkup: 20,
+  hourlyRate: 85,
   hapticsEnabled: true,
   hapticIntensity: 1,
   notificationsEnabled: true,
@@ -143,6 +146,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     [updateSettings]
   );
 
+  const setHourlyRate = useCallback(
+    (value: number) => {
+      updateSettings({ hourlyRate: Number.isFinite(value) ? Math.max(0, value) : 0 });
+    },
+    [updateSettings]
+  );
+
   const setHapticsEnabled = useCallback(
     (value: boolean) => {
       updateSettings({ hapticsEnabled: value });
@@ -208,6 +218,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setThemePreference,
       setMaterialMarkup,
       setLaborMarkup,
+      setHourlyRate,
       setHapticsEnabled,
       setHapticIntensity,
       setNotificationsEnabled,
@@ -223,6 +234,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setHapticsEnabled,
       setLaborMarkup,
       setMaterialMarkup,
+      setHourlyRate,
       setNotificationsEnabled,
       setThemePreference,
       settings,
