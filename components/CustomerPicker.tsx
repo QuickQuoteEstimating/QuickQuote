@@ -10,6 +10,8 @@ type Customer = {
   name: string;
   phone?: string | null;
   email?: string | null;
+  address?: string | null;
+  notes?: string | null;
 };
 
 type Props = {
@@ -27,7 +29,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
     try {
       const db = await openDB();
       const rows = await db.getAllAsync<Customer>(
-        "SELECT id, name, phone, email FROM customers WHERE deleted_at IS NULL ORDER BY name ASC"
+        "SELECT id, name, phone, email, address, notes FROM customers WHERE deleted_at IS NULL ORDER BY name ASC"
       );
       setCustomers(rows);
     } catch (error) {

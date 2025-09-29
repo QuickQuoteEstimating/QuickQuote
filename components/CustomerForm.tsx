@@ -16,6 +16,8 @@ export default function CustomerForm({ onSaved, onCancel }: Props) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [address, setAddress] = useState("");
+  const [notes, setNotes] = useState("");
   const { user, session } = useAuth();
 
   async function saveCustomer() {
@@ -39,7 +41,8 @@ export default function CustomerForm({ onSaved, onCancel }: Props) {
       name: name.trim(),
       phone: phone?.trim() || null,
       email: email?.trim() || null,
-      address: null,
+      address: address?.trim() || null,
+      notes: notes?.trim() || null,
       version: 1,
       updated_at: new Date().toISOString(),
       deleted_at: null,
@@ -49,8 +52,8 @@ export default function CustomerForm({ onSaved, onCancel }: Props) {
     const db = await openDB();
     await db.runAsync(
       `INSERT OR REPLACE INTO customers
-       (id, user_id, name, phone, email, address, version, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, user_id, name, phone, email, address, notes, version, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         newCustomer.id,
         newCustomer.user_id,
@@ -58,6 +61,7 @@ export default function CustomerForm({ onSaved, onCancel }: Props) {
         newCustomer.phone ?? null,
         newCustomer.email ?? null,
         newCustomer.address ?? null,
+        newCustomer.notes ?? null,
         newCustomer.version ?? 1,
         newCustomer.updated_at ?? new Date().toISOString(),
         newCustomer.deleted_at ?? null,
@@ -75,6 +79,8 @@ export default function CustomerForm({ onSaved, onCancel }: Props) {
     setName("");
     setPhone("");
     setEmail("");
+    setAddress("");
+    setNotes("");
   }
 
   return (
@@ -98,6 +104,26 @@ export default function CustomerForm({ onSaved, onCancel }: Props) {
         autoCapitalize="none"
         keyboardType="email-address"
         style={{ borderWidth: 1, padding: 10, borderRadius: 8 }}
+      />
+      <TextInput
+        placeholder="Address"
+        value={address}
+        onChangeText={setAddress}
+        style={{ borderWidth: 1, padding: 10, borderRadius: 8 }}
+      />
+      <TextInput
+        placeholder="Account notes"
+        value={notes}
+        onChangeText={setNotes}
+        multiline
+        numberOfLines={3}
+        style={{
+          borderWidth: 1,
+          padding: 10,
+          borderRadius: 8,
+          textAlignVertical: "top",
+          minHeight: 90,
+        }}
       />
       <Button title="Save Customer" onPress={saveCustomer} />
       {onCancel ? <Button title="Cancel" onPress={onCancel} /> : null}
