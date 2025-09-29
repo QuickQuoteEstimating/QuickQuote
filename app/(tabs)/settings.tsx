@@ -30,6 +30,7 @@ export default function Settings() {
     setThemePreference,
     setMaterialMarkup,
     setLaborMarkup,
+    setHourlyRate,
     setHapticsEnabled,
     setHapticIntensity,
     setNotificationsEnabled,
@@ -40,6 +41,7 @@ export default function Settings() {
 
   const [materialMarkupInput, setMaterialMarkupInput] = useState(settings.materialMarkup.toString());
   const [laborMarkupInput, setLaborMarkupInput] = useState(settings.laborMarkup.toString());
+  const [hourlyRateInput, setHourlyRateInput] = useState(settings.hourlyRate.toFixed(2));
 
   useEffect(() => {
     setMaterialMarkupInput(settings.materialMarkup.toString());
@@ -48,6 +50,10 @@ export default function Settings() {
   useEffect(() => {
     setLaborMarkupInput(settings.laborMarkup.toString());
   }, [settings.laborMarkup]);
+
+  useEffect(() => {
+    setHourlyRateInput(settings.hourlyRate.toFixed(2));
+  }, [settings.hourlyRate]);
 
   const colors = useMemo(() => {
     const isDark = resolvedTheme === "dark";
@@ -71,6 +77,16 @@ export default function Settings() {
     }
 
     updater(Math.max(0, Math.min(parsed, 1000)));
+  };
+
+  const handleUpdateHourlyRate = (value: string) => {
+    const parsed = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
+    if (Number.isNaN(parsed)) {
+      setHourlyRate(0);
+      return;
+    }
+
+    setHourlyRate(Math.max(0, Math.round(parsed * 100) / 100));
   };
 
   const hapticLabel = HAPTIC_LABELS[settings.hapticIntensity] ?? HAPTIC_LABELS[1];
@@ -175,6 +191,12 @@ export default function Settings() {
       fontWeight: "600",
       color: colors.secondaryText,
       marginLeft: 8,
+    },
+    currencyPrefix: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.secondaryText,
+      marginRight: 8,
     },
     sliderLabelRow: {
       flexDirection: "row",
@@ -293,6 +315,32 @@ export default function Settings() {
                 />
               </View>
               <Text style={themedStyles.percentSuffix}>%</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={themedStyles.section}>
+          <Text style={themedStyles.sectionHeader}>Labor defaults</Text>
+          <Text style={themedStyles.sectionDescription}>
+            Set the standard hourly rate used when calculating project labor totals. You can adjust this on individual
+            estimates when needed.
+          </Text>
+          <View>
+            <Text style={themedStyles.rowLabel}>Hourly rate</Text>
+            <View style={styles.inputRow}>
+              <Text style={themedStyles.currencyPrefix}>$</Text>
+              <View style={[themedStyles.textFieldContainer, { flex: 0, flexGrow: 1 }]}>
+                <TextInput
+                  value={hourlyRateInput}
+                  onChangeText={setHourlyRateInput}
+                  onBlur={() => handleUpdateHourlyRate(hourlyRateInput)}
+                  keyboardType="decimal-pad"
+                  returnKeyType="done"
+                  style={themedStyles.textField}
+                  placeholder="0.00"
+                  placeholderTextColor={colors.secondaryText}
+                />
+              </View>
             </View>
           </View>
         </View>

@@ -6,12 +6,15 @@ import {
   Button,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
@@ -20,8 +23,11 @@ import * as Print from "expo-print";
 import * as SMS from "expo-sms";
 import CustomerPicker from "../../../components/CustomerPicker";
 import EstimateItemForm, {
-  type EstimateItemFormValues,
+  type EstimateItemFormSubmit,
+  type EstimateItemTemplate,
 } from "../../../components/EstimateItemForm";
+import { useAuth } from "../../../context/AuthContext";
+import { useSettings } from "../../../context/SettingsContext";
 import {
   logEstimateDelivery,
   openDB,
@@ -29,6 +35,11 @@ import {
 } from "../../../lib/sqlite";
 import { sanitizeEstimateForQueue } from "../../../lib/estimates";
 import { runSync } from "../../../lib/sync";
+import {
+  listItemCatalog,
+  upsertItemCatalog,
+  type ItemCatalogRecord,
+} from "../../../lib/itemCatalog";
 import {
   createPhotoStoragePath,
   deleteLocalPhoto,
@@ -41,6 +52,7 @@ import {
   type EstimatePdfOptions,
   type EstimatePdfResult,
 } from "../../../lib/pdf";
+import { calculateEstimateTotals } from "../../../lib/estimateMath";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
 
@@ -51,6 +63,7 @@ type EstimateItemRecord = {
   quantity: number;
   unit_price: number;
   total: number;
+  catalog_item_id: string | null;
   version: number | null;
   updated_at: string;
   deleted_at: string | null;
@@ -83,11 +96,6 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-function calculateTotal(items: EstimateItemRecord[]): number {
-  const sum = items.reduce((acc, item) => acc + item.total, 0);
-  return Math.round(sum * 100) / 100;
-}
-
 function toPhotoPayload(photo: PhotoRecord) {
   return {
     id: photo.id,
@@ -107,9 +115,26 @@ const STATUS_OPTIONS = [
   { label: "Declined", value: "declined" },
 ];
 
+const itemModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+  },
+});
+
 export default function EditEstimateScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const estimateId = params.id ?? "";
+  const { user, session } = useAuth();
+  const { settings } = useSettings();
+  const userId = user?.id ?? session?.user?.id ?? null;
 
   const [estimate, setEstimate] = useState<EstimateListItem | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -121,6 +146,10 @@ export default function EditEstimateScreen() {
   const [editingItem, setEditingItem] = useState<EstimateItemRecord | null>(
     null
   );
+  const [savedItems, setSavedItems] = useState<ItemCatalogRecord[]>([]);
+  const [laborHoursText, setLaborHoursText] = useState("0");
+  const [hourlyRateText, setHourlyRateText] = useState(settings.hourlyRate.toFixed(2));
+  const [taxRateText, setTaxRateText] = useState("0");
   const [photos, setPhotos] = useState<PhotoRecord[]>([]);
   const [photoDrafts, setPhotoDrafts] = useState<Record<string, string>>({});
   const [addingPhoto, setAddingPhoto] = useState(false);
@@ -136,6 +165,76 @@ export default function EditEstimateScreen() {
   );
   const estimateRef = useRef<EstimateListItem | null>(null);
   const lastPdfRef = useRef<EstimatePdfResult | null>(null);
+
+  useEffect(() => {
+    if (!estimate) {
+      setHourlyRateText(settings.hourlyRate.toFixed(2));
+    }
+  }, [estimate, settings.hourlyRate]);
+
+  const loadSavedItems = useCallback(async () => {
+    if (!userId) {
+      setSavedItems([]);
+      return;
+    }
+
+    try {
+      const records = await listItemCatalog(userId);
+      setSavedItems(records);
+    } catch (error) {
+      console.error("Failed to load saved items", error);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    loadSavedItems();
+  }, [loadSavedItems]);
+
+  const parseNumericInput = useCallback((value: string, fallback = 0) => {
+    const normalized = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
+    if (Number.isNaN(normalized)) {
+      return fallback;
+    }
+    return normalized;
+  }, []);
+
+  const laborHours = useMemo(() => {
+    return Math.max(0, parseNumericInput(laborHoursText, estimate?.labor_hours ?? 0));
+  }, [estimate?.labor_hours, laborHoursText, parseNumericInput]);
+
+  const hourlyRate = useMemo(() => {
+    const fallback = estimate?.labor_rate ?? settings.hourlyRate;
+    const parsed = parseNumericInput(hourlyRateText, fallback);
+    return Math.max(0, Math.round(parsed * 100) / 100);
+  }, [estimate?.labor_rate, hourlyRateText, parseNumericInput, settings.hourlyRate]);
+
+  const taxRate = useMemo(() => {
+    const fallback = estimate?.tax_rate ?? 0;
+    const parsed = parseNumericInput(taxRateText, fallback);
+    return Math.max(0, Math.round(parsed * 100) / 100);
+  }, [estimate?.tax_rate, parseNumericInput, taxRateText]);
+
+  const totals = useMemo(
+    () =>
+      calculateEstimateTotals({
+        materialLineItems: items,
+        laborHours,
+        laborRate: hourlyRate,
+        taxRate,
+      }),
+    [hourlyRate, items, laborHours, taxRate]
+  );
+
+  const savedItemTemplates = useMemo<EstimateItemTemplate[]>(
+    () =>
+      savedItems.map((item) => ({
+        id: item.id,
+        description: item.description,
+        unit_price: item.unit_price,
+        default_quantity: item.default_quantity,
+      })),
+    [savedItems]
+  );
 
   useEffect(() => {
     estimateRef.current = estimate;
@@ -225,11 +324,6 @@ export default function EditEstimateScreen() {
     applyPhotoState(activePhotos);
   }, [estimateId, applyPhotoState]);
 
-  const computedTotal = useMemo(() => {
-    const sum = items.reduce((acc, item) => acc + item.total, 0);
-    return Math.round(sum * 100) / 100;
-  }, [items]);
-
   const pdfOptions = useMemo<EstimatePdfOptions | null>(() => {
     if (!estimate) {
       return null;
@@ -247,7 +341,11 @@ export default function EditEstimateScreen() {
         date: isoDate,
         status,
         notes: trimmedNotes ? trimmedNotes : null,
-        total: computedTotal,
+        total: totals.grandTotal,
+        materialTotal: totals.materialTotal,
+        laborTotal: totals.laborTotal,
+        taxTotal: totals.taxTotal,
+        subtotal: totals.subtotal,
         customer: {
           name:
             customerContact?.name ?? estimate.customer_name ?? "Customer",
@@ -273,7 +371,6 @@ export default function EditEstimateScreen() {
       })),
     };
   }, [
-    computedTotal,
     customerContact,
     estimate,
     estimateDate,
@@ -281,6 +378,11 @@ export default function EditEstimateScreen() {
     notes,
     photos,
     status,
+    totals.grandTotal,
+    totals.laborTotal,
+    totals.materialTotal,
+    totals.subtotal,
+    totals.taxTotal,
   ]);
 
   useEffect(() => {
@@ -303,59 +405,94 @@ export default function EditEstimateScreen() {
     setEditingItem(null);
   }, []);
 
-  const persistEstimateTotal = useCallback(async (nextTotal: number) => {
-    const current = estimateRef.current;
-    if (!current) {
-      return;
-    }
+  const persistEstimateTotals = useCallback(
+    async (nextTotals: ReturnType<typeof calculateEstimateTotals>) => {
+      const current = estimateRef.current;
+      if (!current) {
+        return false;
+      }
 
-    const normalizedTotal = Math.round(nextTotal * 100) / 100;
-    const currentTotal =
-      typeof current.total === "number"
-        ? Math.round(current.total * 100) / 100
-        : 0;
-
-    if (Math.abs(currentTotal - normalizedTotal) < 0.005) {
-      return;
-    }
-
-    try {
-      const now = new Date().toISOString();
-      const nextVersion = (current.version ?? 1) + 1;
-      const db = await openDB();
-      await db.runAsync(
-        `UPDATE estimates
-         SET total = ?, version = ?, updated_at = ?
-         WHERE id = ?`,
-        [normalizedTotal, nextVersion, now, current.id]
-      );
-
-      const updatedEstimate: EstimateListItem = {
-        ...current,
-        total: normalizedTotal,
-        version: nextVersion,
-        updated_at: now,
+      const normalizedTotal = Math.round(nextTotals.grandTotal * 100) / 100;
+      const compare = (incoming: number | null | undefined, next: number) => {
+        const currentValue =
+          typeof incoming === "number" ? Math.round(incoming * 100) / 100 : 0;
+        return Math.abs(currentValue - next) >= 0.005;
       };
 
-      estimateRef.current = updatedEstimate;
-      setEstimate(updatedEstimate);
+      const shouldUpdate =
+        compare(current.total, normalizedTotal) ||
+        compare(current.material_total, nextTotals.materialTotal) ||
+        compare(current.labor_total, nextTotals.laborTotal) ||
+        compare(current.subtotal, nextTotals.subtotal) ||
+        compare(current.tax_total, nextTotals.taxTotal) ||
+        Math.abs((current.labor_hours ?? 0) - nextTotals.laborHours) >= 0.005 ||
+        Math.abs((current.labor_rate ?? 0) - nextTotals.laborRate) >= 0.005 ||
+        Math.abs((current.tax_rate ?? 0) - nextTotals.taxRate) >= 0.005;
 
-      await queueChange(
-        "estimates",
-        "update",
-        sanitizeEstimateForQueue(updatedEstimate)
-      );
-    } catch (error) {
-      console.error("Failed to update estimate total", error);
-      Alert.alert(
-        "Error",
-        "Unable to update the estimate total. Please try again."
-      );
-    }
-  }, []);
+      if (!shouldUpdate) {
+        return false;
+      }
+
+      try {
+        const now = new Date().toISOString();
+        const nextVersion = (current.version ?? 1) + 1;
+        const db = await openDB();
+        await db.runAsync(
+          `UPDATE estimates
+           SET total = ?, material_total = ?, labor_hours = ?, labor_rate = ?, labor_total = ?, subtotal = ?, tax_rate = ?, tax_total = ?, version = ?, updated_at = ?
+           WHERE id = ?`,
+          [
+            normalizedTotal,
+            nextTotals.materialTotal,
+            nextTotals.laborHours,
+            nextTotals.laborRate,
+            nextTotals.laborTotal,
+            nextTotals.subtotal,
+            nextTotals.taxRate,
+            nextTotals.taxTotal,
+            nextVersion,
+            now,
+            current.id,
+          ]
+        );
+
+        const updatedEstimate: EstimateListItem = {
+          ...current,
+          total: normalizedTotal,
+          material_total: nextTotals.materialTotal,
+          labor_hours: nextTotals.laborHours,
+          labor_rate: nextTotals.laborRate,
+          labor_total: nextTotals.laborTotal,
+          subtotal: nextTotals.subtotal,
+          tax_rate: nextTotals.taxRate,
+          tax_total: nextTotals.taxTotal,
+          version: nextVersion,
+          updated_at: now,
+        };
+
+        estimateRef.current = updatedEstimate;
+        setEstimate(updatedEstimate);
+
+        await queueChange(
+          "estimates",
+          "update",
+          sanitizeEstimateForQueue(updatedEstimate)
+        );
+        return true;
+      } catch (error) {
+        console.error("Failed to update estimate totals", error);
+        Alert.alert(
+          "Error",
+          "Unable to update the estimate totals. Please try again."
+        );
+        return false;
+      }
+    },
+    []
+  );
 
   const handleSubmitItem = useCallback(
-    async (values: EstimateItemFormValues) => {
+    async ({ values, saveToLibrary, templateId }: EstimateItemFormSubmit) => {
       const currentEstimate = estimateRef.current;
       if (!currentEstimate) {
         return;
@@ -364,6 +501,37 @@ export default function EditEstimateScreen() {
       try {
         const now = new Date().toISOString();
         const db = await openDB();
+        let resolvedTemplateId: string | null = templateId ?? null;
+
+        if (saveToLibrary && userId) {
+          try {
+            const record = await upsertItemCatalog({
+              id: templateId ?? undefined,
+              userId,
+              description: values.description,
+              unitPrice: values.unit_price,
+              defaultQuantity: values.quantity,
+            });
+            resolvedTemplateId = record.id;
+            setSavedItems((prev) => {
+              const existingIndex = prev.findIndex((item) => item.id === record.id);
+              if (existingIndex >= 0) {
+                const next = [...prev];
+                next[existingIndex] = record;
+                return next;
+              }
+              return [...prev, record].sort((a, b) =>
+                a.description.localeCompare(b.description)
+              );
+            });
+          } catch (error) {
+            console.error("Failed to update item catalog", error);
+            Alert.alert(
+              "Saved items",
+              "We couldn't update your saved items library. The estimate item was still updated."
+            );
+          }
+        }
 
         if (editingItem) {
           const nextVersion = (editingItem.version ?? 1) + 1;
@@ -373,6 +541,7 @@ export default function EditEstimateScreen() {
             quantity: values.quantity,
             unit_price: values.unit_price,
             total: values.total,
+            catalog_item_id: resolvedTemplateId,
             version: nextVersion,
             updated_at: now,
             deleted_at: null,
@@ -380,13 +549,14 @@ export default function EditEstimateScreen() {
 
           await db.runAsync(
             `UPDATE estimate_items
-             SET description = ?, quantity = ?, unit_price = ?, total = ?, version = ?, updated_at = ?, deleted_at = NULL
+             SET description = ?, quantity = ?, unit_price = ?, total = ?, catalog_item_id = ?, version = ?, updated_at = ?, deleted_at = NULL
              WHERE id = ?`,
             [
               updatedItem.description,
               updatedItem.quantity,
               updatedItem.unit_price,
               updatedItem.total,
+              updatedItem.catalog_item_id,
               nextVersion,
               now,
               updatedItem.id,
@@ -399,7 +569,13 @@ export default function EditEstimateScreen() {
             item.id === updatedItem.id ? updatedItem : item
           );
           setItems(nextItems);
-          await persistEstimateTotal(calculateTotal(nextItems));
+          const nextTotals = calculateEstimateTotals({
+            materialLineItems: nextItems,
+            laborHours,
+            laborRate: hourlyRate,
+            taxRate,
+          });
+          await persistEstimateTotals(nextTotals);
         } else {
           const newItem: EstimateItemRecord = {
             id: uuidv4(),
@@ -408,14 +584,15 @@ export default function EditEstimateScreen() {
             quantity: values.quantity,
             unit_price: values.unit_price,
             total: values.total,
+            catalog_item_id: resolvedTemplateId,
             version: 1,
             updated_at: now,
             deleted_at: null,
           };
 
           await db.runAsync(
-            `INSERT OR REPLACE INTO estimate_items (id, estimate_id, description, quantity, unit_price, total, version, updated_at, deleted_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT OR REPLACE INTO estimate_items (id, estimate_id, description, quantity, unit_price, total, catalog_item_id, version, updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               newItem.id,
               newItem.estimate_id,
@@ -423,6 +600,7 @@ export default function EditEstimateScreen() {
               newItem.quantity,
               newItem.unit_price,
               newItem.total,
+              newItem.catalog_item_id,
               newItem.version,
               newItem.updated_at,
               newItem.deleted_at,
@@ -433,7 +611,13 @@ export default function EditEstimateScreen() {
 
           const nextItems = [...items, newItem];
           setItems(nextItems);
-          await persistEstimateTotal(calculateTotal(nextItems));
+          const nextTotals = calculateEstimateTotals({
+            materialLineItems: nextItems,
+            laborHours,
+            laborRate: hourlyRate,
+            taxRate,
+          });
+          await persistEstimateTotals(nextTotals);
         }
 
         closeItemModal();
@@ -443,7 +627,16 @@ export default function EditEstimateScreen() {
         Alert.alert("Error", "Unable to save the item. Please try again.");
       }
     },
-    [editingItem, items, closeItemModal, persistEstimateTotal]
+    [
+      editingItem,
+      hourlyRate,
+      items,
+      laborHours,
+      taxRate,
+      userId,
+      closeItemModal,
+      persistEstimateTotals,
+    ]
   );
 
   const handleDeleteItem = useCallback(
@@ -486,7 +679,13 @@ export default function EditEstimateScreen() {
                   current?.id === item.id ? null : current
                 );
 
-                await persistEstimateTotal(calculateTotal(nextItems));
+                const nextTotals = calculateEstimateTotals({
+                  materialLineItems: nextItems,
+                  laborHours,
+                  laborRate: hourlyRate,
+                  taxRate,
+                });
+                await persistEstimateTotals(nextTotals);
                 await runSync();
               } catch (error) {
                 console.error("Failed to delete estimate item", error);
@@ -500,7 +699,7 @@ export default function EditEstimateScreen() {
         ]
       );
     },
-    [items, persistEstimateTotal]
+    [hourlyRate, items, laborHours, persistEstimateTotals, taxRate]
   );
 
   const renderItem = useCallback(
@@ -805,7 +1004,7 @@ export default function EditEstimateScreen() {
         `Hi ${customerContact.name || "there"},`,
         "",
         "Please review your estimate from QuickQuote.",
-        `Total: ${formatCurrency(computedTotal)}`,
+        `Total: ${formatCurrency(totals.grandTotal)}`,
         `PDF saved at: ${pdf.uri}`,
         "",
         "Thank you!",
@@ -847,7 +1046,7 @@ export default function EditEstimateScreen() {
     ensurePdfReady,
     customerContact,
     estimate,
-    computedTotal,
+    totals.grandTotal,
     logEstimateDelivery,
   ]);
 
@@ -876,7 +1075,7 @@ export default function EditEstimateScreen() {
         return;
       }
       const message = `Estimate ${estimate.id} total ${formatCurrency(
-        computedTotal
+        totals.grandTotal
       )}. PDF: ${pdf.uri}`;
 
       let smsResponse;
@@ -922,7 +1121,7 @@ export default function EditEstimateScreen() {
     ensurePdfReady,
     customerContact,
     estimate,
-    computedTotal,
+    totals.grandTotal,
     logEstimateDelivery,
   ]);
 
@@ -933,7 +1132,7 @@ export default function EditEstimateScreen() {
       try {
         const db = await openDB();
         const rows = await db.getAllAsync<EstimateListItem>(
-          `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.notes, e.status, e.version, e.updated_at, e.deleted_at,
+          `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.material_total, e.labor_hours, e.labor_rate, e.labor_total, e.subtotal, e.tax_rate, e.tax_total, e.notes, e.status, e.version, e.updated_at, e.deleted_at,
                   c.name AS customer_name,
                   c.email AS customer_email,
                   c.phone AS customer_phone,
@@ -965,6 +1164,29 @@ export default function EditEstimateScreen() {
         );
         setNotes(record.notes ?? "");
         setStatus(record.status ?? "draft");
+        const laborHoursValue =
+          typeof record.labor_hours === "number" && Number.isFinite(record.labor_hours)
+            ? Math.max(0, Math.round(record.labor_hours * 100) / 100)
+            : 0;
+        const laborRateValue =
+          typeof record.labor_rate === "number" && Number.isFinite(record.labor_rate)
+            ? Math.max(0, Math.round(record.labor_rate * 100) / 100)
+            : Math.max(0, Math.round(settings.hourlyRate * 100) / 100);
+        const taxRateValue =
+          typeof record.tax_rate === "number" && Number.isFinite(record.tax_rate)
+            ? Math.max(0, Math.round(record.tax_rate * 100) / 100)
+            : 0;
+        setLaborHoursText(
+          laborHoursValue % 1 === 0
+            ? laborHoursValue.toFixed(0)
+            : laborHoursValue.toString()
+        );
+        setHourlyRateText(laborRateValue.toFixed(2));
+        setTaxRateText(
+          taxRateValue % 1 === 0
+            ? taxRateValue.toFixed(0)
+            : taxRateValue.toString()
+        );
         setCustomerContact({
           id: record.customer_id,
           name: record.customer_name ?? "Customer",
@@ -974,7 +1196,7 @@ export default function EditEstimateScreen() {
         });
 
         const itemRows = await db.getAllAsync<EstimateItemRecord>(
-          `SELECT id, estimate_id, description, quantity, unit_price, total, version, updated_at, deleted_at
+          `SELECT id, estimate_id, description, quantity, unit_price, total, catalog_item_id, version, updated_at, deleted_at
            FROM estimate_items
            WHERE estimate_id = ? AND (deleted_at IS NULL OR deleted_at = '')
            ORDER BY datetime(updated_at) ASC`,
@@ -1001,13 +1223,17 @@ export default function EditEstimateScreen() {
           applyPhotoState(activePhotos);
         }
 
-        const recalculatedTotal = calculateTotal(activeItems);
-        if (
-          Math.abs((record.total ?? 0) - recalculatedTotal) >= 0.005 &&
-          isMounted
-        ) {
-          await persistEstimateTotal(recalculatedTotal);
-          await runSync();
+        const recalculatedTotals = calculateEstimateTotals({
+          materialLineItems: activeItems,
+          laborHours: laborHoursValue,
+          laborRate: laborRateValue,
+          taxRate: taxRateValue,
+        });
+        if (isMounted) {
+          const updated = await persistEstimateTotals(recalculatedTotals);
+          if (updated) {
+            await runSync();
+          }
         }
       } catch (error) {
         console.error("Failed to load estimate", error);
@@ -1035,7 +1261,7 @@ export default function EditEstimateScreen() {
     return () => {
       isMounted = false;
     };
-  }, [estimateId, persistEstimateTotal, applyPhotoState]);
+  }, [estimateId, persistEstimateTotals, applyPhotoState, settings.hourlyRate]);
 
   const handleCancel = () => {
     if (!saving) {
@@ -1056,7 +1282,7 @@ export default function EditEstimateScreen() {
     setSaving(true);
 
     try {
-      const safeTotal = Math.round(computedTotal * 100) / 100;
+      const safeTotal = Math.round(totals.grandTotal * 100) / 100;
       const now = new Date().toISOString();
       let isoDate: string | null = null;
       if (estimateDate) {
@@ -1072,12 +1298,19 @@ export default function EditEstimateScreen() {
       const db = await openDB();
       await db.runAsync(
         `UPDATE estimates
-         SET customer_id = ?, date = ?, total = ?, notes = ?, status = ?, version = ?, updated_at = ?, deleted_at = NULL
+         SET customer_id = ?, date = ?, total = ?, material_total = ?, labor_hours = ?, labor_rate = ?, labor_total = ?, subtotal = ?, tax_rate = ?, tax_total = ?, notes = ?, status = ?, version = ?, updated_at = ?, deleted_at = NULL
          WHERE id = ?`,
         [
           customerId,
           isoDate,
           safeTotal,
+          totals.materialTotal,
+          totals.laborHours,
+          totals.laborRate,
+          totals.laborTotal,
+          totals.subtotal,
+          totals.taxRate,
+          totals.taxTotal,
           trimmedNotes,
           status,
           nextVersion,
@@ -1116,6 +1349,13 @@ export default function EditEstimateScreen() {
         customer_address: customerAddress ?? null,
         date: isoDate,
         total: safeTotal,
+        material_total: totals.materialTotal,
+        labor_hours: totals.laborHours,
+        labor_rate: totals.laborRate,
+        labor_total: totals.laborTotal,
+        subtotal: totals.subtotal,
+        tax_rate: totals.taxRate,
+        tax_total: totals.taxTotal,
         notes: trimmedNotes,
         status,
         version: nextVersion,
@@ -1317,9 +1557,58 @@ export default function EditEstimateScreen() {
         />
       </View>
 
+      <View style={{ gap: 12 }}>
+        <Text style={{ fontWeight: "600" }}>Labor</Text>
+        <View style={{ gap: 6 }}>
+          <Text style={{ fontWeight: "500" }}>Project hours</Text>
+          <TextInput
+            placeholder="0"
+            value={laborHoursText}
+            onChangeText={setLaborHoursText}
+            keyboardType="decimal-pad"
+            style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
+          />
+        </View>
+        <View style={{ gap: 6 }}>
+          <Text style={{ fontWeight: "500" }}>Hourly rate</Text>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Text style={{ fontWeight: "600", marginRight: 8 }}>$</Text>
+            <TextInput
+              placeholder="0.00"
+              value={hourlyRateText}
+              onChangeText={setHourlyRateText}
+              keyboardType="decimal-pad"
+              style={{ flex: 1, borderWidth: 1, borderRadius: 8, padding: 10 }}
+            />
+          </View>
+          <Text style={{ color: "#555", fontSize: 12 }}>
+            Labor total (not shown to customers): {formatCurrency(totals.laborTotal)}
+          </Text>
+        </View>
+      </View>
+
       <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Estimate Total</Text>
-        <Text>{formatCurrency(computedTotal)}</Text>
+        <Text style={{ fontWeight: "600" }}>Tax rate</Text>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <TextInput
+            placeholder="0"
+            value={taxRateText}
+            onChangeText={setTaxRateText}
+            keyboardType="decimal-pad"
+            style={{ flex: 1, borderWidth: 1, borderRadius: 8, padding: 10 }}
+          />
+          <Text style={{ fontWeight: "600", marginLeft: 8 }}>%</Text>
+        </View>
+      </View>
+
+      <View style={{ gap: 6 }}>
+        <Text style={{ fontWeight: "600" }}>Estimate summary</Text>
+        <View style={{ gap: 4 }}>
+          <Text>Materials: {formatCurrency(totals.materialTotal)}</Text>
+          <Text>Labor: {formatCurrency(totals.laborTotal)}</Text>
+          <Text>Tax: {formatCurrency(totals.taxTotal)}</Text>
+          <Text style={{ fontWeight: "700" }}>Project total: {formatCurrency(totals.grandTotal)}</Text>
+        </View>
       </View>
 
       <View style={{ gap: 6 }}>
@@ -1397,40 +1686,39 @@ export default function EditEstimateScreen() {
         transparent
         onRequestClose={closeItemModal}
       >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.35)",
-            justifyContent: "center",
-            padding: 24,
-          }}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+          style={{ flex: 1 }}
         >
-          <View
-            style={{
-              backgroundColor: "#fff",
-              borderRadius: 12,
-              padding: 20,
-            }}
-          >
-            <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}>
-              {editingItem ? "Edit Item" : "Add Item"}
-            </Text>
-            <EstimateItemForm
-              initialValue={
-                editingItem
-                  ? {
-                      description: editingItem.description,
-                      quantity: editingItem.quantity,
-                      unit_price: editingItem.unit_price,
+          <TouchableWithoutFeedback onPress={closeItemModal} accessible={false}>
+            <View style={itemModalStyles.overlay}>
+              <TouchableWithoutFeedback onPress={() => {}} accessible={false}>
+                <View style={itemModalStyles.card}>
+                  <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}>
+                    {editingItem ? "Edit Item" : "Add Item"}
+                  </Text>
+                  <EstimateItemForm
+                    initialValue={
+                      editingItem
+                        ? {
+                            description: editingItem.description,
+                            quantity: editingItem.quantity,
+                            unit_price: editingItem.unit_price,
+                          }
+                        : undefined
                     }
-                  : undefined
-              }
-              onSubmit={handleSubmitItem}
-              onCancel={closeItemModal}
-              submitLabel={editingItem ? "Update Item" : "Add Item"}
-            />
-          </View>
-        </View>
+                    initialTemplateId={editingItem?.catalog_item_id ?? null}
+                    templates={savedItemTemplates}
+                    onSubmit={handleSubmitItem}
+                    onCancel={closeItemModal}
+                    submitLabel={editingItem ? "Update Item" : "Add Item"}
+                  />
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </ScrollView>
   );
