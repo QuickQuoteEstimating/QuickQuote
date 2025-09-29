@@ -73,6 +73,7 @@ type CustomerRecord = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  notes: string | null;
 };
 
 function formatCurrency(value: number): string {
@@ -177,7 +178,7 @@ export default function EditEstimateScreen() {
       try {
         const db = await openDB();
         const rows = await db.getAllAsync<CustomerRecord>(
-          `SELECT id, name, email, phone, address FROM customers WHERE id = ? LIMIT 1`,
+          `SELECT id, name, email, phone, address, notes FROM customers WHERE id = ? LIMIT 1`,
           [customerId]
         );
 
@@ -193,6 +194,7 @@ export default function EditEstimateScreen() {
             email: record.email ?? null,
             phone: record.phone ?? null,
             address: record.address ?? null,
+            notes: record.notes ?? null,
           });
         } else {
           setCustomerContact(null);
@@ -1097,7 +1099,7 @@ export default function EditEstimateScreen() {
           phone: string | null;
           address: string | null;
         }>(
-          `SELECT name, email, phone, address FROM customers WHERE id = ? LIMIT 1`,
+          `SELECT name, email, phone, address, notes FROM customers WHERE id = ? LIMIT 1`,
           [customerId]
         );
         const customerRecord = customerRows[0];
