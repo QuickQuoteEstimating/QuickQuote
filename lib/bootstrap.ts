@@ -95,12 +95,6 @@ export async function bootstrapUserData(userId: string) {
 
   const db = await openDB();
 
-  await db.runAsync("DELETE FROM sync_queue");
-  await db.runAsync("DELETE FROM photos");
-  await db.runAsync("DELETE FROM estimate_items");
-  await db.runAsync("DELETE FROM estimates");
-  await db.runAsync("DELETE FROM customers");
-
   await ensurePhotoDirectory();
   const expectedLocalPaths = new Set<string>();
   const { data: sessionData, error: sessionError } =
@@ -209,6 +203,15 @@ export async function bootstrapUserData(userId: string) {
         photo.deleted_at,
       ]
     );
+  }
+
+  const localPhotoRows = await db.getAllAsync<{ local_uri: string | null }>(
+    "SELECT local_uri FROM photos WHERE local_uri IS NOT NULL"
+  );
+  for (const { local_uri } of localPhotoRows) {
+    if (local_uri) {
+      expectedLocalPaths.add(local_uri);
+    }
   }
 
   if (FileSystem.documentDirectory) {
