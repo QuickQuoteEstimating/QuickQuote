@@ -6,15 +6,11 @@ import {
   Button,
   FlatList,
   Image,
-  KeyboardAvoidingView,
   Linking,
-  Modal,
   Platform,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
@@ -22,12 +18,16 @@ import * as ImagePicker from "expo-image-picker";
 import * as Print from "expo-print";
 import * as SMS from "expo-sms";
 import CustomerPicker from "../../../components/CustomerPicker";
-import EstimateItemForm, {
+import {
   type EstimateItemFormSubmit,
   type EstimateItemTemplate,
 } from "../../../components/EstimateItemForm";
 import { useAuth } from "../../../context/AuthContext";
 import { useSettings } from "../../../context/SettingsContext";
+import {
+  useItemEditor,
+  type ItemEditorConfig,
+} from "../../../context/ItemEditorContext";
 import {
   logEstimateDelivery,
   openDB,
@@ -116,26 +116,13 @@ const STATUS_OPTIONS = [
   { label: "Declined", value: "declined" },
 ];
 
-const itemModalStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "center",
-    padding: 24,
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-  },
-});
-
 export default function EditEstimateScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const estimateId = params.id ?? "";
   const { user, session } = useAuth();
   const { settings } = useSettings();
   const userId = user?.id ?? session?.user?.id ?? null;
+  const { openEditor } = useItemEditor();
 
   const [estimate, setEstimate] = useState<EstimateListItem | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -143,10 +130,6 @@ export default function EditEstimateScreen() {
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState("draft");
   const [items, setItems] = useState<EstimateItemRecord[]>([]);
-  const [itemModalVisible, setItemModalVisible] = useState(false);
-  const [editingItem, setEditingItem] = useState<EstimateItemRecord | null>(
-    null
-  );
   const [savedItems, setSavedItems] = useState<ItemCatalogRecord[]>([]);
   const [laborHoursText, setLaborHoursText] = useState("0");
   const [hourlyRateText, setHourlyRateText] = useState(settings.hourlyRate.toFixed(2));
@@ -402,10 +385,13 @@ export default function EditEstimateScreen() {
     return true;
   }, []);
 
-  const closeItemModal = useCallback(() => {
-    setItemModalVisible(false);
-    setEditingItem(null);
-  }, []);
+  const openItemEditorScreen = useCallback(
+    (config: ItemEditorConfig) => {
+      openEditor(config);
+      router.push("/(tabs)/estimates/item-editor");
+    },
+    [openEditor],
+  );
 
   const persistEstimateTotals = useCallback(
     async (nextTotals: ReturnType<typeof calculateEstimateTotals>) => {
@@ -493,84 +479,128 @@ export default function EditEstimateScreen() {
     []
   );
 
-  const handleSubmitItem = useCallback(
-    async ({ values, saveToLibrary, templateId }: EstimateItemFormSubmit) => {
-      const currentEstimate = estimateRef.current;
-      if (!currentEstimate) {
-        return;
-      }
+  const makeItemSubmitHandler = useCallback(
+    (existingItem?: EstimateItemRecord | null) =>
+      async ({ values, saveToLibrary, templateId }: EstimateItemFormSubmit) => {
+        const currentEstimate = estimateRef.current;
+        if (!currentEstimate) {
+          return;
+        }
 
-      try {
-        const now = new Date().toISOString();
-        const db = await openDB();
-        let resolvedTemplateId: string | null = templateId ?? null;
+        try {
+          const now = new Date().toISOString();
+          const db = await openDB();
+          let resolvedTemplateId: string | null = templateId ?? null;
 
-        if (saveToLibrary && userId) {
-          try {
-            const record = await upsertItemCatalog({
-              id: templateId ?? undefined,
-              userId,
-              description: values.description,
-              unitPrice: values.unit_price,
-              defaultQuantity: values.quantity,
-            });
-            resolvedTemplateId = record.id;
-            setSavedItems((prev) => {
-              const existingIndex = prev.findIndex((item) => item.id === record.id);
-              if (existingIndex >= 0) {
-                const next = [...prev];
-                next[existingIndex] = record;
-                return next;
-              }
-              return [...prev, record].sort((a, b) =>
-                a.description.localeCompare(b.description)
+          if (saveToLibrary && userId) {
+            try {
+              const record = await upsertItemCatalog({
+                id: templateId ?? undefined,
+                userId,
+                description: values.description,
+                unitPrice: values.unit_price,
+                defaultQuantity: values.quantity,
+              });
+              resolvedTemplateId = record.id;
+              setSavedItems((prev) => {
+                const existingIndex = prev.findIndex((item) => item.id === record.id);
+                if (existingIndex >= 0) {
+                  const next = [...prev];
+                  next[existingIndex] = record;
+                  return next;
+                }
+                return [...prev, record].sort((a, b) =>
+                  a.description.localeCompare(b.description)
+                );
+              });
+            } catch (error) {
+              console.error("Failed to update item catalog", error);
+              Alert.alert(
+                "Saved items",
+                "We couldn't update your saved items library. The estimate item was still updated."
               );
-            });
-          } catch (error) {
-            console.error("Failed to update item catalog", error);
-            Alert.alert(
-              "Saved items",
-              "We couldn't update your saved items library. The estimate item was still updated."
-            );
+            }
           }
-        }
 
-        if (editingItem) {
-          const nextVersion = (editingItem.version ?? 1) + 1;
-          const updatedItem: EstimateItemRecord = {
-            ...editingItem,
-            description: values.description,
-            quantity: values.quantity,
-            unit_price: values.unit_price,
-            total: values.total,
-            catalog_item_id: resolvedTemplateId,
-            version: nextVersion,
-            updated_at: now,
-            deleted_at: null,
-          };
+          let nextItems: EstimateItemRecord[] = [];
 
-          await db.runAsync(
-            `UPDATE estimate_items
-             SET description = ?, quantity = ?, unit_price = ?, total = ?, catalog_item_id = ?, version = ?, updated_at = ?, deleted_at = NULL
-             WHERE id = ?`,
-            [
-              updatedItem.description,
-              updatedItem.quantity,
-              updatedItem.unit_price,
-              updatedItem.total,
-              updatedItem.catalog_item_id,
-              nextVersion,
-              now,
-              updatedItem.id,
-            ]
-          );
+          if (existingItem) {
+            const nextVersion = (existingItem.version ?? 1) + 1;
+            const updatedItem: EstimateItemRecord = {
+              ...existingItem,
+              description: values.description,
+              quantity: values.quantity,
+              unit_price: values.unit_price,
+              total: values.total,
+              catalog_item_id: resolvedTemplateId,
+              version: nextVersion,
+              updated_at: now,
+              deleted_at: null,
+            };
 
-          await queueChange("estimate_items", "update", updatedItem);
+            await db.runAsync(
+              `UPDATE estimate_items
+               SET description = ?, quantity = ?, unit_price = ?, total = ?, catalog_item_id = ?, version = ?, updated_at = ?, deleted_at = NULL
+               WHERE id = ?`,
+              [
+                updatedItem.description,
+                updatedItem.quantity,
+                updatedItem.unit_price,
+                updatedItem.total,
+                updatedItem.catalog_item_id,
+                nextVersion,
+                now,
+                updatedItem.id,
+              ]
+            );
 
-          const nextItems = items.map((item) =>
-            item.id === updatedItem.id ? updatedItem : item
-          );
-          setItems(nextItems);
+            await queueChange("estimate_items", "update", updatedItem);
+
+            setItems((prev) => {
+              nextItems = prev.map((item) =>
+                item.id === updatedItem.id ? updatedItem : item
+              );
+              return nextItems;
+            });
+          } else {
+            const newItem: EstimateItemRecord = {
+              id: uuidv4(),
+              estimate_id: currentEstimate.id,
+              description: values.description,
+              quantity: values.quantity,
+              unit_price: values.unit_price,
+              total: values.total,
+              catalog_item_id: resolvedTemplateId,
+              version: 1,
+              updated_at: now,
+              deleted_at: null,
+            };
+
+            await db.runAsync(
+              `INSERT OR REPLACE INTO estimate_items (id, estimate_id, description, quantity, unit_price, total, catalog_item_id, version, updated_at, deleted_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                newItem.id,
+                newItem.estimate_id,
+                newItem.description,
+                newItem.quantity,
+                newItem.unit_price,
+                newItem.total,
+                newItem.catalog_item_id,
+                newItem.version,
+                newItem.updated_at,
+                newItem.deleted_at,
+              ]
+            );
+
+            await queueChange("estimate_items", "insert", newItem);
+
+            setItems((prev) => {
+              nextItems = [...prev, newItem];
+              return nextItems;
+            });
+          }
+
           const nextTotals = calculateEstimateTotals({
             materialLineItems: nextItems,
             laborHours,
@@ -578,67 +608,13 @@ export default function EditEstimateScreen() {
             taxRate,
           });
           await persistEstimateTotals(nextTotals);
-        } else {
-          const newItem: EstimateItemRecord = {
-            id: uuidv4(),
-            estimate_id: currentEstimate.id,
-            description: values.description,
-            quantity: values.quantity,
-            unit_price: values.unit_price,
-            total: values.total,
-            catalog_item_id: resolvedTemplateId,
-            version: 1,
-            updated_at: now,
-            deleted_at: null,
-          };
-
-          await db.runAsync(
-            `INSERT OR REPLACE INTO estimate_items (id, estimate_id, description, quantity, unit_price, total, catalog_item_id, version, updated_at, deleted_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              newItem.id,
-              newItem.estimate_id,
-              newItem.description,
-              newItem.quantity,
-              newItem.unit_price,
-              newItem.total,
-              newItem.catalog_item_id,
-              newItem.version,
-              newItem.updated_at,
-              newItem.deleted_at,
-            ]
-          );
-
-          await queueChange("estimate_items", "insert", newItem);
-
-          const nextItems = [...items, newItem];
-          setItems(nextItems);
-          const nextTotals = calculateEstimateTotals({
-            materialLineItems: nextItems,
-            laborHours,
-            laborRate: hourlyRate,
-            taxRate,
-          });
-          await persistEstimateTotals(nextTotals);
+          await runSync();
+        } catch (error) {
+          console.error("Failed to save estimate item", error);
+          Alert.alert("Error", "Unable to save the item. Please try again.");
         }
-
-        closeItemModal();
-        await runSync();
-      } catch (error) {
-        console.error("Failed to save estimate item", error);
-        Alert.alert("Error", "Unable to save the item. Please try again.");
-      }
-    },
-    [
-      editingItem,
-      hourlyRate,
-      items,
-      laborHours,
-      taxRate,
-      userId,
-      closeItemModal,
-      persistEstimateTotals,
-    ]
+      },
+    [hourlyRate, laborHours, persistEstimateTotals, taxRate, userId]
   );
 
   const handleDeleteItem = useCallback(
@@ -673,13 +649,11 @@ export default function EditEstimateScreen() {
 
                 await queueChange("estimate_items", "update", deletedItem);
 
-                const nextItems = items.filter(
-                  (existing) => existing.id !== item.id
-                );
-                setItems(nextItems);
-                setEditingItem((current) =>
-                  current?.id === item.id ? null : current
-                );
+                let nextItems: EstimateItemRecord[] = [];
+                setItems((prev) => {
+                  nextItems = prev.filter((existing) => existing.id !== item.id);
+                  return nextItems;
+                });
 
                 const nextTotals = calculateEstimateTotals({
                   materialLineItems: nextItems,
@@ -701,7 +675,7 @@ export default function EditEstimateScreen() {
         ]
       );
     },
-    [hourlyRate, items, laborHours, persistEstimateTotals, taxRate]
+    [hourlyRate, laborHours, persistEstimateTotals, taxRate]
   );
 
   const renderItem = useCallback(
@@ -728,10 +702,20 @@ export default function EditEstimateScreen() {
           <View style={{ flex: 1 }}>
             <Button
               title="Edit"
-              onPress={() => {
-                setEditingItem(item);
-                setItemModalVisible(true);
-              }}
+              onPress={() =>
+                openItemEditorScreen({
+                  title: "Edit Item",
+                  submitLabel: "Update Item",
+                  initialValue: {
+                    description: item.description,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                  },
+                  initialTemplateId: item.catalog_item_id,
+                  templates: savedItemTemplates,
+                  onSubmit: makeItemSubmitHandler(item),
+                })
+              }
             />
           </View>
           <View style={{ flex: 1 }}>
@@ -744,7 +728,7 @@ export default function EditEstimateScreen() {
         </View>
       </View>
     ),
-    [handleDeleteItem]
+    [handleDeleteItem, makeItemSubmitHandler, openItemEditorScreen, savedItemTemplates]
   );
 
   const handlePhotoDraftChange = useCallback((photoId: string, value: string) => {
@@ -1552,10 +1536,15 @@ export default function EditEstimateScreen() {
         />
         <Button
           title="Add Item"
-          onPress={() => {
-            setEditingItem(null);
-            setItemModalVisible(true);
-          }}
+          onPress={() =>
+            openItemEditorScreen({
+              title: "Add Item",
+              submitLabel: "Add Item",
+              templates: savedItemTemplates,
+              initialTemplateId: null,
+              onSubmit: makeItemSubmitHandler(null),
+            })
+          }
         />
       </View>
 
@@ -1681,47 +1670,6 @@ export default function EditEstimateScreen() {
           <Button title="Save" onPress={handleSave} disabled={saving} />
         </View>
       </View>
-
-      <Modal
-        visible={itemModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={closeItemModal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-          style={{ flex: 1 }}
-        >
-          <TouchableWithoutFeedback onPress={closeItemModal} accessible={false}>
-            <View style={itemModalStyles.overlay}>
-              <TouchableWithoutFeedback onPress={() => {}} accessible={false}>
-                <View style={itemModalStyles.card}>
-                  <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}>
-                    {editingItem ? "Edit Item" : "Add Item"}
-                  </Text>
-                  <EstimateItemForm
-                    initialValue={
-                      editingItem
-                        ? {
-                            description: editingItem.description,
-                            quantity: editingItem.quantity,
-                            unit_price: editingItem.unit_price,
-                          }
-                        : undefined
-                    }
-                    initialTemplateId={editingItem?.catalog_item_id ?? null}
-                    templates={savedItemTemplates}
-                    onSubmit={handleSubmitItem}
-                    onCancel={closeItemModal}
-                    submitLabel={editingItem ? "Update Item" : "Add Item"}
-                  />
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
-      </Modal>
     </ScrollView>
   );
 }

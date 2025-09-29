@@ -1,29 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { router } from "expo-router";
-import {
-  Alert,
-  Button,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, Button, FlatList, ScrollView, Text, TextInput, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
 import CustomerPicker from "../../../components/CustomerPicker";
-import EstimateItemForm, {
+import {
   type EstimateItemFormSubmit,
   type EstimateItemTemplate,
 } from "../../../components/EstimateItemForm";
 import { useAuth } from "../../../context/AuthContext";
 import { useSettings } from "../../../context/SettingsContext";
+import {
+  useItemEditor,
+  type ItemEditorConfig,
+} from "../../../context/ItemEditorContext";
 import { openDB, queueChange } from "../../../lib/sqlite";
 import { runSync } from "../../../lib/sync";
 import {
@@ -61,25 +52,10 @@ const STATUS_OPTIONS = [
   { label: "Declined", value: "declined" },
 ];
 
-const itemModalStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "center",
-    position: "relative",
-    padding: 24,
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    zIndex: 1,
-  },
-});
-
 export default function NewEstimateScreen() {
   const { user, session } = useAuth();
   const { settings } = useSettings();
+  const { openEditor } = useItemEditor();
   const [estimateId] = useState(() => uuidv4());
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [estimateDate, setEstimateDate] = useState(
@@ -88,10 +64,6 @@ export default function NewEstimateScreen() {
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState("draft");
   const [items, setItems] = useState<EstimateItemRecord[]>([]);
-  const [itemModalVisible, setItemModalVisible] = useState(false);
-  const [editingItem, setEditingItem] = useState<EstimateItemRecord | null>(
-    null
-  );
   const [saving, setSaving] = useState(false);
   const [laborHoursText, setLaborHoursText] = useState("0");
   const [hourlyRateText, setHourlyRateText] = useState(settings.hourlyRate.toFixed(2));
@@ -168,79 +140,84 @@ export default function NewEstimateScreen() {
     [savedItems]
   );
 
-  const closeItemModal = () => {
-    setItemModalVisible(false);
-    setEditingItem(null);
-  };
+  const openItemEditorScreen = useCallback(
+    (config: ItemEditorConfig) => {
+      openEditor(config);
+      router.push("/(tabs)/estimates/item-editor");
+    },
+    [openEditor],
+  );
 
-  const handleSubmitItem = async ({ values, saveToLibrary, templateId }: EstimateItemFormSubmit) => {
-    const now = new Date().toISOString();
-    let resolvedTemplateId: string | null = templateId ?? null;
+  const makeItemSubmitHandler = useCallback(
+    (existingItem?: EstimateItemRecord | null) =>
+      async ({ values, saveToLibrary, templateId }: EstimateItemFormSubmit) => {
+        const now = new Date().toISOString();
+        let resolvedTemplateId: string | null = templateId ?? null;
 
-    if (saveToLibrary && userId) {
-      try {
-        const record = await upsertItemCatalog({
-          id: templateId ?? undefined,
-          userId,
-          description: values.description,
-          unitPrice: values.unit_price,
-          defaultQuantity: values.quantity,
-        });
-        resolvedTemplateId = record.id;
-        setSavedItems((prev) => {
-          const existingIndex = prev.findIndex((item) => item.id === record.id);
-          if (existingIndex >= 0) {
-            const next = [...prev];
-            next[existingIndex] = record;
-            return next;
+        if (saveToLibrary && userId) {
+          try {
+            const record = await upsertItemCatalog({
+              id: templateId ?? undefined,
+              userId,
+              description: values.description,
+              unitPrice: values.unit_price,
+              defaultQuantity: values.quantity,
+            });
+            resolvedTemplateId = record.id;
+            setSavedItems((prev) => {
+              const existingIndex = prev.findIndex((item) => item.id === record.id);
+              if (existingIndex >= 0) {
+                const next = [...prev];
+                next[existingIndex] = record;
+                return next;
+              }
+              return [...prev, record].sort((a, b) =>
+                a.description.localeCompare(b.description)
+              );
+            });
+          } catch (error) {
+            console.error("Failed to save item to catalog", error);
+            Alert.alert(
+              "Saved items",
+              "We couldn't update your saved items library. The estimate item was still added."
+            );
           }
-          return [...prev, record].sort((a, b) =>
-            a.description.localeCompare(b.description)
+        }
+
+        if (existingItem) {
+          const updated: EstimateItemRecord = {
+            ...existingItem,
+            description: values.description,
+            quantity: values.quantity,
+            unit_price: values.unit_price,
+            total: values.total,
+            catalog_item_id: resolvedTemplateId,
+            updated_at: now,
+            deleted_at: null,
+          };
+
+          setItems((prev) =>
+            prev.map((item) => (item.id === updated.id ? updated : item))
           );
-        });
-      } catch (error) {
-        console.error("Failed to save item to catalog", error);
-        Alert.alert(
-          "Saved items",
-          "We couldn't update your saved items library. The estimate item was still added."
-        );
-      }
-    }
+        } else {
+          const newItem: EstimateItemRecord = {
+            id: uuidv4(),
+            estimate_id: estimateId,
+            description: values.description,
+            quantity: values.quantity,
+            unit_price: values.unit_price,
+            total: values.total,
+            catalog_item_id: resolvedTemplateId,
+            version: 1,
+            updated_at: now,
+            deleted_at: null,
+          };
 
-    if (editingItem) {
-      const updated: EstimateItemRecord = {
-        ...editingItem,
-        description: values.description,
-        quantity: values.quantity,
-        unit_price: values.unit_price,
-        total: values.total,
-        catalog_item_id: resolvedTemplateId,
-        updated_at: now,
-        deleted_at: null,
-      };
-
-      setItems((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item))
-      );
-    } else {
-      const newItem: EstimateItemRecord = {
-        id: uuidv4(),
-        estimate_id: estimateId,
-        description: values.description,
-        quantity: values.quantity,
-        unit_price: values.unit_price,
-        total: values.total,
-        catalog_item_id: resolvedTemplateId,
-        version: 1,
-        updated_at: now,
-        deleted_at: null,
-      };
-
-      setItems((prev) => [...prev, newItem]);
-    }
-
-    closeItemModal();
-  };
+          setItems((prev) => [...prev, newItem]);
+        }
+      },
+    [estimateId, userId],
+  );
 
   const handleDeleteItem = (item: EstimateItemRecord) => {
     Alert.alert(
@@ -252,10 +229,9 @@ export default function NewEstimateScreen() {
           text: "Delete",
           style: "destructive",
           onPress: () => {
-            setItems((prev) => prev.filter((existing) => existing.id !== item.id));
-            if (editingItem?.id === item.id) {
-              setEditingItem(null);
-            }
+            setItems((prev) =>
+              prev.filter((existing) => existing.id !== item.id)
+            );
           },
         },
       ]
@@ -279,16 +255,26 @@ export default function NewEstimateScreen() {
         </Text>
         <Text style={{ color: "#555" }}>Line Total: {formatCurrency(item.total)}</Text>
       </View>
-      <View style={{ flexDirection: "row", gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <Button
-            title="Edit"
-            onPress={() => {
-              setEditingItem(item);
-              setItemModalVisible(true);
-            }}
-          />
-        </View>
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Button
+              title="Edit"
+              onPress={() =>
+                openItemEditorScreen({
+                  title: "Edit Item",
+                  submitLabel: "Update Item",
+                  initialValue: {
+                    description: item.description,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                  },
+                  initialTemplateId: item.catalog_item_id,
+                  templates: savedItemTemplates,
+                  onSubmit: makeItemSubmitHandler(item),
+                })
+              }
+            />
+          </View>
         <View style={{ flex: 1 }}>
           <Button
             title="Remove"
@@ -469,10 +455,15 @@ export default function NewEstimateScreen() {
         />
         <Button
           title="Add Item"
-          onPress={() => {
-            setEditingItem(null);
-            setItemModalVisible(true);
-          }}
+          onPress={() =>
+            openItemEditorScreen({
+              title: "Add Item",
+              submitLabel: "Add Item",
+              templates: savedItemTemplates,
+              initialTemplateId: null,
+              onSubmit: makeItemSubmitHandler(null),
+            })
+          }
         />
       </View>
 
@@ -586,49 +577,6 @@ export default function NewEstimateScreen() {
           <Button title="Save" onPress={handleSave} disabled={saving} />
         </View>
       </View>
-
-      <Modal
-        visible={itemModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={closeItemModal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-          style={{ flex: 1 }}
-        >
-          <View style={itemModalStyles.overlay}>
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={closeItemModal}
-              accessibilityRole="button"
-              accessibilityLabel="Close add item modal"
-            />
-            <View style={itemModalStyles.card}>
-              <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}>
-                {editingItem ? "Edit Item" : "Add Item"}
-              </Text>
-              <EstimateItemForm
-                initialValue={
-                  editingItem
-                    ? {
-                        description: editingItem.description,
-                        quantity: editingItem.quantity,
-                        unit_price: editingItem.unit_price,
-                      }
-                    : undefined
-                }
-                initialTemplateId={editingItem?.catalog_item_id ?? null}
-                templates={savedItemTemplates}
-                onSubmit={handleSubmitItem}
-                onCancel={closeItemModal}
-                submitLabel={editingItem ? "Update Item" : "Add Item"}
-              />
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </ScrollView>
   );
 }
