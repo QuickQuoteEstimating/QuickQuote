@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router } from "expo-router";
 import { Alert, Button, FlatList, ScrollView, Text, TextInput, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
@@ -38,6 +38,41 @@ type EstimateItemRecord = {
   deleted_at: string | null;
 };
 
+type NewEstimateDraftState = {
+  estimateId: string;
+  customerId: string | null;
+  estimateDate: string;
+  notes: string;
+  status: string;
+  items: EstimateItemRecord[];
+  laborHoursText: string;
+  hourlyRateText: string;
+  taxRateText: string;
+};
+
+let newEstimateDraft: NewEstimateDraftState | null = null;
+
+function getNewEstimateDraft(): NewEstimateDraftState | null {
+  if (!newEstimateDraft) {
+    return null;
+  }
+  return {
+    ...newEstimateDraft,
+    items: newEstimateDraft.items.map((item) => ({ ...item })),
+  };
+}
+
+function setNewEstimateDraft(nextDraft: NewEstimateDraftState) {
+  newEstimateDraft = {
+    ...nextDraft,
+    items: nextDraft.items.map((item) => ({ ...item })),
+  };
+}
+
+function clearNewEstimateDraft() {
+  newEstimateDraft = null;
+}
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -57,29 +92,56 @@ export default function NewEstimateScreen() {
   const { user, session } = useAuth();
   const { settings } = useSettings();
   const { openEditor } = useItemEditor();
-  const [estimateId] = useState(() => uuidv4());
-  const [customerId, setCustomerId] = useState<string | null>(null);
-  const [estimateDate, setEstimateDate] = useState(
-    new Date().toISOString().split("T")[0]
+  const draftRef = useRef<NewEstimateDraftState | null>(getNewEstimateDraft());
+  const hasRestoredDraftRef = useRef(Boolean(draftRef.current));
+  const preserveDraftRef = useRef(false);
+  const [estimateId] = useState(
+    () => draftRef.current?.estimateId ?? uuidv4()
   );
-  const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState("draft");
-  const [items, setItems] = useState<EstimateItemRecord[]>([]);
+  const [customerId, setCustomerId] = useState<string | null>(
+    draftRef.current?.customerId ?? null
+  );
+  const [estimateDate, setEstimateDate] = useState(
+    draftRef.current?.estimateDate ?? new Date().toISOString().split("T")[0]
+  );
+  const [notes, setNotes] = useState(draftRef.current?.notes ?? "");
+  const [status, setStatus] = useState(draftRef.current?.status ?? "draft");
+  const [items, setItems] = useState<EstimateItemRecord[]>(
+    () => draftRef.current?.items.map((item) => ({ ...item })) ?? []
+  );
   const [saving, setSaving] = useState(false);
-  const [laborHoursText, setLaborHoursText] = useState("0");
-  const [hourlyRateText, setHourlyRateText] = useState(settings.hourlyRate.toFixed(2));
-  const [taxRateText, setTaxRateText] = useState(() => formatPercentageInput(settings.taxRate));
+  const [laborHoursText, setLaborHoursText] = useState(
+    draftRef.current?.laborHoursText ?? "0"
+  );
+  const [hourlyRateText, setHourlyRateText] = useState(
+    draftRef.current?.hourlyRateText ?? settings.hourlyRate.toFixed(2)
+  );
+  const [taxRateText, setTaxRateText] = useState(() =>
+    draftRef.current?.taxRateText ?? formatPercentageInput(settings.taxRate)
+  );
   const [savedItems, setSavedItems] = useState<ItemCatalogRecord[]>([]);
 
   const userId = user?.id ?? session?.user?.id ?? null;
 
   useEffect(() => {
+    if (hasRestoredDraftRef.current) {
+      return;
+    }
     setHourlyRateText(settings.hourlyRate.toFixed(2));
   }, [settings.hourlyRate]);
 
   useEffect(() => {
+    if (hasRestoredDraftRef.current) {
+      return;
+    }
     setTaxRateText(formatPercentageInput(settings.taxRate));
   }, [settings.taxRate]);
+
+  useEffect(() => {
+    if (hasRestoredDraftRef.current) {
+      hasRestoredDraftRef.current = false;
+    }
+  }, []);
 
   const loadSavedItems = useCallback(async () => {
     if (!userId) {
@@ -147,6 +209,7 @@ export default function NewEstimateScreen() {
 
   const openItemEditorScreen = useCallback(
     (config: ItemEditorConfig) => {
+      preserveDraftRef.current = true;
       openEditor(config);
       router.push("/(tabs)/estimates/item-editor");
     },
@@ -224,6 +287,39 @@ export default function NewEstimateScreen() {
     [estimateId, userId],
   );
 
+  useEffect(() => {
+    setNewEstimateDraft({
+      estimateId,
+      customerId,
+      estimateDate,
+      notes,
+      status,
+      items,
+      laborHoursText,
+      hourlyRateText,
+      taxRateText,
+    });
+  }, [
+    customerId,
+    estimateDate,
+    estimateId,
+    items,
+    laborHoursText,
+    hourlyRateText,
+    notes,
+    status,
+    taxRateText,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (!preserveDraftRef.current) {
+        clearNewEstimateDraft();
+      }
+      preserveDraftRef.current = false;
+    };
+  }, []);
+
   const handleDeleteItem = (item: EstimateItemRecord) => {
     Alert.alert(
       "Delete Item",
@@ -293,6 +389,7 @@ export default function NewEstimateScreen() {
 
   const handleCancel = () => {
     if (!saving) {
+      clearNewEstimateDraft();
       router.back();
     }
   };
@@ -406,6 +503,7 @@ export default function NewEstimateScreen() {
       await queueChange("estimates", "insert", newEstimate);
       await runSync();
 
+      clearNewEstimateDraft();
       Alert.alert("Success", "Estimate created successfully.", [
         { text: "OK", onPress: () => router.back() },
       ]);
