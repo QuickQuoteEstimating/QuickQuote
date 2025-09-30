@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   FlatList,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -11,6 +12,7 @@ import {
 import CustomerForm from "../../components/CustomerForm";
 import { openDB, queueChange } from "../../lib/sqlite";
 import { runSync } from "../../lib/sync";
+import { cardShadow, palette } from "../../lib/theme";
 
 type CustomerRecord = {
   id: string;
@@ -106,51 +108,64 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
   }, [address, customer, email, name, notes, phone, onSaved]);
 
   return (
-    <View style={{ gap: 8, padding: 12, borderWidth: 1, borderRadius: 8 }}>
-      <Text style={{ fontWeight: "600", fontSize: 16 }}>Edit Customer</Text>
+    <View style={styles.editCard}>
+      <Text style={styles.editTitle}>Edit Customer</Text>
       <TextInput
         placeholder="Name"
+        placeholderTextColor={palette.mutedText}
         value={name}
         onChangeText={setName}
-        style={{ borderWidth: 1, borderRadius: 6, padding: 10 }}
+        style={styles.input}
       />
       <TextInput
         placeholder="Phone"
+        placeholderTextColor={palette.mutedText}
         value={phone}
         onChangeText={setPhone}
-        style={{ borderWidth: 1, borderRadius: 6, padding: 10 }}
+        style={styles.input}
       />
       <TextInput
         placeholder="Email"
+        placeholderTextColor={palette.mutedText}
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
-        style={{ borderWidth: 1, borderRadius: 6, padding: 10 }}
+        style={styles.input}
       />
       <TextInput
         placeholder="Address"
+        placeholderTextColor={palette.mutedText}
         value={address}
         onChangeText={setAddress}
-        style={{ borderWidth: 1, borderRadius: 6, padding: 10 }}
+        style={styles.input}
       />
       <TextInput
         placeholder="Account notes"
+        placeholderTextColor={palette.mutedText}
         value={notes}
         onChangeText={setNotes}
         multiline
         numberOfLines={3}
-        style={{
-          borderWidth: 1,
-          borderRadius: 6,
-          padding: 10,
-          textAlignVertical: "top",
-          minHeight: 90,
-        }}
+        style={styles.textArea}
       />
-      <View style={{ flexDirection: "row", gap: 12, justifyContent: "flex-end" }}>
-        <Button title="Cancel" onPress={onCancel} disabled={saving} />
-        <Button title="Save" onPress={saveChanges} disabled={saving} />
+      <View style={styles.inlineButtons}>
+        <View style={styles.buttonFlex}>
+          <Button
+            title="Cancel"
+            onPress={onCancel}
+            disabled={saving}
+            color={palette.secondaryText}
+          />
+        </View>
+        <View style={styles.buttonFlex}>
+          <Button
+            title="Save"
+            onPress={saveChanges}
+            disabled={saving}
+            color={palette.accent}
+          />
+        </View>
       </View>
     </View>
   );
@@ -266,44 +281,35 @@ export default function Customers() {
 
   const renderCustomer = useCallback(
     ({ item }: { item: CustomerRecord }) => (
-      <View
-        style={{
-          padding: 16,
-          borderWidth: 1,
-          borderRadius: 10,
-          marginBottom: 12,
-          backgroundColor: "#fff",
-        }}
-      >
-        <Text style={{ fontSize: 18, fontWeight: "600" }}>{item.name}</Text>
+      <View style={styles.customerCard}>
+        <Text style={styles.customerName}>{item.name}</Text>
         {item.email ? (
-          <Text style={{ color: "#555", marginTop: 4 }}>{item.email}</Text>
+          <Text style={styles.customerMeta}>{item.email}</Text>
         ) : null}
         {item.phone ? (
-          <Text style={{ color: "#555", marginTop: 2 }}>{item.phone}</Text>
+          <Text style={styles.customerMeta}>{item.phone}</Text>
         ) : null}
         {item.address ? (
-          <Text style={{ color: "#555", marginTop: 2 }}>{item.address}</Text>
+          <Text style={styles.customerMeta}>{item.address}</Text>
         ) : null}
         {item.notes ? (
-          <Text style={{ color: "#777", marginTop: 6, fontStyle: "italic" }}>
-            {item.notes}
-          </Text>
+          <Text style={styles.customerNotes}>{item.notes}</Text>
         ) : null}
-        <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
-          <View style={{ flex: 1 }}>
+        <View style={styles.inlineButtons}>
+          <View style={styles.buttonFlex}>
             <Button
               title="Edit"
+              color={palette.accent}
               onPress={() => {
                 setEditingCustomer(item);
                 setShowAddForm(false);
               }}
             />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={styles.buttonFlex}>
             <Button
               title="Delete"
-              color="#b00020"
+              color={palette.danger}
               onPress={() => handleDelete(item)}
             />
           </View>
@@ -314,26 +320,23 @@ export default function Customers() {
   );
 
   return (
-    <View style={{ flex: 1, padding: 16, backgroundColor: "#f5f5f5" }}>
+    <View style={styles.screen}>
       <FlatList
         data={filteredCustomers}
         keyExtractor={(item) => item.id}
         renderItem={renderCustomer}
         ListHeaderComponent={
-          <View style={{ gap: 12, marginBottom: 16 }}>
-            <Text style={{ fontSize: 24, fontWeight: "700" }}>
-              Customer Management
+          <View style={styles.header}>
+            <Text style={styles.title}>Customer management</Text>
+            <Text style={styles.subtitle}>
+              Keep every relationship organized with quick notes and contact details.
             </Text>
             <TextInput
               placeholder="Search by name, email, phone, address, or notes"
+              placeholderTextColor={palette.mutedText}
               value={search}
               onChangeText={setSearch}
-              style={{
-                borderWidth: 1,
-                borderRadius: 8,
-                padding: 10,
-                backgroundColor: "#fff",
-              }}
+              style={styles.input}
             />
             <Button
               title={showAddForm ? "Hide Add Customer" : "Add Customer"}
@@ -341,9 +344,10 @@ export default function Customers() {
                 setShowAddForm((prev) => !prev);
                 setEditingCustomer(null);
               }}
+              color={palette.accent}
             />
             {showAddForm ? (
-              <View style={{ padding: 12, borderWidth: 1, borderRadius: 8 }}>
+              <View style={styles.formCard}>
                 <CustomerForm
                   onSaved={() => {
                     setShowAddForm(false);
@@ -369,16 +373,136 @@ export default function Customers() {
               />
             ) : null}
             {loading ? (
-              <View style={{ paddingVertical: 20 }}>
-                <ActivityIndicator />
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={palette.accent} />
               </View>
             ) : null}
           </View>
         }
         ListEmptyComponent={
           !loading ? (
-            <View style={{ paddingVertical: 40 }}>
-              <Text style={{ textAlign: "center", color: "#666" }}>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No customers found.</Text>
+            </View>
+          ) : null
+        }
+        contentContainerStyle={styles.listContent}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: palette.background,
+  },
+  header: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: palette.primaryText,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: palette.secondaryText,
+    lineHeight: 20,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: palette.surface,
+    color: palette.primaryText,
+    ...cardShadow(4),
+  },
+  textArea: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: palette.surface,
+    color: palette.primaryText,
+    minHeight: 90,
+    textAlignVertical: "top",
+  },
+  formCard: {
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: palette.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    ...cardShadow(10),
+  },
+  editCard: {
+    gap: 10,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: palette.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    ...cardShadow(10),
+  },
+  editTitle: {
+    fontWeight: "600",
+    fontSize: 16,
+    color: palette.primaryText,
+  },
+  inlineButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  buttonFlex: {
+    flex: 1,
+  },
+  customerCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    ...cardShadow(12),
+    gap: 6,
+  },
+  customerName: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: palette.primaryText,
+  },
+  customerMeta: {
+    color: palette.secondaryText,
+  },
+  customerNotes: {
+    marginTop: 6,
+    color: palette.mutedText,
+    fontStyle: "italic",
+  },
+  loadingRow: {
+    paddingVertical: 16,
+  },
+  emptyState: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: palette.mutedText,
+  },
+  listContent: {
+    paddingBottom: 24,
+  },
+});
                 No customers found.
               </Text>
             </View>

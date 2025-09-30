@@ -1,11 +1,12 @@
 // components/CustomerForm.tsx
 import React, { useState } from "react";
-import { View, TextInput, Button, Alert } from "react-native";
+import { View, TextInput, Button, Alert, StyleSheet } from "react-native";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
 import { openDB, queueChange } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
 import { useAuth } from "../context/AuthContext";
+import { palette, cardShadow } from "../lib/theme";
 
 type Props = {
   onSaved?: (customer: { id: string; name: string }) => void;
@@ -84,49 +85,78 @@ export default function CustomerForm({ onSaved, onCancel }: Props) {
   }
 
   return (
-    <View style={{ gap: 8 }}>
+    <View style={styles.container}>
       <TextInput
         placeholder="Name"
+        placeholderTextColor={palette.mutedText}
         value={name}
         onChangeText={setName}
-        style={{ borderWidth: 1, padding: 10, borderRadius: 8 }}
+        style={styles.input}
       />
       <TextInput
         placeholder="Phone"
+        placeholderTextColor={palette.mutedText}
         value={phone}
         onChangeText={setPhone}
-        style={{ borderWidth: 1, padding: 10, borderRadius: 8 }}
+        style={styles.input}
       />
       <TextInput
         placeholder="Email"
+        placeholderTextColor={palette.mutedText}
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
-        style={{ borderWidth: 1, padding: 10, borderRadius: 8 }}
+        style={styles.input}
       />
       <TextInput
         placeholder="Address"
+        placeholderTextColor={palette.mutedText}
         value={address}
         onChangeText={setAddress}
-        style={{ borderWidth: 1, padding: 10, borderRadius: 8 }}
+        style={styles.input}
       />
       <TextInput
         placeholder="Account notes"
+        placeholderTextColor={palette.mutedText}
         value={notes}
         onChangeText={setNotes}
         multiline
         numberOfLines={3}
-        style={{
-          borderWidth: 1,
-          padding: 10,
-          borderRadius: 8,
-          textAlignVertical: "top",
-          minHeight: 90,
-        }}
+        style={styles.textArea}
       />
-      <Button title="Save Customer" onPress={saveCustomer} />
-      {onCancel ? <Button title="Cancel" onPress={onCancel} /> : null}
+      <Button title="Save Customer" onPress={saveCustomer} color={palette.accent} />
+      {onCancel ? (
+        <Button title="Cancel" onPress={onCancel} color={palette.secondaryText} />
+      ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    gap: 10,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: palette.surface,
+    color: palette.primaryText,
+    ...cardShadow(4),
+  },
+  textArea: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: palette.surface,
+    color: palette.primaryText,
+    minHeight: 90,
+    textAlignVertical: "top",
+    ...cardShadow(4),
+  },
+});
