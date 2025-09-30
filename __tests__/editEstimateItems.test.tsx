@@ -202,7 +202,7 @@ describe("EditEstimateScreen - item editing", () => {
     const { findByText, getByText } = render(<EditEstimateScreen />);
 
     await act(async () => {});
-    await findByText("Items");
+    await findByText("Estimate items");
 
     fireEvent.press(getByText("Add Item"));
 

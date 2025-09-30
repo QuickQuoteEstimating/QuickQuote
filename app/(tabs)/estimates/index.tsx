@@ -5,6 +5,7 @@ import {
   Alert,
   FlatList,
   Pressable,
+  StyleSheet,
   Text,
   View,
   Button,
@@ -12,6 +13,7 @@ import {
 import { openDB, queueChange } from "../../../lib/sqlite";
 import { sanitizeEstimateForQueue } from "../../../lib/estimates";
 import { runSync } from "../../../lib/sync";
+import { cardShadow, palette } from "../../../lib/theme";
 
 export type EstimateListItem = {
   id: string;
@@ -176,49 +178,42 @@ export default function EstimatesScreen() {
 
   const renderEstimate = useCallback(
     ({ item }: { item: EstimateListItem }) => (
-      <View
-        style={{
-          padding: 16,
-          borderWidth: 1,
-          borderRadius: 10,
-          marginBottom: 12,
-          backgroundColor: "#fff",
-          gap: 8,
-        }}
-      >
-        <Pressable onPress={() => router.push(`/(tabs)/estimates/${item.id}`)}>
-          <Text style={{ fontSize: 18, fontWeight: "600" }}>
+      <View style={styles.card}>
+        <Pressable
+          onPress={() => router.push(`/(tabs)/estimates/${item.id}`)}
+          style={styles.cardBody}
+        >
+          <Text style={styles.cardTitle}>
             {item.customer_name ?? "Unknown customer"}
           </Text>
-          <Text style={{ color: "#555", marginTop: 4 }}>
-            Status: {formatStatus(item.status)}
-          </Text>
-          <Text style={{ color: "#555", marginTop: 2 }}>
+          <Text style={styles.cardMeta}>Status: {formatStatus(item.status)}</Text>
+          <Text style={styles.cardMeta}>
             Total: {formatCurrency(item.total)}
           </Text>
-          <Text style={{ color: "#555", marginTop: 2 }}>
+          <Text style={styles.cardMeta}>
             Labor: {formatCurrency(item.labor_total ?? 0)}
           </Text>
-          <Text style={{ color: "#555", marginTop: 2 }}>
+          <Text style={styles.cardMeta}>
             Materials: {formatCurrency(item.material_total ?? 0)}
           </Text>
           {item.date ? (
-            <Text style={{ color: "#777", marginTop: 2 }}>
+            <Text style={styles.cardMeta}>
               Date: {new Date(item.date).toLocaleDateString()}
             </Text>
           ) : null}
         </Pressable>
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <View style={{ flex: 1 }}>
+        <View style={styles.buttonRow}>
+          <View style={styles.buttonFlex}>
             <Button
               title="Edit"
+              color={palette.accent}
               onPress={() => router.push(`/(tabs)/estimates/${item.id}`)}
             />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={styles.buttonFlex}>
             <Button
               title="Delete"
-              color="#b00020"
+              color={palette.danger}
               onPress={() => handleDelete(item)}
             />
           </View>
@@ -230,15 +225,19 @@ export default function EstimatesScreen() {
 
   const listHeader = useMemo(
     () => (
-      <View style={{ gap: 12, marginBottom: 16 }}>
-        <Text style={{ fontSize: 24, fontWeight: "700" }}>Estimates</Text>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Estimates</Text>
+        <Text style={styles.headerSubtitle}>
+          Review drafts, monitor status changes, and keep your pipeline fresh.
+        </Text>
         <Button
           title="Create Estimate"
+          color={palette.accent}
           onPress={() => router.push("/(tabs)/estimates/new")}
         />
         {loading ? (
-          <View style={{ paddingVertical: 20 }}>
-            <ActivityIndicator />
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color={palette.accent} />
           </View>
         ) : null}
       </View>
@@ -247,17 +246,17 @@ export default function EstimatesScreen() {
   );
 
   return (
-    <View style={{ flex: 1, padding: 16, backgroundColor: "#f5f5f5" }}>
+    <View style={styles.screen}>
       <FlatList
         data={estimates}
         keyExtractor={(item) => item.id}
         renderItem={renderEstimate}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={styles.listContent}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={
           !loading ? (
-            <View style={{ paddingVertical: 40 }}>
-              <Text style={{ textAlign: "center", color: "#666" }}>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>
                 No estimates found.
               </Text>
             </View>
@@ -269,3 +268,67 @@ export default function EstimatesScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: palette.background,
+  },
+  header: {
+    gap: 12,
+    marginBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: palette.primaryText,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: palette.secondaryText,
+    lineHeight: 20,
+  },
+  loadingRow: {
+    paddingVertical: 16,
+  },
+  listContent: {
+    paddingBottom: 32,
+    gap: 16,
+  },
+  card: {
+    backgroundColor: palette.surface,
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    gap: 12,
+    ...cardShadow(12),
+  },
+  cardBody: {
+    gap: 6,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: palette.primaryText,
+  },
+  cardMeta: {
+    color: palette.secondaryText,
+  },
+  buttonRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  buttonFlex: {
+    flex: 1,
+  },
+  emptyState: {
+    paddingVertical: 48,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: palette.mutedText,
+  },
+});

@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Button, Switch, Text, TextInput, View } from "react-native";
+import {
+  Alert,
+  Button,
+  Switch,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import { palette } from "../lib/theme";
 
 export type EstimateItemFormValues = {
   description: string;
@@ -58,6 +67,66 @@ function formatCurrency(value: number): string {
     minimumFractionDigits: 2,
   }).format(value);
 }
+
+const styles = StyleSheet.create({
+  container: {
+    gap: 16,
+  },
+  fieldGroup: {
+    gap: 6,
+  },
+  label: {
+    fontWeight: "600",
+    color: palette.primaryText,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: palette.surfaceSubtle,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: palette.primaryText,
+    backgroundColor: palette.surfaceSubtle,
+  },
+  totalValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: palette.primaryText,
+  },
+  switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  switchText: {
+    flex: 1,
+    gap: 4,
+  },
+  switchLabel: {
+    fontWeight: "600",
+    color: palette.primaryText,
+  },
+  switchHint: {
+    color: palette.mutedText,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  actionFlex: {
+    flex: 1,
+  },
+});
 
 export default function EstimateItemForm({
   initialValue,
@@ -161,11 +230,11 @@ export default function EstimateItemForm({
   };
 
   return (
-    <View style={{ gap: 12 }}>
+    <View style={styles.container}>
       {templates.length > 0 ? (
-        <View style={{ gap: 6 }}>
-          <Text style={{ fontWeight: "600" }}>Saved items</Text>
-          <View style={{ borderWidth: 1, borderRadius: 8 }}>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Saved items</Text>
+          <View style={styles.pickerContainer}>
             <Picker
               selectedValue={selectedTemplateId ?? ""}
               onValueChange={(value) => {
@@ -189,66 +258,77 @@ export default function EstimateItemForm({
         </View>
       ) : null}
 
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Description</Text>
+      <View style={styles.fieldGroup}>
+        <Text style={styles.label}>Description</Text>
         <TextInput
           placeholder="Item description"
           value={description}
           onChangeText={setDescription}
-          style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
+          placeholderTextColor={palette.mutedText}
+          style={styles.textInput}
         />
       </View>
 
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Quantity</Text>
+      <View style={styles.fieldGroup}>
+        <Text style={styles.label}>Quantity</Text>
         <TextInput
           placeholder="0"
           value={quantityText}
           onChangeText={setQuantityText}
           keyboardType="numeric"
-          style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
+          placeholderTextColor={palette.mutedText}
+          style={styles.textInput}
         />
       </View>
 
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Unit Price</Text>
+      <View style={styles.fieldGroup}>
+        <Text style={styles.label}>Unit Price</Text>
         <TextInput
           placeholder="0.00"
           value={unitPriceText}
           onChangeText={setUnitPriceText}
           keyboardType="decimal-pad"
-          style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
+          placeholderTextColor={palette.mutedText}
+          style={styles.textInput}
         />
       </View>
 
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Line Total</Text>
-        <Text>{formatCurrency(total)}</Text>
+      <View style={styles.fieldGroup}>
+        <Text style={styles.label}>Line Total</Text>
+        <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
       </View>
 
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          paddingVertical: 4,
-        }}
-      >
-        <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={{ fontWeight: "600" }}>Save for future use</Text>
-          <Text style={{ color: "#555", marginTop: 2, fontSize: 12 }}>
+      <View style={styles.switchRow}>
+        <View style={styles.switchText}>
+          <Text style={styles.switchLabel}>Save for future use</Text>
+          <Text style={styles.switchHint}>
             Adds this item to your library so you can quickly reuse or update it later.
           </Text>
         </View>
-        <Switch value={saveToLibrary} onValueChange={setSaveToLibrary} />
+        <Switch
+          value={saveToLibrary}
+          onValueChange={setSaveToLibrary}
+          trackColor={{ true: palette.accentMuted, false: palette.border }}
+          thumbColor={saveToLibrary ? palette.surface : undefined}
+        />
       </View>
 
-      <View style={{ flexDirection: "row", gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <Button title="Cancel" onPress={onCancel} disabled={submitting} />
+      <View style={styles.actionRow}>
+        <View style={styles.actionFlex}>
+          <Button
+            title="Cancel"
+            onPress={onCancel}
+            disabled={submitting}
+            color={palette.secondaryText}
+          />
         </View>
-        <View style={{ flex: 1 }}>
-          <Button title={submitLabel} onPress={handleSubmit} disabled={submitting} />
+        <View style={styles.actionFlex}>
+          <Button
+            title={submitLabel}
+            onPress={handleSubmit}
+            disabled={submitting}
+            color={palette.accent}
+          />
         </View>
       </View>
     </View>

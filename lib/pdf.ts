@@ -266,7 +266,19 @@ export async function renderEstimatePdf(
   options: EstimatePdfOptions
 ): Promise<EstimatePdfResult> {
   if (Platform.OS === "web") {
-    throw new Error("PDF generation is only supported on native platforms.");
+    const html = await createHtml(options);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const fileName = `estimate-${options.estimate.id}-${timestamp}.html`;
+
+    if (typeof Blob !== "undefined" && typeof URL !== "undefined") {
+      const blob = new Blob([html], { type: "text/html" });
+      const uri = URL.createObjectURL(blob);
+      return { uri, html, fileName };
+    }
+
+    const base64 = btoa(unescape(encodeURIComponent(html)));
+    const uri = `data:text/html;base64,${base64}`;
+    return { uri, html, fileName };
   }
 
   const html = await createHtml(options);
