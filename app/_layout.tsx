@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { SettingsProvider } from "../context/SettingsContext";
 import { initLocalDB } from "../lib/sqlite";
@@ -106,11 +107,13 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SettingsProvider>
-      <AuthProvider>
-        <RootNavigator />
-      </AuthProvider>
-    </SettingsProvider>
+    <SafeAreaProvider>
+      <SettingsProvider>
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
+      </SettingsProvider>
+    </SafeAreaProvider>
   );
 }
 
