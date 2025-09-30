@@ -7,6 +7,14 @@ import { useAuth } from "../../context/AuthContext";
 export default function TabsLayout() {
   const { session, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
+  const palette = {
+    background: "#f8fafc",
+    card: "#ffffff",
+    accent: "#2563eb",
+    primaryText: "#0f172a",
+    muted: "#64748b",
+    border: "#e2e8f0",
+  };
 
   if (isLoading) {
     return (
@@ -24,17 +32,31 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#0F172A",
-        tabBarInactiveTintColor: "#94A3B8",
-        tabBarLabelStyle: { fontWeight: "600", fontSize: 12, marginBottom: 4 },
+        tabBarActiveTintColor: palette.accent,
+        tabBarInactiveTintColor: palette.muted,
+        tabBarLabelStyle: {
+          fontWeight: "600",
+          fontSize: 12,
+          marginBottom: 4,
+        },
         tabBarStyle: {
-          backgroundColor: "#FFFFFFF2",
-          borderTopWidth: 0,
+          backgroundColor: palette.background,
+          borderTopWidth: 1,
+          borderTopColor: palette.border,
+          shadowColor: palette.primaryText,
+          shadowOpacity: 0.06,
+          shadowOffset: { width: 0, height: -4 },
+          shadowRadius: 12,
           paddingHorizontal: 24,
           paddingTop: 12,
           paddingBottom: Math.max(insets.bottom, 12),
           height: 70 + Math.max(insets.bottom, 12),
         },
+        tabBarItemStyle: {
+          borderRadius: 12,
+          marginHorizontal: 6,
+        },
+        tabBarActiveBackgroundColor: palette.card,
       }}
     >
       <Tabs.Screen
