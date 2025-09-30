@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import {
   Alert,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -772,9 +773,29 @@ export default function NewEstimateScreen() {
       await runSync();
 
       clearNewEstimateDraft();
-      Alert.alert("Success", "Estimate created successfully.", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+
+      Alert.alert(
+        "Estimate created",
+        "We'll open it so you can review the details and send it to your customer.",
+        [
+          {
+            text: "Review & send",
+            onPress: () =>
+              router.replace({
+                pathname: "/(tabs)/estimates/[id]",
+                params: { id: estimateId },
+              }),
+          },
+        ],
+        { cancelable: false }
+      );
+
+      if (Platform.OS === "web") {
+        router.replace({
+          pathname: "/(tabs)/estimates/[id]",
+          params: { id: estimateId },
+        });
+      }
     } catch (error) {
       console.error("Failed to create estimate", error);
       Alert.alert("Error", "Unable to save the estimate. Please try again.");

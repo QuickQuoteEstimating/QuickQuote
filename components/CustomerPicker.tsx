@@ -11,6 +11,7 @@ import {
 import { Picker } from "@react-native-picker/picker";
 import { openDB } from "../lib/sqlite";
 import CustomerForm from "./CustomerForm";
+import { palette } from "../lib/theme";
 
 type Customer = {
   id: string;
@@ -58,25 +59,6 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
     });
   }, []);
 
-  if (addingNew) {
-    return (
-      <CustomerForm
-        onSaved={(c) => {
-          setAddingNew(false);
-          // add to the list and select it
-          setCustomers((prev) =>
-            [...prev, { id: c.id, name: c.name }].sort((a, b) =>
-              a.name.localeCompare(b.name)
-            )
-          );
-          setSearchQuery("");
-          onSelect(c.id);
-        }}
-        onCancel={() => setAddingNew(false)}
-      />
-    );
-  }
-
   const filteredCustomers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
@@ -106,6 +88,25 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
 
     return matches;
   }, [customers, searchQuery, selectedCustomer]);
+
+  if (addingNew) {
+    return (
+      <CustomerForm
+        onSaved={(c) => {
+          setAddingNew(false);
+          // add to the list and select it
+          setCustomers((prev) =>
+            [...prev, { id: c.id, name: c.name }].sort((a, b) =>
+              a.name.localeCompare(b.name)
+            )
+          );
+          setSearchQuery("");
+          onSelect(c.id);
+        }}
+        onCancel={() => setAddingNew(false)}
+      />
+    );
+  }
 
   const handleSelect = (value: string | number) => {
     if (value === "new") {
@@ -137,6 +138,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
         value={searchQuery}
         onChangeText={setSearchQuery}
         placeholder="Search by name, phone, email, or address"
+        placeholderTextColor="rgba(255,255,255,0.65)"
         autoCorrect={false}
         style={{
           borderWidth: 1,
@@ -144,6 +146,9 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
           paddingHorizontal: 10,
           paddingVertical: 8,
           marginBottom: 8,
+          backgroundColor: "rgba(15, 23, 42, 0.4)",
+          borderColor: "rgba(255, 255, 255, 0.25)",
+          color: palette.surface,
         }}
       />
       <Picker

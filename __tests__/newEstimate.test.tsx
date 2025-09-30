@@ -5,13 +5,16 @@ import { Alert } from "react-native";
 jest.mock("expo-router", () => {
   const push = jest.fn();
   const back = jest.fn();
-  const router = { push, back };
+  const replace = jest.fn();
+  const router = { push, back, replace };
   return {
     __esModule: true,
     router,
     useRouter: () => router,
   };
 });
+
+import { router as expoRouter } from "expo-router";
 
 const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
@@ -98,6 +101,7 @@ describe("NewEstimateScreen", () => {
     mockDbInstance.execAsync.mockClear();
     (queueChange as jest.Mock).mockClear();
     (openDB as jest.Mock).mockResolvedValue(mockDbInstance);
+    expoRouter.replace.mockClear();
   });
 
   it("adds a new line item inline", async () => {
@@ -133,10 +137,25 @@ describe("NewEstimateScreen", () => {
 
     await waitFor(() => {
       expect(alertSpy).toHaveBeenCalledWith(
-        "Success",
-        "Estimate created successfully.",
-        expect.any(Array)
+        "Estimate created",
+        "We'll open it so you can review the details and send it to your customer.",
+        expect.arrayContaining([
+          expect.objectContaining({
+            text: "Review & send",
+            onPress: expect.any(Function),
+          }),
+        ]),
+        expect.objectContaining({ cancelable: false })
       );
+    });
+
+    const [, , buttons] = alertSpy.mock.calls[0];
+    const primaryAction = Array.isArray(buttons) ? buttons[0] : undefined;
+    primaryAction?.onPress?.();
+
+    expect(expoRouter.replace).toHaveBeenCalledWith({
+      pathname: "/(tabs)/estimates/[id]",
+      params: { id: expect.any(String) },
     });
 
     expect(mockDbInstance.runAsync).toHaveBeenCalledTimes(2);
