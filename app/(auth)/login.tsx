@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { supabase } from "../../lib/supabase";
+import { BrandLogo } from "../../components/BrandLogo";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -49,6 +50,9 @@ export default function LoginScreen() {
       style={styles.container}
     >
       <View style={styles.card}>
+        <View style={styles.logoContainer}>
+          <BrandLogo size={80} />
+        </View>
         <Text style={styles.title}>Welcome back</Text>
         <TextInput
           autoCapitalize="none"
@@ -104,6 +108,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowRadius: 12,
     elevation: 6,
+  },
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 4,
   },
   title: {
     fontSize: 24,
