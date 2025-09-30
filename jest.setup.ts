@@ -27,3 +27,28 @@ if (!globalThis.TransformStream) {
   // eslint-disable-next-line no-global-assign
   globalThis.TransformStream = NativeTransformStream as unknown as typeof globalThis.TransformStream;
 }
+
+jest.mock("react-native/Libraries/Components/Touchable/TouchableOpacity", () => {
+  const React = require("react");
+
+  const MockTouchableOpacity = React.forwardRef(
+    (
+      { children, onPress, ...rest }: any,
+      ref: any,
+    ) => {
+      return React.createElement(
+        "RNMockTouchableOpacity",
+        {
+          ...rest,
+          onPress,
+          ref,
+        },
+        children,
+      );
+    },
+  );
+
+  MockTouchableOpacity.displayName = "MockTouchableOpacity";
+
+  return MockTouchableOpacity;
+});
