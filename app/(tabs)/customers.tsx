@@ -503,15 +503,3 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
 });
-                No customers found.
-              </Text>
-            </View>
-          ) : null
-        }
-        contentContainerStyle={{ paddingBottom: 24 }}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-      />
-    </View>
-  );
-}
