@@ -5,7 +5,9 @@ import { openDB } from "./sqlite";
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const PHOTO_BUCKET =
   process.env.EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "estimate-photos";
-const PHOTO_DIRECTORY = `${FileSystem.documentDirectory ?? ""}photos`;
+const PHOTO_DIRECTORY = FileSystem.documentDirectory
+  ? `${FileSystem.documentDirectory}photos`
+  : null;
 
 function encodeStoragePath(path: string): string {
   return path
@@ -45,9 +47,10 @@ function getContentType(extension: string): string {
   }
 }
 
-async function ensureDirectoryExists(): Promise<void> {
-  if (!FileSystem.documentDirectory) {
-    throw new Error("Document directory is not available");
+async function ensureDirectoryExists(): Promise<boolean> {
+  if (!PHOTO_DIRECTORY) {
+    console.info("Photo directory unavailable; skipping local photo persistence");
+    return false;
   }
 
   const info = await FileSystem.getInfoAsync(PHOTO_DIRECTORY);
@@ -56,6 +59,8 @@ async function ensureDirectoryExists(): Promise<void> {
       intermediates: true,
     });
   }
+
+  return true;
 }
 
 async function getAccessToken(): Promise<string | null> {
@@ -81,7 +86,11 @@ export function createPhotoStoragePath(
   return `${estimateId}/${photoId}.${extension}`;
 }
 
-export function deriveLocalPhotoUri(photoId: string, remoteUri: string): string {
+export function deriveLocalPhotoUri(photoId: string, remoteUri: string): string | null {
+  if (!PHOTO_DIRECTORY) {
+    return null;
+  }
+
   const extension = getExtension(remoteUri);
   return `${PHOTO_DIRECTORY}/${photoId}.${extension}`;
 }
@@ -91,8 +100,13 @@ export async function persistLocalPhotoCopy(
   remoteUri: string,
   sourceUri: string
 ): Promise<string> {
-  await ensureDirectoryExists();
+  const ensured = await ensureDirectoryExists();
   const localUri = deriveLocalPhotoUri(photoId, remoteUri);
+
+  if (!ensured || !localUri) {
+    return sourceUri;
+  }
+
   await FileSystem.deleteAsync(localUri, { idempotent: true });
   await FileSystem.copyAsync({ from: sourceUri, to: localUri });
   return localUri;
@@ -154,7 +168,10 @@ export async function downloadPhotoBinary(
     return false;
   }
 
-  await ensureDirectoryExists();
+  const ensured = await ensureDirectoryExists();
+  if (!ensured) {
+    return false;
+  }
   const encodedPath = encodeStoragePath(remoteUri);
   const url = `${SUPABASE_URL}/storage/v1/object/${PHOTO_BUCKET}/${encodedPath}`;
 
@@ -206,7 +223,10 @@ export async function syncPhotoBinaries(): Promise<void> {
       return;
     }
 
-    await ensureDirectoryExists();
+    const hasDirectory = await ensureDirectoryExists();
+    if (!hasDirectory) {
+      return;
+    }
     const accessToken = await getAccessToken();
     const isOnline = !!accessToken;
 
@@ -217,6 +237,9 @@ export async function syncPhotoBinaries(): Promise<void> {
       }
 
       const expectedLocalUri = deriveLocalPhotoUri(row.id, remoteUri);
+      if (!expectedLocalUri) {
+        continue;
+      }
 
       if (row.deleted_at) {
         await deleteLocalPhoto(row.local_uri ?? expectedLocalUri);
