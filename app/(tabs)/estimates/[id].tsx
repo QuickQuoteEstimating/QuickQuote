@@ -1278,6 +1278,7 @@ export default function EditEstimateScreen() {
             email: record.customer_email ?? null,
             phone: record.customer_phone ?? null,
             address: record.customer_address ?? null,
+            notes: null,
           });
         }
 
@@ -1466,6 +1467,7 @@ export default function EditEstimateScreen() {
         email: customerEmail ?? null,
         phone: customerPhone ?? null,
         address: customerAddress ?? null,
+        notes
       });
 
       if (estimateId) {
