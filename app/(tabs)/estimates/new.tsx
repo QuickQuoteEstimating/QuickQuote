@@ -23,6 +23,7 @@ import {
   type ItemCatalogRecord,
 } from "../../../lib/itemCatalog";
 import { calculateEstimateTotals } from "../../../lib/estimateMath";
+import { formatPercentageInput } from "../../../lib/numberFormat";
 
 type EstimateItemRecord = {
   id: string;
@@ -67,7 +68,7 @@ export default function NewEstimateScreen() {
   const [saving, setSaving] = useState(false);
   const [laborHoursText, setLaborHoursText] = useState("0");
   const [hourlyRateText, setHourlyRateText] = useState(settings.hourlyRate.toFixed(2));
-  const [taxRateText, setTaxRateText] = useState("0");
+  const [taxRateText, setTaxRateText] = useState(() => formatPercentageInput(settings.taxRate));
   const [savedItems, setSavedItems] = useState<ItemCatalogRecord[]>([]);
 
   const userId = user?.id ?? session?.user?.id ?? null;
@@ -75,6 +76,10 @@ export default function NewEstimateScreen() {
   useEffect(() => {
     setHourlyRateText(settings.hourlyRate.toFixed(2));
   }, [settings.hourlyRate]);
+
+  useEffect(() => {
+    setTaxRateText(formatPercentageInput(settings.taxRate));
+  }, [settings.taxRate]);
 
   const loadSavedItems = useCallback(async () => {
     if (!userId) {
@@ -112,9 +117,9 @@ export default function NewEstimateScreen() {
   }, [hourlyRateText, parseNumericInput, settings.hourlyRate]);
 
   const taxRate = useMemo(() => {
-    const parsed = parseNumericInput(taxRateText, 0);
+    const parsed = parseNumericInput(taxRateText, settings.taxRate);
     return Math.max(0, Math.round(parsed * 100) / 100);
-  }, [parseNumericInput, taxRateText]);
+  }, [parseNumericInput, settings.taxRate, taxRateText]);
 
   const totals = useMemo(
     () =>
@@ -497,20 +502,6 @@ export default function NewEstimateScreen() {
         </View>
       </View>
 
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Tax rate</Text>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <TextInput
-            placeholder="0"
-            value={taxRateText}
-            onChangeText={setTaxRateText}
-            keyboardType="decimal-pad"
-            style={{ flex: 1, borderWidth: 1, borderRadius: 8, padding: 10 }}
-          />
-          <Text style={{ fontWeight: "600", marginLeft: 8 }}>%</Text>
-        </View>
-      </View>
 
       <View style={{ gap: 6 }}>
         <Text style={{ fontWeight: "600" }}>Tax rate</Text>

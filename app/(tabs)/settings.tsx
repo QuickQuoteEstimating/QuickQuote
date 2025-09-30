@@ -31,6 +31,7 @@ export default function Settings() {
     setMaterialMarkup,
     setLaborMarkup,
     setHourlyRate,
+    setTaxRate,
     setHapticsEnabled,
     setHapticIntensity,
     setNotificationsEnabled,
@@ -42,6 +43,9 @@ export default function Settings() {
   const [materialMarkupInput, setMaterialMarkupInput] = useState(settings.materialMarkup.toString());
   const [laborMarkupInput, setLaborMarkupInput] = useState(settings.laborMarkup.toString());
   const [hourlyRateInput, setHourlyRateInput] = useState(settings.hourlyRate.toFixed(2));
+  const [taxRateInput, setTaxRateInput] = useState(() =>
+    settings.taxRate % 1 === 0 ? settings.taxRate.toFixed(0) : settings.taxRate.toString()
+  );
 
   useEffect(() => {
     setMaterialMarkupInput(settings.materialMarkup.toString());
@@ -54,6 +58,10 @@ export default function Settings() {
   useEffect(() => {
     setHourlyRateInput(settings.hourlyRate.toFixed(2));
   }, [settings.hourlyRate]);
+
+  useEffect(() => {
+    setTaxRateInput(settings.taxRate % 1 === 0 ? settings.taxRate.toFixed(0) : settings.taxRate.toString());
+  }, [settings.taxRate]);
 
   const colors = useMemo(() => {
     const isDark = resolvedTheme === "dark";
@@ -308,6 +316,31 @@ export default function Settings() {
                   onChangeText={setLaborMarkupInput}
                   onBlur={() => handleUpdateMarkup(laborMarkupInput, setLaborMarkup)}
                   keyboardType="numeric"
+                  returnKeyType="done"
+                  style={themedStyles.textField}
+                  placeholder="0"
+                  placeholderTextColor={colors.secondaryText}
+                />
+              </View>
+              <Text style={themedStyles.percentSuffix}>%</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={themedStyles.section}>
+          <Text style={themedStyles.sectionHeader}>Tax defaults</Text>
+          <Text style={themedStyles.sectionDescription}>
+            Set the default sales tax rate that will be applied to new estimates. You can still adjust it per project.
+          </Text>
+          <View>
+            <Text style={themedStyles.rowLabel}>Tax rate</Text>
+            <View style={styles.inputRow}>
+              <View style={themedStyles.textFieldContainer}>
+                <TextInput
+                  value={taxRateInput}
+                  onChangeText={setTaxRateInput}
+                  onBlur={() => handleUpdateMarkup(taxRateInput, setTaxRate)}
+                  keyboardType="decimal-pad"
                   returnKeyType="done"
                   style={themedStyles.textField}
                   placeholder="0"
