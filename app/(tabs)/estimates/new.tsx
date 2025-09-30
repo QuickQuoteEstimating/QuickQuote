@@ -213,12 +213,18 @@ export default function NewEstimateScreen() {
       openEditor({
         ...config,
         onSubmit: async (payload) => {
-          await config.onSubmit(payload);
-          preserveDraftRef.current = false;
+          try {
+            await config.onSubmit(payload);
+          } finally {
+            preserveDraftRef.current = false;
+          }
         },
         onCancel: () => {
-          config.onCancel?.();
-          preserveDraftRef.current = false;
+          try {
+            config.onCancel?.();
+          } finally {
+            preserveDraftRef.current = false;
+          }
         },
       });
       router.push("/(tabs)/estimates/item-editor");
