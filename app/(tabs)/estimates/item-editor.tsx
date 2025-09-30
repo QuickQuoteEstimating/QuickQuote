@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import { useNavigation, useRouter } from "expo-router";
-import { ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import EstimateItemForm from "../../../components/EstimateItemForm";
 import { useItemEditor } from "../../../context/ItemEditorContext";
 
@@ -9,6 +9,7 @@ export default function EstimateItemEditorScreen() {
   const navigation = useNavigation();
   const { config, closeEditor } = useItemEditor();
   const hasNavigatedAway = useRef(false);
+  const hasLoadedConfigRef = useRef(false);
 
   useEffect(() => {
     if (config?.title) {
@@ -17,10 +18,24 @@ export default function EstimateItemEditorScreen() {
   }, [config?.title, navigation]);
 
   useEffect(() => {
-    if (!config && !hasNavigatedAway.current) {
+    return () => {
       hasNavigatedAway.current = true;
-      router.back();
+      closeEditor();
+    };
+  }, [closeEditor]);
+
+  useEffect(() => {
+    if (config) {
+      hasLoadedConfigRef.current = true;
+      return;
     }
+
+    if (!hasLoadedConfigRef.current || hasNavigatedAway.current) {
+      return;
+    }
+
+    hasNavigatedAway.current = true;
+    router.back();
   }, [config, router]);
 
   const handleSubmit = useCallback(
@@ -51,7 +66,18 @@ export default function EstimateItemEditorScreen() {
   }, [closeEditor, config, router]);
 
   if (!config) {
-    return <View style={{ flex: 1, backgroundColor: "#fff" }} />;
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#fff",
+        }}
+      >
+        <ActivityIndicator size="large" color="#0F172A" />
+      </View>
+    );
   }
 
   return (
