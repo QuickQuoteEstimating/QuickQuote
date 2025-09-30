@@ -90,6 +90,49 @@ type CustomerRecord = {
   notes: string | null;
 };
 
+type EstimateFormDraftState = {
+  customerId: string | null;
+  estimateDate: string;
+  notes: string;
+  status: string;
+  items: EstimateItemRecord[];
+  laborHoursText: string;
+  hourlyRateText: string;
+  taxRateText: string;
+  photoDrafts: Record<string, string>;
+};
+
+const estimateDraftStore = new Map<string, EstimateFormDraftState>();
+
+function getEstimateFormDraft(
+  estimateId: string,
+): EstimateFormDraftState | null {
+  const draft = estimateDraftStore.get(estimateId);
+  if (!draft) {
+    return null;
+  }
+  return {
+    ...draft,
+    items: draft.items.map((item) => ({ ...item })),
+    photoDrafts: { ...draft.photoDrafts },
+  };
+}
+
+function setEstimateFormDraft(
+  estimateId: string,
+  draft: EstimateFormDraftState,
+) {
+  estimateDraftStore.set(estimateId, {
+    ...draft,
+    items: draft.items.map((item) => ({ ...item })),
+    photoDrafts: { ...draft.photoDrafts },
+  });
+}
+
+function clearEstimateFormDraft(estimateId: string) {
+  estimateDraftStore.delete(estimateId);
+}
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -124,19 +167,38 @@ export default function EditEstimateScreen() {
   const { settings } = useSettings();
   const userId = user?.id ?? session?.user?.id ?? null;
   const { openEditor } = useItemEditor();
+  const draftRef = useRef<EstimateFormDraftState | null>(
+    estimateId ? getEstimateFormDraft(estimateId) : null,
+  );
+  const hasRestoredDraftRef = useRef(Boolean(draftRef.current));
+  const preserveDraftRef = useRef(false);
 
   const [estimate, setEstimate] = useState<EstimateListItem | null>(null);
-  const [customerId, setCustomerId] = useState<string | null>(null);
-  const [estimateDate, setEstimateDate] = useState("");
-  const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState("draft");
-  const [items, setItems] = useState<EstimateItemRecord[]>([]);
+  const [customerId, setCustomerId] = useState<string | null>(
+    draftRef.current?.customerId ?? null,
+  );
+  const [estimateDate, setEstimateDate] = useState(
+    draftRef.current?.estimateDate ?? "",
+  );
+  const [notes, setNotes] = useState(draftRef.current?.notes ?? "");
+  const [status, setStatus] = useState(draftRef.current?.status ?? "draft");
+  const [items, setItems] = useState<EstimateItemRecord[]>(
+    () => draftRef.current?.items.map((item) => ({ ...item })) ?? [],
+  );
   const [savedItems, setSavedItems] = useState<ItemCatalogRecord[]>([]);
-  const [laborHoursText, setLaborHoursText] = useState("0");
-  const [hourlyRateText, setHourlyRateText] = useState(settings.hourlyRate.toFixed(2));
-  const [taxRateText, setTaxRateText] = useState(() => formatPercentageInput(settings.taxRate));
+  const [laborHoursText, setLaborHoursText] = useState(
+    draftRef.current?.laborHoursText ?? "0",
+  );
+  const [hourlyRateText, setHourlyRateText] = useState(
+    draftRef.current?.hourlyRateText ?? settings.hourlyRate.toFixed(2),
+  );
+  const [taxRateText, setTaxRateText] = useState(() =>
+    draftRef.current?.taxRateText ?? formatPercentageInput(settings.taxRate),
+  );
   const [photos, setPhotos] = useState<PhotoRecord[]>([]);
-  const [photoDrafts, setPhotoDrafts] = useState<Record<string, string>>({});
+  const [photoDrafts, setPhotoDrafts] = useState<Record<string, string>>(
+    () => ({ ...(draftRef.current?.photoDrafts ?? {}) }),
+  );
   const [addingPhoto, setAddingPhoto] = useState(false);
   const [photoSavingId, setPhotoSavingId] = useState<string | null>(null);
   const [photoDeletingId, setPhotoDeletingId] = useState<string | null>(null);
@@ -152,16 +214,28 @@ export default function EditEstimateScreen() {
   const lastPdfRef = useRef<EstimatePdfResult | null>(null);
 
   useEffect(() => {
+    if (hasRestoredDraftRef.current) {
+      return;
+    }
     if (!estimate) {
       setHourlyRateText(settings.hourlyRate.toFixed(2));
     }
   }, [estimate, settings.hourlyRate]);
 
   useEffect(() => {
+    if (hasRestoredDraftRef.current) {
+      return;
+    }
     if (!estimate) {
       setTaxRateText(formatPercentageInput(settings.taxRate));
     }
   }, [estimate, settings.taxRate]);
+
+  useEffect(() => {
+    if (hasRestoredDraftRef.current) {
+      hasRestoredDraftRef.current = false;
+    }
+  }, []);
 
   const loadSavedItems = useCallback(async () => {
     if (!userId) {
@@ -394,6 +468,7 @@ export default function EditEstimateScreen() {
 
   const openItemEditorScreen = useCallback(
     (config: ItemEditorConfig) => {
+      preserveDraftRef.current = true;
       openEditor(config);
       router.push("/(tabs)/estimates/item-editor");
     },
@@ -1151,12 +1226,15 @@ export default function EditEstimateScreen() {
 
         estimateRef.current = record;
         setEstimate(record);
-        setCustomerId(record.customer_id);
-        setEstimateDate(
-          record.date ? new Date(record.date).toISOString().split("T")[0] : ""
-        );
-        setNotes(record.notes ?? "");
-        setStatus(record.status ?? "draft");
+        const draft = draftRef.current;
+        if (!draft) {
+          setCustomerId(record.customer_id);
+          setEstimateDate(
+            record.date ? new Date(record.date).toISOString().split("T")[0] : ""
+          );
+          setNotes(record.notes ?? "");
+          setStatus(record.status ?? "draft");
+        }
         const laborHoursValue =
           typeof record.labor_hours === "number" && Number.isFinite(record.labor_hours)
             ? Math.max(0, Math.round(record.labor_hours * 100) / 100)
@@ -1169,20 +1247,22 @@ export default function EditEstimateScreen() {
           typeof record.tax_rate === "number" && Number.isFinite(record.tax_rate)
             ? Math.max(0, Math.round(record.tax_rate * 100) / 100)
             : Math.max(0, Math.round(settings.taxRate * 100) / 100);
-        setLaborHoursText(
-          laborHoursValue % 1 === 0
-            ? laborHoursValue.toFixed(0)
-            : laborHoursValue.toString()
-        );
-        setHourlyRateText(laborRateValue.toFixed(2));
-        setTaxRateText(formatPercentageInput(taxRateValue));
-        setCustomerContact({
-          id: record.customer_id,
-          name: record.customer_name ?? "Customer",
-          email: record.customer_email ?? null,
-          phone: record.customer_phone ?? null,
-          address: record.customer_address ?? null,
-        });
+        if (!draft) {
+          setLaborHoursText(
+            laborHoursValue % 1 === 0
+              ? laborHoursValue.toFixed(0)
+              : laborHoursValue.toString()
+          );
+          setHourlyRateText(laborRateValue.toFixed(2));
+          setTaxRateText(formatPercentageInput(taxRateValue));
+          setCustomerContact({
+            id: record.customer_id,
+            name: record.customer_name ?? "Customer",
+            email: record.customer_email ?? null,
+            phone: record.customer_phone ?? null,
+            address: record.customer_address ?? null,
+          });
+        }
 
         const itemRows = await db.getAllAsync<EstimateItemRecord>(
           `SELECT id, estimate_id, description, quantity, unit_price, total, catalog_item_id, version, updated_at, deleted_at
@@ -1254,6 +1334,9 @@ export default function EditEstimateScreen() {
 
   const handleCancel = () => {
     if (!saving) {
+      if (estimateId) {
+        clearEstimateFormDraft(estimateId);
+      }
       router.back();
     }
   };
@@ -1368,6 +1451,9 @@ export default function EditEstimateScreen() {
         address: customerAddress ?? null,
       });
 
+      if (estimateId) {
+        clearEstimateFormDraft(estimateId);
+      }
       Alert.alert("Success", "Estimate updated successfully.", [
         { text: "OK", onPress: () => router.back() },
       ]);
@@ -1378,6 +1464,46 @@ export default function EditEstimateScreen() {
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!estimateId) {
+      return;
+    }
+    setEstimateFormDraft(estimateId, {
+      customerId,
+      estimateDate,
+      notes,
+      status,
+      items,
+      laborHoursText,
+      hourlyRateText,
+      taxRateText,
+      photoDrafts,
+    });
+  }, [
+    customerId,
+    estimateDate,
+    estimateId,
+    items,
+    laborHoursText,
+    hourlyRateText,
+    notes,
+    photoDrafts,
+    status,
+    taxRateText,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (!estimateId) {
+        return;
+      }
+      if (!preserveDraftRef.current) {
+        clearEstimateFormDraft(estimateId);
+      }
+      preserveDraftRef.current = false;
+    };
+  }, [estimateId]);
 
   if (loading) {
     return (
