@@ -1523,7 +1523,10 @@ export default function EditEstimateScreen() {
       style={{ flex: 1, backgroundColor: "#fff" }}
     >
       <Text style={{ fontSize: 20, fontWeight: "600" }}>Edit Estimate</Text>
-      <CustomerPicker selectedCustomer={customerId} onSelect={setCustomerId} />
+      <CustomerPicker
+        selectedCustomer={customerId}
+        onSelect={(id) => setCustomerId(id)}
+      />
 
       <View style={{ gap: 6 }}>
         <Text style={{ fontWeight: "600" }}>Date</Text>
