@@ -20,7 +20,7 @@ export type ItemEditorConfig = {
     unit_price: number;
   };
   initialTemplateId?: string | null;
-  templates?: EstimateItemTemplate[];
+  templates?: EstimateItemTemplate[] | (() => EstimateItemTemplate[]);
   onSubmit: (payload: EstimateItemFormSubmit) => Promise<void> | void;
   onCancel?: () => void;
 };

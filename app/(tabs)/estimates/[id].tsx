@@ -10,6 +10,7 @@ import {
   Linking,
   Platform,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -55,6 +56,7 @@ import {
 } from "../../../lib/pdf";
 import { calculateEstimateTotals } from "../../../lib/estimateMath";
 import { formatPercentageInput } from "../../../lib/numberFormat";
+import { cardShadow, palette } from "../../../lib/theme";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
 
@@ -213,6 +215,7 @@ export default function EditEstimateScreen() {
   );
   const estimateRef = useRef<EstimateListItem | null>(null);
   const lastPdfRef = useRef<EstimatePdfResult | null>(null);
+  const releasePdfRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (hasRestoredDraftRef.current) {
@@ -454,17 +457,19 @@ export default function EditEstimateScreen() {
 
   useEffect(() => {
     lastPdfRef.current = null;
+    if (releasePdfRef.current) {
+      releasePdfRef.current();
+      releasePdfRef.current = null;
+    }
   }, [pdfOptions]);
 
-  const ensureNativePdfSupport = useCallback(() => {
-    if (Platform.OS === "web") {
-      Alert.alert(
-        "Unavailable",
-        "PDF preview and sharing are only available on iOS and Android."
-      );
-      return false;
-    }
-    return true;
+  useEffect(() => {
+    return () => {
+      if (releasePdfRef.current) {
+        releasePdfRef.current();
+        releasePdfRef.current = null;
+      }
+    };
   }, []);
 
   const openItemEditorScreen = useCallback(
@@ -779,28 +784,21 @@ export default function EditEstimateScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: EstimateItemRecord }) => (
-      <View
-        style={{
-          padding: 12,
-          borderWidth: 1,
-          borderRadius: 8,
-          backgroundColor: "#fafafa",
-          gap: 8,
-        }}
-      >
-        <View style={{ gap: 2 }}>
-          <Text style={{ fontWeight: "600" }}>{item.description}</Text>
-          <Text style={{ color: "#555" }}>
+      <View style={styles.itemCard}>
+        <View style={styles.itemInfo}>
+          <Text style={styles.itemTitle}>{item.description}</Text>
+          <Text style={styles.itemMeta}>
             Qty: {item.quantity} @ {formatCurrency(item.unit_price)}
           </Text>
-          <Text style={{ color: "#555" }}>
+          <Text style={styles.itemMeta}>
             Line Total: {formatCurrency(item.total)}
           </Text>
         </View>
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <View style={{ flex: 1 }}>
+        <View style={styles.inlineButtons}>
+          <View style={styles.buttonFlex}>
             <Button
               title="Edit"
+              color={palette.accent}
               onPress={() =>
                 openItemEditorScreen({
                   title: "Edit Item",
@@ -811,16 +809,16 @@ export default function EditEstimateScreen() {
                     unit_price: item.unit_price,
                   },
                   initialTemplateId: item.catalog_item_id,
-                  templates: savedItemTemplates,
+                  templates: () => savedItemTemplates,
                   onSubmit: makeItemSubmitHandler(item),
                 })
               }
             />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={styles.buttonFlex}>
             <Button
               title="Remove"
-              color="#b00020"
+              color={palette.danger}
               onPress={() => handleDeleteItem(item)}
             />
           </View>
@@ -1021,10 +1019,6 @@ export default function EditEstimateScreen() {
   }, [refreshPhotosFromDb]);
 
   const ensurePdfReady = useCallback(async () => {
-    if (!ensureNativePdfSupport()) {
-      return null;
-    }
-
     if (!pdfOptions) {
       Alert.alert("Missing data", "Unable to build the estimate PDF.");
       return null;
@@ -1035,7 +1029,24 @@ export default function EditEstimateScreen() {
       if (cached) {
         return cached;
       }
+      if (releasePdfRef.current) {
+        releasePdfRef.current();
+        releasePdfRef.current = null;
+      }
       const result = await renderEstimatePdf(pdfOptions);
+      if (
+        Platform.OS === "web" &&
+        typeof URL !== "undefined" &&
+        result.uri.startsWith("blob:")
+      ) {
+        releasePdfRef.current = () => {
+          try {
+            URL.revokeObjectURL(result.uri);
+          } catch (error) {
+            console.warn("Failed to release PDF preview", error);
+          }
+        };
+      }
       lastPdfRef.current = result;
       return result;
     } catch (error) {
@@ -1043,13 +1054,34 @@ export default function EditEstimateScreen() {
       Alert.alert("Error", "Unable to prepare the PDF. Please try again.");
       return null;
     }
-  }, [ensureNativePdfSupport, pdfOptions]);
+  }, [pdfOptions]);
 
   const handlePreviewPdf = useCallback(async () => {
     setPdfWorking(true);
     try {
       const pdf = await ensurePdfReady();
       if (!pdf) {
+        return;
+      }
+
+      if (Platform.OS === "web") {
+        if (typeof window === "undefined") {
+          Alert.alert(
+            "Unavailable",
+            "Preview is not supported in this environment."
+          );
+          return;
+        }
+        const previewWindow = window.open("", "_blank");
+        if (!previewWindow) {
+          Alert.alert(
+            "Popup blocked",
+            "Allow popups to preview the estimate."
+          );
+          return;
+        }
+        previewWindow.document.write(pdf.html);
+        previewWindow.document.close();
         return;
       }
 
@@ -1061,6 +1093,55 @@ export default function EditEstimateScreen() {
       setPdfWorking(false);
     }
   }, [ensurePdfReady]);
+
+  const markEstimateSent = useCallback(
+    async (channel: "email" | "sms") => {
+      const current = estimateRef.current;
+      if (!current || current.status?.toLowerCase() === "sent") {
+        if (status !== "sent") {
+          setStatus("sent");
+        }
+        return;
+      }
+
+      try {
+        const now = new Date().toISOString();
+        const nextVersion = (current.version ?? 1) + 1;
+        const db = await openDB();
+        await db.runAsync(
+          `UPDATE estimates
+           SET status = ?, version = ?, updated_at = ?
+           WHERE id = ?`,
+          ["sent", nextVersion, now, current.id]
+        );
+
+        const updated: EstimateListItem = {
+          ...current,
+          status: "sent",
+          version: nextVersion,
+          updated_at: now,
+        };
+
+        estimateRef.current = updated;
+        setEstimate(updated);
+        setStatus("sent");
+
+        await queueChange(
+          "estimates",
+          "update",
+          sanitizeEstimateForQueue(updated)
+        );
+        await runSync();
+      } catch (error) {
+        console.error("Failed to update estimate status", error);
+        Alert.alert(
+          "Status",
+          `Your estimate was ${channel === "email" ? "emailed" : "texted"}, but we couldn't update the status automatically. Please review it manually.`
+        );
+      }
+    },
+    [setEstimate, setStatus, status]
+  );
 
   const handleShareEmail = useCallback(async () => {
     if (!estimate) {
@@ -1111,6 +1192,15 @@ export default function EditEstimateScreen() {
 
       await Linking.openURL(mailto);
 
+      if (Platform.OS === "web" && typeof document !== "undefined") {
+        const link = document.createElement("a");
+        link.href = pdf.uri;
+        link.download = pdf.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
       await logEstimateDelivery({
         estimateId: estimate.id,
         channel: "email",
@@ -1121,6 +1211,7 @@ export default function EditEstimateScreen() {
             : bodyPlain,
         metadata: { pdfUri: pdf.uri, mailto },
       });
+      await markEstimateSent("email");
     } catch (error) {
       console.error("Failed to share via email", error);
       Alert.alert("Error", "Unable to share the estimate via email.");
@@ -1196,6 +1287,7 @@ export default function EditEstimateScreen() {
           smsResult: smsResponse?.result ?? null,
         },
       });
+      await markEstimateSent("sms");
     } catch (error) {
       console.error("Failed to share via SMS", error);
       Alert.alert("Error", "Unable to share the estimate via SMS.");
@@ -1526,8 +1618,8 @@ export default function EditEstimateScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
+      <View style={styles.loadingState}>
+        <ActivityIndicator color={palette.accent} />
       </View>
     );
   }
@@ -1537,40 +1629,39 @@ export default function EditEstimateScreen() {
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={{ padding: 16, gap: 16 }}
-      style={{ flex: 1, backgroundColor: "#fff" }}
-    >
-      <Text style={{ fontSize: 20, fontWeight: "600" }}>Edit Estimate</Text>
-      <CustomerPicker
-        selectedCustomer={customerId}
-        onSelect={(id) => setCustomerId(id)}
-      />
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Date</Text>
-        <TextInput
-          placeholder="YYYY-MM-DD"
-          value={estimateDate}
-          onChangeText={setEstimateDate}
-          style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
-        />
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <View style={styles.card}>
+        <Text style={styles.pageTitle}>Edit Estimate</Text>
+        <Text style={styles.sectionSubtitle}>
+          Update pricing, attach photos, and send a polished quote in seconds.
+        </Text>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Customer</Text>
+          <CustomerPicker
+            selectedCustomer={customerId}
+            onSelect={(id) => setCustomerId(id)}
+          />
+        </View>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Date</Text>
+          <TextInput
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={palette.mutedText}
+            value={estimateDate}
+            onChangeText={setEstimateDate}
+            style={styles.input}
+          />
+        </View>
       </View>
 
-      <View style={{ gap: 12 }}>
-        <Text style={{ fontWeight: "600" }}>Photos</Text>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Photos</Text>
+        <Text style={styles.sectionSubtitle}>
+          Give your crew context with job site reference shots.
+        </Text>
         {photos.length === 0 ? (
-          <View
-            style={{
-              padding: 16,
-              borderWidth: 1,
-              borderRadius: 8,
-              borderStyle: "dashed",
-              alignItems: "center",
-              backgroundColor: "#fafafa",
-            }}
-          >
-            <Text style={{ color: "#666" }}>No photos attached yet.</Text>
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No photos attached yet.</Text>
           </View>
         ) : (
           photos.map((photo) => {
@@ -1579,34 +1670,16 @@ export default function EditEstimateScreen() {
             const isDeleting = photoDeletingId === photo.id;
 
             return (
-              <View
-                key={photo.id}
-                style={{
-                  borderWidth: 1,
-                  borderRadius: 8,
-                  padding: 12,
-                  gap: 12,
-                  backgroundColor: "#fafafa",
-                }}
-              >
+              <View key={photo.id} style={styles.photoCard}>
                 {photo.local_uri ? (
                   <Image
                     source={{ uri: photo.local_uri }}
-                    style={{ width: "100%", height: 180, borderRadius: 8 }}
+                    style={styles.photoImage}
                     resizeMode="cover"
                   />
                 ) : (
-                  <View
-                    style={{
-                      height: 180,
-                      borderRadius: 8,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: "#eee",
-                      paddingHorizontal: 12,
-                    }}
-                  >
-                    <Text style={{ color: "#555", textAlign: "center" }}>
+                  <View style={styles.photoPlaceholder}>
+                    <Text style={styles.photoPlaceholderText}>
                       Photo unavailable offline. Use sync to restore the local
                       copy.
                     </Text>
@@ -1614,31 +1687,26 @@ export default function EditEstimateScreen() {
                 )}
                 <TextInput
                   placeholder="Add a description"
+                  placeholderTextColor={palette.mutedText}
                   value={draft}
                   onChangeText={(text) => handlePhotoDraftChange(photo.id, text)}
                   multiline
                   numberOfLines={3}
-                  style={{
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    padding: 10,
-                    minHeight: 80,
-                    textAlignVertical: "top",
-                    backgroundColor: "#fff",
-                  }}
+                  style={styles.textArea}
                 />
-                <View style={{ flexDirection: "row", gap: 12 }}>
-                  <View style={{ flex: 1 }}>
+                <View style={styles.inlineButtons}>
+                  <View style={styles.buttonFlex}>
                     <Button
                       title="Save"
+                      color={palette.accent}
                       onPress={() => handleSavePhotoDescription(photo)}
                       disabled={isSaving}
                     />
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <View style={styles.buttonFlex}>
                     <Button
                       title="Remove"
-                      color="#b00020"
+                      color={palette.danger}
                       onPress={() => handleDeletePhoto(photo)}
                       disabled={isDeleting}
                     />
@@ -1653,45 +1721,42 @@ export default function EditEstimateScreen() {
             title={photoSyncing ? "Syncing photos..." : "Sync photos"}
             onPress={handleRetryPhotoSync}
             disabled={photoSyncing}
+            color={palette.accent}
           />
         ) : null}
         <Button
           title={addingPhoto ? "Adding photo..." : "Add Photo"}
           onPress={handleAddPhoto}
           disabled={addingPhoto}
+          color={palette.accent}
         />
       </View>
 
-      <View style={{ gap: 12 }}>
-        <Text style={{ fontWeight: "600" }}>Items</Text>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Estimate items</Text>
+        <Text style={styles.sectionSubtitle}>
+          Track the work you&apos;re quoting. Saved items help you move fast.
+        </Text>
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           scrollEnabled={false}
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
           ListEmptyComponent={
-            <View
-              style={{
-                padding: 16,
-                borderWidth: 1,
-                borderRadius: 8,
-                borderStyle: "dashed",
-                alignItems: "center",
-                backgroundColor: "#fafafa",
-              }}
-            >
-              <Text style={{ color: "#666" }}>No items added yet.</Text>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>No items added yet.</Text>
             </View>
           }
         />
         <Button
           title="Add Item"
+          color={palette.accent}
           onPress={() =>
             openItemEditorScreen({
               title: "Add Item",
               submitLabel: "Add Item",
-              templates: savedItemTemplates,
+              templates: () => savedItemTemplates,
               initialTemplateId: null,
               onSubmit: makeItemSubmitHandler(null),
             })
@@ -1699,128 +1764,345 @@ export default function EditEstimateScreen() {
         />
       </View>
 
-      <View style={{ gap: 12 }}>
-        <Text style={{ fontWeight: "600" }}>Labor</Text>
-        <View style={{ gap: 6 }}>
-          <Text style={{ fontWeight: "500" }}>Project hours</Text>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Labor &amp; tax</Text>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Project hours</Text>
           <TextInput
             placeholder="0"
+            placeholderTextColor={palette.mutedText}
             value={laborHoursText}
             onChangeText={setLaborHoursText}
             keyboardType="decimal-pad"
-            style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
+            style={styles.input}
           />
         </View>
-        <View style={{ gap: 6 }}>
-          <Text style={{ fontWeight: "500" }}>Hourly rate</Text>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Text style={{ fontWeight: "600", marginRight: 8 }}>$</Text>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Hourly rate</Text>
+          <View style={styles.inputRow}>
+            <Text style={styles.prefixSymbol}>$</Text>
             <TextInput
               placeholder="0.00"
+              placeholderTextColor={palette.mutedText}
               value={hourlyRateText}
               onChangeText={setHourlyRateText}
               keyboardType="decimal-pad"
-              style={{ flex: 1, borderWidth: 1, borderRadius: 8, padding: 10 }}
+              style={[styles.input, styles.inputGrow]}
             />
           </View>
-          <Text style={{ color: "#555", fontSize: 12 }}>
+          <Text style={styles.helpText}>
             Labor total (not shown to customers): {formatCurrency(totals.laborTotal)}
           </Text>
         </View>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Tax rate</Text>
+          <View style={styles.inputRow}>
+            <TextInput
+              placeholder="0"
+              placeholderTextColor={palette.mutedText}
+              value={taxRateText}
+              onChangeText={setTaxRateText}
+              keyboardType="decimal-pad"
+              style={[styles.input, styles.inputGrow]}
+            />
+            <Text style={styles.suffixSymbol}>%</Text>
+          </View>
+        </View>
       </View>
 
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Tax rate</Text>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Estimate summary</Text>
+        <View style={styles.totalsCard}>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>Materials</Text>
+            <Text style={styles.totalsValue}>
+              {formatCurrency(totals.materialTotal)}
+            </Text>
+          </View>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>Labor</Text>
+            <Text style={styles.totalsValue}>
+              {formatCurrency(totals.laborTotal)}
+            </Text>
+          </View>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>Tax</Text>
+            <Text style={styles.totalsValue}>
+              {formatCurrency(totals.taxTotal)}
+            </Text>
+          </View>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsGrand}>Project total</Text>
+            <Text style={styles.totalsGrand}>
+              {formatCurrency(totals.grandTotal)}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Status &amp; notes</Text>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Status</Text>
+          <View style={styles.pickerShell}>
+            <Picker selectedValue={status} onValueChange={(value) => setStatus(value)}>
+              {STATUS_OPTIONS.map((option) => (
+                <Picker.Item
+                  key={option.value}
+                  label={option.label}
+                  value={option.value}
+                />
+              ))}
+            </Picker>
+          </View>
+        </View>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Internal notes</Text>
           <TextInput
-            placeholder="0"
-            value={taxRateText}
-            onChangeText={setTaxRateText}
-            keyboardType="decimal-pad"
-            style={{ flex: 1, borderWidth: 1, borderRadius: 8, padding: 10 }}
+            placeholder="Add private notes for your team"
+            placeholderTextColor={palette.mutedText}
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={4}
+            style={styles.textArea}
           />
-          <Text style={{ fontWeight: "600", marginLeft: 8 }}>%</Text>
         </View>
       </View>
 
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Estimate summary</Text>
-        <View style={{ gap: 4 }}>
-          <Text>Materials: {formatCurrency(totals.materialTotal)}</Text>
-          <Text>Labor: {formatCurrency(totals.laborTotal)}</Text>
-          <Text>Tax: {formatCurrency(totals.taxTotal)}</Text>
-          <Text style={{ fontWeight: "700" }}>Project total: {formatCurrency(totals.grandTotal)}</Text>
-        </View>
-      </View>
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Status</Text>
-        <View style={{ borderWidth: 1, borderRadius: 8 }}>
-          <Picker selectedValue={status} onValueChange={(value) => setStatus(value)}>
-            {STATUS_OPTIONS.map((option) => (
-              <Picker.Item
-                key={option.value}
-                label={option.label}
-                value={option.value}
-              />
-            ))}
-          </Picker>
-        </View>
-      </View>
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Notes</Text>
-        <TextInput
-          placeholder="Internal notes"
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          numberOfLines={4}
-          style={{
-            borderWidth: 1,
-            borderRadius: 8,
-            padding: 10,
-            textAlignVertical: "top",
-            minHeight: 100,
-          }}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>PDF &amp; sharing</Text>
+        <Text style={styles.sectionSubtitle}>
+          Preview your branded estimate and send it straight to the customer.
+        </Text>
+        <Button
+          title="Preview PDF"
+          color={palette.accent}
+          onPress={handlePreviewPdf}
+          disabled={pdfWorking || smsSending}
+        />
+        <Button
+          title="Share via Email"
+          color={palette.accentMuted}
+          onPress={handleShareEmail}
+          disabled={pdfWorking || smsSending}
+        />
+        <Button
+          title="Share via SMS"
+          color={palette.success}
+          onPress={handleShareSms}
+          disabled={smsSending || pdfWorking}
         />
       </View>
 
-      {Platform.OS !== "web" && (
-        <View style={{ gap: 8 }}>
-          <Text style={{ fontWeight: "600" }}>PDF &amp; Sharing</Text>
-          <View>
-            <Button
-              title="Preview PDF"
-              onPress={handlePreviewPdf}
-              disabled={pdfWorking || smsSending}
-            />
-          </View>
-          <View>
-            <Button
-              title="Share via Email"
-              onPress={handleShareEmail}
-              disabled={pdfWorking || smsSending}
-            />
-          </View>
-          <View>
-            <Button
-              title="Share via SMS"
-              onPress={handleShareSms}
-              disabled={smsSending || pdfWorking}
-            />
-          </View>
+      <View style={styles.footerButtons}>
+        <View style={styles.buttonFlex}>
+          <Button
+            title="Cancel"
+            onPress={handleCancel}
+            disabled={saving}
+            color={palette.secondaryText}
+          />
         </View>
-      )}
-
-      <View style={{ flexDirection: "row", gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <Button title="Cancel" onPress={handleCancel} disabled={saving} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button title="Save" onPress={handleSave} disabled={saving} />
+        <View style={styles.buttonFlex}>
+          <Button
+            title="Save"
+            onPress={handleSave}
+            disabled={saving}
+            color={palette.accent}
+          />
         </View>
       </View>
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: palette.background,
+  },
+  screen: {
+    flex: 1,
+    backgroundColor: palette.background,
+  },
+  content: {
+    padding: 20,
+    gap: 20,
+    paddingBottom: 32,
+  },
+  card: {
+    backgroundColor: palette.surface,
+    borderRadius: 22,
+    padding: 20,
+    gap: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    ...cardShadow(16),
+  },
+  pageTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: palette.primaryText,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: palette.primaryText,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: palette.secondaryText,
+    lineHeight: 20,
+  },
+  fieldGroup: {
+    gap: 8,
+  },
+  fieldLabel: {
+    fontWeight: "600",
+    color: palette.primaryText,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: palette.primaryText,
+    backgroundColor: palette.surfaceSubtle,
+  },
+  textArea: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: palette.primaryText,
+    minHeight: 100,
+    textAlignVertical: "top",
+    backgroundColor: palette.surfaceSubtle,
+  },
+  inlineButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  buttonFlex: {
+    flex: 1,
+  },
+  photoCard: {
+    gap: 12,
+    backgroundColor: palette.surfaceSubtle,
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    ...cardShadow(8),
+  },
+  photoImage: {
+    width: "100%",
+    height: 180,
+    borderRadius: 12,
+  },
+  photoPlaceholder: {
+    height: 180,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#e2e8f0",
+    paddingHorizontal: 12,
+  },
+  photoPlaceholderText: {
+    textAlign: "center",
+    color: palette.secondaryText,
+  },
+  emptyCard: {
+    padding: 18,
+    borderRadius: 16,
+    alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderStyle: "dashed",
+    borderColor: palette.border,
+    backgroundColor: palette.surfaceSubtle,
+  },
+  emptyText: {
+    color: palette.mutedText,
+  },
+  itemSeparator: {
+    height: 12,
+  },
+  itemCard: {
+    backgroundColor: palette.surfaceSubtle,
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    ...cardShadow(6),
+  },
+  itemInfo: {
+    gap: 4,
+  },
+  itemTitle: {
+    fontWeight: "600",
+    color: palette.primaryText,
+  },
+  itemMeta: {
+    color: palette.secondaryText,
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  inputGrow: {
+    flex: 1,
+  },
+  prefixSymbol: {
+    fontWeight: "700",
+    color: palette.primaryText,
+  },
+  suffixSymbol: {
+    fontWeight: "700",
+    color: palette.primaryText,
+  },
+  helpText: {
+    fontSize: 12,
+    color: palette.secondaryText,
+  },
+  pickerShell: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: palette.surfaceSubtle,
+  },
+  totalsCard: {
+    gap: 10,
+  },
+  totalsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  totalsLabel: {
+    color: palette.secondaryText,
+  },
+  totalsValue: {
+    fontWeight: "600",
+    color: palette.primaryText,
+  },
+  totalsGrand: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: palette.primaryText,
+  },
+  footerButtons: {
+    flexDirection: "row",
+    gap: 12,
+    paddingBottom: 16,
+  },
+});
