@@ -469,7 +469,23 @@ export default function EditEstimateScreen() {
   const openItemEditorScreen = useCallback(
     (config: ItemEditorConfig) => {
       preserveDraftRef.current = true;
-      openEditor(config);
+      openEditor({
+        ...config,
+        onSubmit: async (payload) => {
+          try {
+            await config.onSubmit(payload);
+          } finally {
+            preserveDraftRef.current = false;
+          }
+        },
+        onCancel: () => {
+          try {
+            config.onCancel?.();
+          } finally {
+            preserveDraftRef.current = false;
+          }
+        },
+      });
       router.push("/(tabs)/estimates/item-editor");
     },
     [openEditor],
