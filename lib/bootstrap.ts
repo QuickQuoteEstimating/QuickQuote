@@ -165,27 +165,29 @@ export async function bootstrapUserData(userId: string) {
     let localUri: string | null = null;
     if (photo.uri) {
       const derivedPath = deriveLocalPhotoUri(photo.id, photo.uri);
-      if (!photo.deleted_at) {
-        expectedLocalPaths.add(derivedPath);
-        try {
-          const info = await FileSystem.getInfoAsync(derivedPath);
-          if (info.exists) {
-            localUri = derivedPath;
-          } else if (canDownloadPhotos) {
-            const downloaded = await downloadPhotoBinary(
-              photo.uri,
-              derivedPath,
-              bootstrapAccessToken
-            );
-            if (downloaded) {
+      if (derivedPath) {
+        if (!photo.deleted_at) {
+          expectedLocalPaths.add(derivedPath);
+          try {
+            const info = await FileSystem.getInfoAsync(derivedPath);
+            if (info.exists) {
               localUri = derivedPath;
+            } else if (canDownloadPhotos) {
+              const downloaded = await downloadPhotoBinary(
+                photo.uri,
+                derivedPath,
+                bootstrapAccessToken
+              );
+              if (downloaded) {
+                localUri = derivedPath;
+              }
             }
+          } catch (error) {
+            console.warn(`Failed to prepare local copy for photo ${photo.id}`, error);
           }
-        } catch (error) {
-          console.warn(`Failed to prepare local copy for photo ${photo.id}`, error);
+        } else {
+          await deleteLocalPhoto(derivedPath);
         }
-      } else {
-        await deleteLocalPhoto(derivedPath);
       }
     }
 
