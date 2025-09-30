@@ -16,6 +16,15 @@ export type ThemePreference = "light" | "dark" | "system";
 
 export type HapticIntensity = 0 | 1 | 2;
 
+export interface CompanyProfile {
+  name: string;
+  email: string;
+  phone: string;
+  website: string;
+  address: string;
+  logoUri: string | null;
+}
+
 export interface SettingsState {
   themePreference: ThemePreference;
   materialMarkup: number;
@@ -26,6 +35,7 @@ export interface SettingsState {
   hapticIntensity: HapticIntensity;
   notificationsEnabled: boolean;
   autoSyncEnabled: boolean;
+  companyProfile: CompanyProfile;
 }
 
 interface SettingsContextValue {
@@ -41,9 +51,19 @@ interface SettingsContextValue {
   setHapticIntensity: (value: HapticIntensity) => void;
   setNotificationsEnabled: (value: boolean) => void;
   setAutoSyncEnabled: (value: boolean) => void;
+  setCompanyProfile: (updater: Partial<CompanyProfile> | ((prev: CompanyProfile) => CompanyProfile)) => void;
   triggerHaptic: (style?: Haptics.ImpactFeedbackStyle) => void;
   resetToDefaults: () => void;
 }
+
+const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
+  name: "",
+  email: "",
+  phone: "",
+  website: "",
+  address: "",
+  logoUri: null,
+};
 
 const DEFAULT_SETTINGS: SettingsState = {
   themePreference: "system",
@@ -55,6 +75,7 @@ const DEFAULT_SETTINGS: SettingsState = {
   hapticIntensity: 1,
   notificationsEnabled: true,
   autoSyncEnabled: true,
+  companyProfile: DEFAULT_COMPANY_PROFILE,
 };
 
 const STORAGE_KEY = "@quickquote/settings";
@@ -62,7 +83,10 @@ const STORAGE_KEY = "@quickquote/settings";
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<SettingsState>(() => ({
+    ...DEFAULT_SETTINGS,
+    companyProfile: { ...DEFAULT_COMPANY_PROFILE },
+  }));
   const [isHydrated, setIsHydrated] = useState(false);
   const [systemTheme, setSystemTheme] = useState<ColorSchemeName>(Appearance.getColorScheme());
   const hydrationRef = useRef(false);
@@ -73,7 +97,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored) as Partial<SettingsState>;
-          setSettings((current) => ({ ...current, ...parsed }));
+          setSettings((current) => ({
+            ...current,
+            ...parsed,
+            companyProfile: {
+              ...current.companyProfile,
+              ...(parsed.companyProfile ?? {}),
+            },
+          }));
         }
       } catch (error) {
         console.error("Failed to load settings from storage", error);
@@ -118,15 +149,40 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return settings.themePreference;
   }, [settings.themePreference, systemTheme]);
 
-  const updateSettings = useCallback((updater: Partial<SettingsState> | ((prev: SettingsState) => SettingsState)) => {
-    setSettings((prev) => {
-      if (typeof updater === "function") {
-        return updater(prev);
-      }
+  const updateSettings = useCallback(
+    (updater: Partial<SettingsState> | ((prev: SettingsState) => SettingsState)) => {
+      setSettings((prev) => {
+        if (typeof updater === "function") {
+          const next = updater(prev);
+          return {
+            ...prev,
+            ...next,
+            companyProfile: {
+              ...prev.companyProfile,
+              ...(next.companyProfile ?? {}),
+            },
+          };
+        }
 
-      return { ...prev, ...updater };
-    });
-  }, []);
+        const nextCompanyProfile =
+          updater.companyProfile !== undefined
+            ? {
+                ...prev.companyProfile,
+                ...updater.companyProfile,
+              }
+            : prev.companyProfile;
+
+        const { companyProfile: _ignored, ...rest } = updater;
+
+        return {
+          ...prev,
+          ...rest,
+          companyProfile: nextCompanyProfile,
+        };
+      });
+    },
+    []
+  );
 
   const setThemePreference = useCallback(
     (preference: ThemePreference) => {
@@ -191,6 +247,21 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     [updateSettings]
   );
 
+  const setCompanyProfile = useCallback(
+    (updater: Partial<CompanyProfile> | ((prev: CompanyProfile) => CompanyProfile)) => {
+      if (typeof updater === "function") {
+        updateSettings((prev) => ({
+          ...prev,
+          companyProfile: updater(prev.companyProfile),
+        }));
+        return;
+      }
+
+      updateSettings({ companyProfile: updater });
+    },
+    [updateSettings]
+  );
+
   const triggerHaptic = useCallback(
     (style?: Haptics.ImpactFeedbackStyle) => {
       if (!settings.hapticsEnabled) {
@@ -217,8 +288,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   );
 
   const resetToDefaults = useCallback(() => {
-    updateSettings(DEFAULT_SETTINGS);
-  }, [updateSettings]);
+    setSettings({
+      ...DEFAULT_SETTINGS,
+      companyProfile: { ...DEFAULT_COMPANY_PROFILE },
+    });
+  }, []);
 
   const value = useMemo<SettingsContextValue>(
     () => ({
@@ -234,6 +308,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setHapticIntensity,
       setNotificationsEnabled,
       setAutoSyncEnabled,
+      setCompanyProfile,
       triggerHaptic,
       resetToDefaults,
     }),
@@ -241,6 +316,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       isHydrated,
       resolvedTheme,
       setAutoSyncEnabled,
+      setCompanyProfile,
       setHapticIntensity,
       setHapticsEnabled,
       setLaborMarkup,

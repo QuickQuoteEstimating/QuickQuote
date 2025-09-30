@@ -12,6 +12,7 @@ import {
 import Slider from "@react-native-community/slider";
 import { useAuth } from "../../context/AuthContext";
 import { useSettings } from "../../context/SettingsContext";
+import LogoPicker from "../../components/LogoPicker";
 
 const THEME_OPTIONS = [
   { label: "Light", value: "light" },
@@ -36,6 +37,7 @@ export default function Settings() {
     setHapticIntensity,
     setNotificationsEnabled,
     setAutoSyncEnabled,
+    setCompanyProfile,
     triggerHaptic,
     resetToDefaults,
   } = useSettings();
@@ -194,6 +196,27 @@ export default function Settings() {
       color: colors.primaryText,
       backgroundColor: colors.isDark ? "rgba(15, 23, 42, 0.7)" : "#f8fafc",
     },
+    textArea: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 16,
+      color: colors.primaryText,
+      backgroundColor: colors.isDark ? "rgba(15, 23, 42, 0.7)" : "#f8fafc",
+      minHeight: 90,
+      textAlignVertical: "top",
+    },
+    fieldLabel: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.primaryText,
+      marginBottom: 6,
+    },
+    logoSection: {
+      gap: 16,
+    },
     percentSuffix: {
       fontSize: 16,
       fontWeight: "600",
@@ -256,6 +279,74 @@ export default function Settings() {
   return (
     <View style={themedStyles.container}>
       <ScrollView contentContainerStyle={themedStyles.content} showsVerticalScrollIndicator={false}>
+        <View style={[themedStyles.section, themedStyles.logoSection]}>
+          <Text style={themedStyles.sectionHeader}>Company profile</Text>
+          <Text style={themedStyles.sectionDescription}>
+            Keep these details current so new estimates automatically display your brand.
+          </Text>
+          <LogoPicker
+            value={settings.companyProfile.logoUri}
+            onChange={(uri) => setCompanyProfile({ logoUri: uri })}
+          />
+          <View style={{ gap: 16 }}>
+            <View>
+              <Text style={themedStyles.fieldLabel}>Company name</Text>
+              <TextInput
+                value={settings.companyProfile.name}
+                onChangeText={(text) => setCompanyProfile({ name: text })}
+                placeholder="QuickQuote Construction"
+                placeholderTextColor={colors.secondaryText}
+                style={themedStyles.textField}
+              />
+            </View>
+            <View>
+              <Text style={themedStyles.fieldLabel}>Email</Text>
+              <TextInput
+                value={settings.companyProfile.email}
+                onChangeText={(text) => setCompanyProfile({ email: text })}
+                placeholder="hello@quickquote.com"
+                placeholderTextColor={colors.secondaryText}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={themedStyles.textField}
+              />
+            </View>
+            <View>
+              <Text style={themedStyles.fieldLabel}>Phone</Text>
+              <TextInput
+                value={settings.companyProfile.phone}
+                onChangeText={(text) => setCompanyProfile({ phone: text })}
+                placeholder="(555) 123-4567"
+                placeholderTextColor={colors.secondaryText}
+                keyboardType="phone-pad"
+                style={themedStyles.textField}
+              />
+            </View>
+            <View>
+              <Text style={themedStyles.fieldLabel}>Website</Text>
+              <TextInput
+                value={settings.companyProfile.website}
+                onChangeText={(text) => setCompanyProfile({ website: text })}
+                placeholder="quickquote.com"
+                placeholderTextColor={colors.secondaryText}
+                autoCapitalize="none"
+                style={themedStyles.textField}
+              />
+            </View>
+            <View>
+              <Text style={themedStyles.fieldLabel}>Address</Text>
+              <TextInput
+                value={settings.companyProfile.address}
+                onChangeText={(text) => setCompanyProfile({ address: text })}
+                placeholder="123 Main Street, Springfield, USA"
+                placeholderTextColor={colors.secondaryText}
+                multiline
+                style={themedStyles.textArea}
+              />
+            </View>
+          </View>
+        </View>
+
         <View style={themedStyles.section}>
           <Text style={themedStyles.sectionHeader}>Appearance</Text>
           <Text style={themedStyles.sectionDescription}>

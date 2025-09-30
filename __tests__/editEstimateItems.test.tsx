@@ -38,7 +38,16 @@ jest.mock("../context/SettingsContext", () => ({
     settings: {
       hourlyRate: 55,
       taxRate: 7.5,
+      companyProfile: {
+        name: "QuickQuote Co.",
+        email: "hello@example.com",
+        phone: "555-111-2222",
+        website: "quickquote.test",
+        address: "123 Main St",
+        logoUri: null,
+      },
     },
+    resolvedTheme: "light",
   }),
 }));
 
@@ -192,6 +201,7 @@ describe("EditEstimateScreen - item editing", () => {
   it("adds a new item to the estimate when the editor submits", async () => {
     const { findByText, getByText } = render(<EditEstimateScreen />);
 
+    await act(async () => {});
     await findByText("Items");
 
     fireEvent.press(getByText("Add Item"));
