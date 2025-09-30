@@ -53,6 +53,7 @@ import {
   type EstimatePdfResult,
 } from "../../../lib/pdf";
 import { calculateEstimateTotals } from "../../../lib/estimateMath";
+import { formatPercentageInput } from "../../../lib/numberFormat";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
 
@@ -133,7 +134,7 @@ export default function EditEstimateScreen() {
   const [savedItems, setSavedItems] = useState<ItemCatalogRecord[]>([]);
   const [laborHoursText, setLaborHoursText] = useState("0");
   const [hourlyRateText, setHourlyRateText] = useState(settings.hourlyRate.toFixed(2));
-  const [taxRateText, setTaxRateText] = useState("0");
+  const [taxRateText, setTaxRateText] = useState(() => formatPercentageInput(settings.taxRate));
   const [photos, setPhotos] = useState<PhotoRecord[]>([]);
   const [photoDrafts, setPhotoDrafts] = useState<Record<string, string>>({});
   const [addingPhoto, setAddingPhoto] = useState(false);
@@ -155,6 +156,12 @@ export default function EditEstimateScreen() {
       setHourlyRateText(settings.hourlyRate.toFixed(2));
     }
   }, [estimate, settings.hourlyRate]);
+
+  useEffect(() => {
+    if (!estimate) {
+      setTaxRateText(formatPercentageInput(settings.taxRate));
+    }
+  }, [estimate, settings.taxRate]);
 
   const loadSavedItems = useCallback(async () => {
     if (!userId) {
@@ -193,10 +200,10 @@ export default function EditEstimateScreen() {
   }, [estimate?.labor_rate, hourlyRateText, parseNumericInput, settings.hourlyRate]);
 
   const taxRate = useMemo(() => {
-    const fallback = estimate?.tax_rate ?? 0;
+    const fallback = estimate?.tax_rate ?? settings.taxRate;
     const parsed = parseNumericInput(taxRateText, fallback);
     return Math.max(0, Math.round(parsed * 100) / 100);
-  }, [estimate?.tax_rate, parseNumericInput, taxRateText]);
+  }, [estimate?.tax_rate, parseNumericInput, settings.taxRate, taxRateText]);
 
   const totals = useMemo(
     () =>
@@ -1161,18 +1168,14 @@ export default function EditEstimateScreen() {
         const taxRateValue =
           typeof record.tax_rate === "number" && Number.isFinite(record.tax_rate)
             ? Math.max(0, Math.round(record.tax_rate * 100) / 100)
-            : 0;
+            : Math.max(0, Math.round(settings.taxRate * 100) / 100);
         setLaborHoursText(
           laborHoursValue % 1 === 0
             ? laborHoursValue.toFixed(0)
             : laborHoursValue.toString()
         );
         setHourlyRateText(laborRateValue.toFixed(2));
-        setTaxRateText(
-          taxRateValue % 1 === 0
-            ? taxRateValue.toFixed(0)
-            : taxRateValue.toString()
-        );
+        setTaxRateText(formatPercentageInput(taxRateValue));
         setCustomerContact({
           id: record.customer_id,
           name: record.customer_name ?? "Customer",
