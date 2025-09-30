@@ -13,17 +13,7 @@ jest.mock("expo-router", () => {
   };
 });
 
-const mockOpenEditor = jest.fn();
-
 const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
-
-jest.mock("../context/ItemEditorContext", () => ({
-  useItemEditor: () => ({
-    config: null,
-    openEditor: mockOpenEditor,
-    closeEditor: jest.fn(),
-  }),
-}));
 
 jest.mock("../context/AuthContext", () => ({
   useAuth: () => ({
@@ -37,14 +27,39 @@ jest.mock("../context/SettingsContext", () => ({
     settings: {
       hourlyRate: 50,
       taxRate: 8,
+      companyProfile: {
+        name: "QuickQuote Co.",
+        email: "hello@example.com",
+        phone: "555-000-1111",
+        website: "quickquote.test",
+        address: "123 Main St",
+        logoUri: null,
+      },
     },
+    resolvedTheme: "light",
   }),
 }));
 
-jest.mock("../lib/itemCatalog", () => ({
-  listItemCatalog: jest.fn().mockResolvedValue([]),
-  upsertItemCatalog: jest.fn(),
-}));
+let mockUpsertItem: jest.Mock;
+
+jest.mock("../lib/itemCatalog", () => {
+  mockUpsertItem = jest.fn().mockResolvedValue({
+    id: "catalog-item-1",
+    user_id: "user-123",
+    description: "Widget",
+    default_quantity: 1,
+    unit_price: 40,
+    notes: null,
+    version: 1,
+    updated_at: new Date().toISOString(),
+    deleted_at: null,
+  });
+
+  return {
+    listItemCatalog: jest.fn().mockResolvedValue([]),
+    upsertItemCatalog: mockUpsertItem,
+  };
+});
 
 jest.mock("../components/CustomerPicker", () => ({
   __esModule: true,
@@ -76,17 +91,8 @@ jest.mock("../lib/sync", () => ({
 import NewEstimateScreen from "../app/(tabs)/estimates/new";
 import { openDB, queueChange } from "../lib/sqlite";
 
-function submitConfigItem(index = 0) {
-  const call = mockOpenEditor.mock.calls[index];
-  if (!call) {
-    throw new Error("No item editor config captured");
-  }
-  return call[0];
-}
-
 describe("NewEstimateScreen", () => {
   beforeEach(() => {
-    mockOpenEditor.mockClear();
     alertSpy.mockClear();
     mockDbInstance.runAsync.mockClear();
     mockDbInstance.execAsync.mockClear();
@@ -94,59 +100,35 @@ describe("NewEstimateScreen", () => {
     (openDB as jest.Mock).mockResolvedValue(mockDbInstance);
   });
 
-  it("adds a new line item to the quote when the editor submits", async () => {
-    const { getByText } = render(<NewEstimateScreen />);
+  it("adds a new line item inline", async () => {
+    const { getByText, getByPlaceholderText } = render(<NewEstimateScreen />);
 
-    fireEvent.press(getByText("Add Item"));
+    fireEvent.press(getByText("Add line item"));
 
-    expect(mockOpenEditor).toHaveBeenCalledTimes(1);
+    const descriptionInput = getByPlaceholderText("Describe the work");
+    const quantityInput = getByPlaceholderText("Qty");
+    const unitInput = getByPlaceholderText("$0.00");
 
-    const config = submitConfigItem();
-
-    await act(async () => {
-      await config.onSubmit({
-        values: {
-          description: "Demo Item",
-          quantity: 2,
-          unit_price: 25,
-          total: 50,
-        },
-        saveToLibrary: false,
-        templateId: null,
-      });
-    });
+    fireEvent.changeText(descriptionInput, "Demo Item");
+    fireEvent.changeText(quantityInput, "2");
+    fireEvent.changeText(unitInput, "25");
 
     await waitFor(() => {
-      expect(getByText("Demo Item")).toBeTruthy();
-      expect(getByText(/Line Total: \$50.00/)).toBeTruthy();
+      expect(getByText("Line total: $50.00")).toBeTruthy();
     });
   });
 
   it("saves the estimate and queues database operations", async () => {
-    const { getByText } = render(<NewEstimateScreen />);
+    const { getByText, getByPlaceholderText } = render(<NewEstimateScreen />);
 
-    fireEvent.press(getByText("Add Item"));
-    const config = submitConfigItem();
+    fireEvent.press(getByText("Add line item"));
 
-    await act(async () => {
-      await config.onSubmit({
-        values: {
-          description: "Widget",
-          quantity: 3,
-          unit_price: 40,
-          total: 120,
-        },
-        saveToLibrary: false,
-        templateId: null,
-      });
-    });
-
-    await waitFor(() => {
-      expect(getByText("Widget")).toBeTruthy();
-    });
+    fireEvent.changeText(getByPlaceholderText("Describe the work"), "Widget");
+    fireEvent.changeText(getByPlaceholderText("Qty"), "3");
+    fireEvent.changeText(getByPlaceholderText("$0.00"), "40");
 
     await act(async () => {
-      fireEvent.press(getByText("Save"));
+      fireEvent.press(getByText("Save estimate"));
     });
 
     await waitFor(() => {

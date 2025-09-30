@@ -1,20 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router } from "expo-router";
-import { Alert, Button, FlatList, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
 import CustomerPicker from "../../../components/CustomerPicker";
-import {
-  type EstimateItemFormSubmit,
-  type EstimateItemTemplate,
-} from "../../../components/EstimateItemForm";
+import BrandLogo from "../../../components/BrandLogo";
 import { useAuth } from "../../../context/AuthContext";
 import { useSettings } from "../../../context/SettingsContext";
-import {
-  useItemEditor,
-  type ItemEditorConfig,
-} from "../../../context/ItemEditorContext";
 import { openDB, queueChange } from "../../../lib/sqlite";
 import { runSync } from "../../../lib/sync";
 import {
@@ -38,13 +41,22 @@ type EstimateItemRecord = {
   deleted_at: string | null;
 };
 
+type EstimateItemDraft = {
+  id: string;
+  description: string;
+  quantityText: string;
+  unitPriceText: string;
+  catalogItemId: string | null;
+  saveToLibrary: boolean;
+};
+
 type NewEstimateDraftState = {
   estimateId: string;
   customerId: string | null;
   estimateDate: string;
   notes: string;
   status: string;
-  items: EstimateItemRecord[];
+  items: EstimateItemDraft[];
   laborHoursText: string;
   hourlyRateText: string;
   taxRateText: string;
@@ -56,6 +68,7 @@ function getNewEstimateDraft(): NewEstimateDraftState | null {
   if (!newEstimateDraft) {
     return null;
   }
+
   return {
     ...newEstimateDraft,
     items: newEstimateDraft.items.map((item) => ({ ...item })),
@@ -73,12 +86,290 @@ function clearNewEstimateDraft() {
   newEstimateDraft = null;
 }
 
+function parseQuantity(value: string): number {
+  const parsed = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+  return Math.max(0, Math.round(parsed));
+}
+
+function parseCurrency(value: string): number {
+  const parsed = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+  return Math.max(0, Math.round(parsed * 100) / 100);
+}
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 2,
   }).format(value);
+}
+
+type ThemePalette = {
+  background: string;
+  card: string;
+  border: string;
+  primaryText: string;
+  secondaryText: string;
+  accent: string;
+  muted: string;
+  inputBackground: string;
+};
+
+function createStyles(theme: ThemePalette) {
+  return StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    content: {
+      padding: 24,
+      gap: 24,
+    },
+    card: {
+      backgroundColor: theme.card,
+      borderRadius: 18,
+      padding: 20,
+      gap: 18,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+      shadowColor: theme.primaryText,
+      shadowOpacity: theme.background === "#0f172a" ? 0.4 : 0.08,
+      shadowOffset: { width: 0, height: 8 },
+      shadowRadius: 24,
+      elevation: 4,
+    },
+    headerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      gap: 16,
+    },
+    companyInfo: {
+      flex: 1,
+      flexDirection: "row",
+      gap: 16,
+    },
+    logoWrapper: {
+      width: 76,
+      height: 76,
+      borderRadius: 18,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+      backgroundColor: theme.inputBackground,
+    },
+    companyText: {
+      flex: 1,
+      gap: 4,
+    },
+    companyName: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    companyMeta: {
+      fontSize: 14,
+      color: theme.secondaryText,
+      lineHeight: 20,
+    },
+    emptyCompanyHint: {
+      fontSize: 13,
+      color: theme.muted,
+      marginTop: 4,
+    },
+    estimateMeta: {
+      minWidth: 140,
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+      padding: 16,
+      gap: 12,
+      backgroundColor: theme.inputBackground,
+    },
+    estimateNumber: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    fieldLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.primaryText,
+    },
+    textField: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 16,
+      color: theme.primaryText,
+      backgroundColor: theme.inputBackground,
+    },
+    textArea: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 16,
+      color: theme.primaryText,
+      backgroundColor: theme.inputBackground,
+      minHeight: 100,
+      textAlignVertical: "top",
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    sectionSubtitle: {
+      fontSize: 14,
+      color: theme.secondaryText,
+      lineHeight: 20,
+    },
+    savedItemsRow: {
+      flexDirection: "row",
+      gap: 12,
+      alignItems: "center",
+    },
+    savedPickerContainer: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 12,
+      overflow: "hidden",
+      backgroundColor: theme.inputBackground,
+    },
+    secondaryButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.inputBackground,
+    },
+    secondaryButtonText: {
+      color: theme.primaryText,
+      fontWeight: "600",
+    },
+    addButton: {
+      paddingVertical: 14,
+      borderRadius: 14,
+      alignItems: "center",
+      backgroundColor: theme.accent,
+    },
+    addButtonText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    itemCard: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 16,
+      padding: 16,
+      gap: 12,
+      backgroundColor: theme.inputBackground,
+    },
+    itemHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    itemTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.primaryText,
+    },
+    removeButton: {
+      color: "#ef4444",
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    itemRow: {
+      flexDirection: "row",
+      gap: 12,
+    },
+    itemInputHalf: {
+      flex: 1,
+    },
+    itemFooter: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    mutedText: {
+      fontSize: 13,
+      color: theme.muted,
+    },
+    totalsRow: {
+      gap: 8,
+    },
+    totalsLine: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    totalsLabel: {
+      fontSize: 15,
+      color: theme.secondaryText,
+    },
+    totalsValue: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: theme.primaryText,
+    },
+    totalsGrand: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    actionRow: {
+      flexDirection: "row",
+      gap: 16,
+    },
+    cancelButton: {
+      flex: 1,
+      paddingVertical: 16,
+      borderRadius: 14,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+    },
+    cancelText: {
+      color: theme.primaryText,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    primaryAction: {
+      flex: 1,
+      paddingVertical: 16,
+      borderRadius: 14,
+      alignItems: "center",
+      backgroundColor: theme.accent,
+    },
+    primaryActionText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    statusPicker: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 12,
+      overflow: "hidden",
+      backgroundColor: theme.inputBackground,
+    },
+  });
 }
 
 const STATUS_OPTIONS = [
@@ -90,14 +381,10 @@ const STATUS_OPTIONS = [
 
 export default function NewEstimateScreen() {
   const { user, session } = useAuth();
-  const { settings } = useSettings();
-  const { openEditor } = useItemEditor();
+  const { settings, resolvedTheme } = useSettings();
   const draftRef = useRef<NewEstimateDraftState | null>(getNewEstimateDraft());
   const hasRestoredDraftRef = useRef(Boolean(draftRef.current));
-  const preserveDraftRef = useRef(false);
-  const [estimateId] = useState(
-    () => draftRef.current?.estimateId ?? uuidv4()
-  );
+  const [estimateId] = useState(() => draftRef.current?.estimateId ?? uuidv4());
   const [customerId, setCustomerId] = useState<string | null>(
     draftRef.current?.customerId ?? null
   );
@@ -106,7 +393,7 @@ export default function NewEstimateScreen() {
   );
   const [notes, setNotes] = useState(draftRef.current?.notes ?? "");
   const [status, setStatus] = useState(draftRef.current?.status ?? "draft");
-  const [items, setItems] = useState<EstimateItemRecord[]>(
+  const [items, setItems] = useState<EstimateItemDraft[]>(
     () => draftRef.current?.items.map((item) => ({ ...item })) ?? []
   );
   const [saving, setSaving] = useState(false);
@@ -120,7 +407,25 @@ export default function NewEstimateScreen() {
     draftRef.current?.taxRateText ?? formatPercentageInput(settings.taxRate)
   );
   const [savedItems, setSavedItems] = useState<ItemCatalogRecord[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
 
+  const themeColors = useMemo(() => {
+    const isDark = resolvedTheme === "dark";
+    return {
+      background: isDark ? "#0f172a" : "#f8fafc",
+      card: isDark ? "#1e293b" : "#fff",
+      border: isDark ? "#334155" : "#e2e8f0",
+      primaryText: isDark ? "#f8fafc" : "#0f172a",
+      secondaryText: isDark ? "#cbd5f5" : "#475569",
+      accent: "#2563eb",
+      muted: isDark ? "#94a3b8" : "#64748b",
+      inputBackground: isDark ? "rgba(15, 23, 42, 0.7)" : "#f8fafc",
+    } satisfies ThemePalette;
+  }, [resolvedTheme]);
+
+  const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+
+  const { companyProfile } = settings;
   const userId = user?.id ?? session?.user?.id ?? null;
 
   useEffect(() => {
@@ -183,125 +488,33 @@ export default function NewEstimateScreen() {
     return Math.max(0, Math.round(parsed * 100) / 100);
   }, [parseNumericInput, settings.taxRate, taxRateText]);
 
+  const computedItems = useMemo(
+    () =>
+      items.map((item) => {
+        const quantity = parseQuantity(item.quantityText);
+        const unitPrice = parseCurrency(item.unitPriceText);
+        const total = Math.round(quantity * unitPrice * 100) / 100;
+        return { ...item, quantity, unitPrice, total };
+      }),
+    [items]
+  );
+
   const totals = useMemo(
     () =>
       calculateEstimateTotals({
-        materialLineItems: items,
+        materialLineItems: computedItems,
         laborHours,
         laborRate: hourlyRate,
         taxRate,
       }),
-    [hourlyRate, items, laborHours, taxRate]
+    [computedItems, hourlyRate, laborHours, taxRate]
   );
 
   const total = totals.grandTotal;
 
-  const savedItemTemplates = useMemo<EstimateItemTemplate[]>(
-    () =>
-      savedItems.map((item) => ({
-        id: item.id,
-        description: item.description,
-        unit_price: item.unit_price,
-        default_quantity: item.default_quantity,
-      })),
-    [savedItems]
-  );
-
-  const openItemEditorScreen = useCallback(
-    (config: ItemEditorConfig) => {
-      preserveDraftRef.current = true;
-      openEditor({
-        ...config,
-        onSubmit: async (payload) => {
-          try {
-            await config.onSubmit(payload);
-          } finally {
-            preserveDraftRef.current = false;
-          }
-        },
-        onCancel: () => {
-          try {
-            config.onCancel?.();
-          } finally {
-            preserveDraftRef.current = false;
-          }
-        },
-      });
-      router.push("/(tabs)/estimates/item-editor");
-    },
-    [openEditor],
-  );
-
-  const makeItemSubmitHandler = useCallback(
-    (existingItem?: EstimateItemRecord | null) =>
-      async ({ values, saveToLibrary, templateId }: EstimateItemFormSubmit) => {
-        const now = new Date().toISOString();
-        let resolvedTemplateId: string | null = templateId ?? null;
-
-        if (saveToLibrary && userId) {
-          try {
-            const record = await upsertItemCatalog({
-              id: templateId ?? undefined,
-              userId,
-              description: values.description,
-              unitPrice: values.unit_price,
-              defaultQuantity: values.quantity,
-            });
-            resolvedTemplateId = record.id;
-            setSavedItems((prev) => {
-              const existingIndex = prev.findIndex((item) => item.id === record.id);
-              if (existingIndex >= 0) {
-                const next = [...prev];
-                next[existingIndex] = record;
-                return next;
-              }
-              return [...prev, record].sort((a, b) =>
-                a.description.localeCompare(b.description)
-              );
-            });
-          } catch (error) {
-            console.error("Failed to save item to catalog", error);
-            Alert.alert(
-              "Saved items",
-              "We couldn't update your saved items library. The estimate item was still added."
-            );
-          }
-        }
-
-        if (existingItem) {
-          const updated: EstimateItemRecord = {
-            ...existingItem,
-            description: values.description,
-            quantity: values.quantity,
-            unit_price: values.unit_price,
-            total: values.total,
-            catalog_item_id: resolvedTemplateId,
-            updated_at: now,
-            deleted_at: null,
-          };
-
-          setItems((prev) =>
-            prev.map((item) => (item.id === updated.id ? updated : item))
-          );
-        } else {
-          const newItem: EstimateItemRecord = {
-            id: uuidv4(),
-            estimate_id: estimateId,
-            description: values.description,
-            quantity: values.quantity,
-            unit_price: values.unit_price,
-            total: values.total,
-            catalog_item_id: resolvedTemplateId,
-            version: 1,
-            updated_at: now,
-            deleted_at: null,
-          };
-
-          setItems((prev) => [...prev, newItem]);
-        }
-      },
-    [estimateId, userId],
-  );
+  const estimateNumber = useMemo(() => {
+    return estimateId.split("-").shift()?.toUpperCase() ?? estimateId.substring(0, 8);
+  }, [estimateId]);
 
   useEffect(() => {
     setNewEstimateDraft({
@@ -329,79 +542,69 @@ export default function NewEstimateScreen() {
 
   useEffect(() => {
     return () => {
-      if (!preserveDraftRef.current) {
-        clearNewEstimateDraft();
-      }
-      preserveDraftRef.current = false;
+      clearNewEstimateDraft();
     };
   }, []);
 
-  const handleDeleteItem = (item: EstimateItemRecord) => {
-    Alert.alert(
-      "Delete Item",
-      "Are you sure you want to remove this item?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            setItems((prev) =>
-              prev.filter((existing) => existing.id !== item.id)
-            );
-          },
-        },
-      ]
-    );
+  const handleAddItem = () => {
+    setItems((prev) => [
+      ...prev,
+      {
+        id: uuidv4(),
+        description: "",
+        quantityText: "1",
+        unitPriceText: "0",
+        catalogItemId: null,
+        saveToLibrary: true,
+      },
+    ]);
   };
 
-  const renderItem = ({ item }: { item: EstimateItemRecord }) => (
-    <View
-      style={{
-        padding: 12,
-        borderWidth: 1,
-        borderRadius: 8,
-        backgroundColor: "#fafafa",
-        gap: 8,
-      }}
-    >
-      <View style={{ gap: 2 }}>
-        <Text style={{ fontWeight: "600" }}>{item.description}</Text>
-        <Text style={{ color: "#555" }}>
-          Qty: {item.quantity} @ {formatCurrency(item.unit_price)}
-        </Text>
-        <Text style={{ color: "#555" }}>Line Total: {formatCurrency(item.total)}</Text>
-      </View>
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <View style={{ flex: 1 }}>
-            <Button
-              title="Edit"
-              onPress={() =>
-                openItemEditorScreen({
-                  title: "Edit Item",
-                  submitLabel: "Update Item",
-                  initialValue: {
-                    description: item.description,
-                    quantity: item.quantity,
-                    unit_price: item.unit_price,
-                  },
-                  initialTemplateId: item.catalog_item_id,
-                  templates: savedItemTemplates,
-                  onSubmit: makeItemSubmitHandler(item),
-                })
-              }
-            />
-          </View>
-        <View style={{ flex: 1 }}>
-          <Button
-            title="Remove"
-            color="#b00020"
-            onPress={() => handleDeleteItem(item)}
-          />
-        </View>
-      </View>
-    </View>
-  );
+  const handleAddSavedItem = () => {
+    if (!selectedTemplateId) {
+      Alert.alert("Saved items", "Select an item to add to your estimate.");
+      return;
+    }
+    const template = savedItems.find((item) => item.id === selectedTemplateId);
+    if (!template) {
+      Alert.alert("Saved items", "We couldn't find that saved item.");
+      return;
+    }
+    setItems((prev) => [
+      ...prev,
+      {
+        id: uuidv4(),
+        description: template.description,
+        quantityText: String(template.default_quantity ?? 1),
+        unitPriceText: template.unit_price.toFixed(2),
+        catalogItemId: template.id,
+        saveToLibrary: false,
+      },
+    ]);
+    setSelectedTemplateId("");
+  };
+
+  const updateItem = useCallback((itemId: string, updates: Partial<EstimateItemDraft>) => {
+    setItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, ...updates } : item)));
+  }, []);
+
+  const handleRemoveItem = (itemId: string) => {
+    const item = items.find((entry) => entry.id === itemId);
+    if (!item) {
+      return;
+    }
+
+    Alert.alert("Remove item", `Remove “${item.description || "New item"}” from this estimate?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => {
+          setItems((prev) => prev.filter((entry) => entry.id !== itemId));
+        },
+      },
+    ]);
+  };
 
   const handleCancel = () => {
     if (!saving) {
@@ -411,21 +614,34 @@ export default function NewEstimateScreen() {
   };
 
   const handleSave = async () => {
-    if (saving) return;
-
-    if (!customerId) {
-      Alert.alert("Validation", "Please select a customer.");
+    if (saving) {
       return;
     }
 
-    if (items.length === 0) {
-      Alert.alert("Validation", "Please add at least one item to the estimate.");
+    if (!customerId) {
+      Alert.alert("Validation", "Please select a customer before saving.");
+      return;
+    }
+
+    if (computedItems.length === 0) {
+      Alert.alert("Validation", "Add at least one line item to the estimate.");
       return;
     }
 
     if (!userId) {
       Alert.alert("Authentication required", "Please sign in to continue.");
       return;
+    }
+
+    for (const item of computedItems) {
+      if (!item.description.trim()) {
+        Alert.alert("Validation", "Every line item needs a description.");
+        return;
+      }
+      if (item.quantity <= 0) {
+        Alert.alert("Validation", "Item quantities must be greater than zero.");
+        return;
+      }
     }
 
     setSaving(true);
@@ -436,7 +652,7 @@ export default function NewEstimateScreen() {
       let isoDate: string | null = null;
       if (estimateDate) {
         const parsedDate = new Date(estimateDate);
-        isoDate = isNaN(parsedDate.getTime())
+        isoDate = Number.isNaN(parsedDate.getTime())
           ? now
           : new Date(parsedDate.setHours(0, 0, 0, 0)).toISOString();
       }
@@ -487,12 +703,48 @@ export default function NewEstimateScreen() {
         ]
       );
 
-      for (const item of items) {
+      for (const item of computedItems) {
+        let catalogItemId = item.catalogItemId;
+
+        if (item.saveToLibrary) {
+          try {
+            const record = await upsertItemCatalog({
+              id: catalogItemId ?? undefined,
+              userId,
+              description: item.description,
+              unitPrice: item.unitPrice,
+              defaultQuantity: item.quantity,
+            });
+            catalogItemId = record.id;
+            setSavedItems((prev) => {
+              const next = [...prev];
+              const index = next.findIndex((entry) => entry.id === record.id);
+              if (index >= 0) {
+                next[index] = record;
+              } else {
+                next.push(record);
+              }
+              return next.sort((a, b) => a.description.localeCompare(b.description));
+            });
+          } catch (error) {
+            console.error("Failed to save item to catalog", error);
+            Alert.alert(
+              "Saved items",
+              "We couldn't add this line to your saved library. The estimate item was still created."
+            );
+          }
+        }
+
         const itemRecord: EstimateItemRecord = {
-          ...item,
+          id: item.id,
           estimate_id: estimateId,
-          version: item.version ?? 1,
-          updated_at: item.updated_at ?? now,
+          description: item.description.trim(),
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          total: item.total,
+          catalog_item_id: catalogItemId,
+          version: 1,
+          updated_at: now,
           deleted_at: null,
         };
 
@@ -531,159 +783,240 @@ export default function NewEstimateScreen() {
     }
   };
 
+  const estimateLines = [companyProfile.phone, companyProfile.email, companyProfile.website].filter(Boolean);
+
   return (
-    <ScrollView
-      contentContainerStyle={{ padding: 16, gap: 16 }}
-      style={{ flex: 1, backgroundColor: "#fff" }}
-    >
-      <Text style={{ fontSize: 20, fontWeight: "600" }}>New Estimate</Text>
-      <CustomerPicker
-        selectedCustomer={customerId}
-        onSelect={(id) => setCustomerId(id)}
-      />
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Date</Text>
-        <TextInput
-          placeholder="YYYY-MM-DD"
-          value={estimateDate}
-          onChangeText={setEstimateDate}
-          style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
-        />
-      </View>
-
-      <View style={{ gap: 12 }}>
-        <Text style={{ fontWeight: "600" }}>Items</Text>
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          scrollEnabled={false}
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          ListEmptyComponent={
-            <View
-              style={{
-                padding: 16,
-                borderWidth: 1,
-                borderRadius: 8,
-                borderStyle: "dashed",
-                alignItems: "center",
-                backgroundColor: "#fafafa",
-              }}
-            >
-              <Text style={{ color: "#666" }}>No items added yet.</Text>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <View style={styles.card}>
+        <View style={styles.headerRow}>
+          <View style={styles.companyInfo}>
+            <View style={styles.logoWrapper}>
+              {companyProfile.logoUri ? (
+                <Image
+                  source={{ uri: companyProfile.logoUri }}
+                  resizeMode="contain"
+                  style={{ width: "100%", height: "100%" }}
+                />
+              ) : (
+                <BrandLogo size={64} />
+              )}
             </View>
-          }
-        />
-        <Button
-          title="Add Item"
-          onPress={() =>
-            openItemEditorScreen({
-              title: "Add Item",
-              submitLabel: "Add Item",
-              templates: savedItemTemplates,
-              initialTemplateId: null,
-              onSubmit: makeItemSubmitHandler(null),
-            })
-          }
-        />
+            <View style={styles.companyText}>
+              <Text style={styles.companyName}>
+                {companyProfile.name || "Your company name"}
+              </Text>
+              {estimateLines.map((line) => (
+                <Text key={line} style={styles.companyMeta}>
+                  {line}
+                </Text>
+              ))}
+              {companyProfile.address ? (
+                <Text style={styles.companyMeta}>{companyProfile.address}</Text>
+              ) : null}
+              {!companyProfile.name ? (
+                <Text style={styles.emptyCompanyHint}>
+                  Add your company profile in Settings so every estimate is branded automatically.
+                </Text>
+              ) : null}
+            </View>
+          </View>
+          <View style={styles.estimateMeta}>
+            <Text style={styles.estimateNumber}>Estimate #{estimateNumber}</Text>
+            <Text style={styles.fieldLabel}>Date</Text>
+            <TextInput
+              placeholder="YYYY-MM-DD"
+              value={estimateDate}
+              onChangeText={setEstimateDate}
+              style={styles.textField}
+            />
+          </View>
+        </View>
       </View>
 
-      <View style={{ gap: 12 }}>
-        <Text style={{ fontWeight: "600" }}>Labor</Text>
-        <View style={{ gap: 6 }}>
-          <Text style={{ fontWeight: "500" }}>Project hours</Text>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Client information</Text>
+        <Text style={styles.sectionSubtitle}>
+          Choose an existing customer or add a new one so the estimate is addressed correctly.
+        </Text>
+        <CustomerPicker selectedCustomer={customerId} onSelect={setCustomerId} />
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Estimate items</Text>
+        <Text style={styles.sectionSubtitle}>
+          Build out the work you&apos;re quoting. Saved items let you reuse common tasks in seconds.
+        </Text>
+        {savedItems.length > 0 ? (
+          <View style={styles.savedItemsRow}>
+            <View style={styles.savedPickerContainer}>
+              <Picker
+                selectedValue={selectedTemplateId}
+                onValueChange={(value) => setSelectedTemplateId(value ? String(value) : "")}
+              >
+                <Picker.Item label="Add from saved items" value="" />
+                {savedItems.map((item) => (
+                  <Picker.Item key={item.id} label={item.description} value={item.id} />
+                ))}
+              </Picker>
+            </View>
+            <Pressable style={styles.secondaryButton} onPress={handleAddSavedItem}>
+              <Text style={styles.secondaryButtonText}>Add saved item</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <Pressable style={styles.addButton} onPress={handleAddItem}>
+          <Text style={styles.addButtonText}>Add line item</Text>
+        </Pressable>
+
+        {items.length === 0 ? (
+          <Text style={styles.mutedText}>
+            No items yet. Start with a blank line or pull from your saved library.
+          </Text>
+        ) : null}
+
+        {computedItems.map((item, index) => (
+          <View key={item.id} style={styles.itemCard}>
+            <View style={styles.itemHeader}>
+              <Text style={styles.itemTitle}>Item {index + 1}</Text>
+              <Pressable onPress={() => handleRemoveItem(item.id)}>
+                <Text style={styles.removeButton}>Remove</Text>
+              </Pressable>
+            </View>
+            <View>
+              <Text style={styles.fieldLabel}>Description</Text>
+              <TextInput
+                placeholder="Describe the work"
+                value={item.description}
+                onChangeText={(text) => updateItem(item.id, { description: text })}
+                style={styles.textField}
+              />
+            </View>
+            <View style={styles.itemRow}>
+              <View style={styles.itemInputHalf}>
+                <Text style={styles.fieldLabel}>Quantity</Text>
+                <TextInput
+                  placeholder="Qty"
+                  value={items[index].quantityText}
+                  onChangeText={(text) => updateItem(item.id, { quantityText: text })}
+                  keyboardType="numeric"
+                  style={styles.textField}
+                />
+              </View>
+              <View style={styles.itemInputHalf}>
+                <Text style={styles.fieldLabel}>Unit cost</Text>
+                <TextInput
+                  placeholder="$0.00"
+                  value={items[index].unitPriceText}
+                  onChangeText={(text) => updateItem(item.id, { unitPriceText: text })}
+                  keyboardType="decimal-pad"
+                  style={styles.textField}
+                />
+              </View>
+            </View>
+            <View style={styles.itemFooter}>
+              <Text style={styles.fieldLabel}>Line total: {formatCurrency(item.total)}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={styles.mutedText}>Save to library</Text>
+                <Switch
+                  value={items[index].saveToLibrary}
+                  onValueChange={(value) => updateItem(item.id, { saveToLibrary: value })}
+                />
+              </View>
+            </View>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Labor & totals</Text>
+        <Text style={styles.sectionSubtitle}>
+          QuickQuote automatically calculates your labor and tax totals as you fill in the details.
+        </Text>
+        <View>
+          <Text style={styles.fieldLabel}>Project hours</Text>
           <TextInput
             placeholder="0"
             value={laborHoursText}
             onChangeText={setLaborHoursText}
             keyboardType="decimal-pad"
-            style={{ borderWidth: 1, borderRadius: 8, padding: 10 }}
+            style={styles.textField}
           />
         </View>
-        <View style={{ gap: 6 }}>
-          <Text style={{ fontWeight: "500" }}>Hourly rate</Text>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Text style={{ fontWeight: "600", marginRight: 8 }}>$</Text>
-            <TextInput
-              placeholder="0.00"
-              value={hourlyRateText}
-              onChangeText={setHourlyRateText}
-              keyboardType="decimal-pad"
-              style={{ flex: 1, borderWidth: 1, borderRadius: 8, padding: 10 }}
-            />
-          </View>
-          <Text style={{ color: "#555", fontSize: 12 }}>
-            Labor total (not shown to customers): {formatCurrency(totals.laborTotal)}
-          </Text>
+        <View>
+          <Text style={styles.fieldLabel}>Hourly rate</Text>
+          <TextInput
+            placeholder="0.00"
+            value={hourlyRateText}
+            onChangeText={setHourlyRateText}
+            keyboardType="decimal-pad"
+            style={styles.textField}
+          />
         </View>
-      </View>
-
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Tax rate</Text>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <View>
+          <Text style={styles.fieldLabel}>Tax rate (%)</Text>
           <TextInput
             placeholder="0"
             value={taxRateText}
             onChangeText={setTaxRateText}
             keyboardType="decimal-pad"
-            style={{ flex: 1, borderWidth: 1, borderRadius: 8, padding: 10 }}
+            style={styles.textField}
           />
-          <Text style={{ fontWeight: "600", marginLeft: 8 }}>%</Text>
+        </View>
+        <View style={styles.totalsRow}>
+          <View style={styles.totalsLine}>
+            <Text style={styles.totalsLabel}>Materials</Text>
+            <Text style={styles.totalsValue}>{formatCurrency(totals.materialTotal)}</Text>
+          </View>
+          <View style={styles.totalsLine}>
+            <Text style={styles.totalsLabel}>Labor</Text>
+            <Text style={styles.totalsValue}>{formatCurrency(totals.laborTotal)}</Text>
+          </View>
+          <View style={styles.totalsLine}>
+            <Text style={styles.totalsLabel}>Tax</Text>
+            <Text style={styles.totalsValue}>{formatCurrency(totals.taxTotal)}</Text>
+          </View>
+          <View style={styles.totalsLine}>
+            <Text style={styles.totalsGrand}>Project total</Text>
+            <Text style={styles.totalsGrand}>{formatCurrency(total)}</Text>
+          </View>
         </View>
       </View>
 
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Estimate summary</Text>
-        <View style={{ gap: 4 }}>
-          <Text>Materials: {formatCurrency(totals.materialTotal)}</Text>
-          <Text>Labor: {formatCurrency(totals.laborTotal)}</Text>
-          <Text>Tax: {formatCurrency(totals.taxTotal)}</Text>
-          <Text style={{ fontWeight: "700" }}>Project total: {formatCurrency(total)}</Text>
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Notes & status</Text>
+        <Text style={styles.sectionSubtitle}>
+          Internal notes stay private to your team. Status helps you track progress.
+        </Text>
+        <View>
+          <Text style={styles.fieldLabel}>Notes</Text>
+          <TextInput
+            placeholder="Internal notes"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            style={styles.textArea}
+          />
+        </View>
+        <View>
+          <Text style={styles.fieldLabel}>Status</Text>
+          <View style={styles.statusPicker}>
+            <Picker selectedValue={status} onValueChange={(value) => setStatus(String(value))}>
+              {STATUS_OPTIONS.map((option) => (
+                <Picker.Item key={option.value} label={option.label} value={option.value} />
+              ))}
+            </Picker>
+          </View>
         </View>
       </View>
 
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Status</Text>
-        <View style={{ borderWidth: 1, borderRadius: 8 }}>
-          <Picker selectedValue={status} onValueChange={(value) => setStatus(value)}>
-            {STATUS_OPTIONS.map((option) => (
-              <Picker.Item
-                key={option.value}
-                label={option.label}
-                value={option.value}
-              />
-            ))}
-          </Picker>
-        </View>
-      </View>
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: "600" }}>Notes</Text>
-        <TextInput
-          placeholder="Internal notes"
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          numberOfLines={4}
-          style={{
-            borderWidth: 1,
-            borderRadius: 8,
-            padding: 10,
-            textAlignVertical: "top",
-            minHeight: 100,
-          }}
-        />
-      </View>
-
-      <View style={{ flexDirection: "row", gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <Button title="Cancel" onPress={handleCancel} disabled={saving} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button title="Save" onPress={handleSave} disabled={saving} />
-        </View>
+      <View style={styles.actionRow}>
+        <Pressable style={styles.cancelButton} onPress={handleCancel} disabled={saving}>
+          <Text style={styles.cancelText}>Cancel</Text>
+        </Pressable>
+        <Pressable style={styles.primaryAction} onPress={handleSave} disabled={saving}>
+          <Text style={styles.primaryActionText}>{saving ? "Saving…" : "Save estimate"}</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
