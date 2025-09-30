@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { openDB } from "../../lib/sqlite";
+import { BrandLogo } from "../../components/BrandLogo";
 
 type DashboardMetrics = {
   jobsSold: number;
@@ -56,6 +57,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 6,
   },
+  heroCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 20,
+    marginBottom: 20,
+  },
+  heroHeaderText: {
+    flex: 1,
+  },
   heroTitle: {
     color: "#FFFFFF",
     fontSize: 28,
@@ -64,7 +75,7 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: {
     color: "rgba(255,255,255,0.72)",
-    marginTop: 10,
+    marginTop: 8,
     fontSize: 16,
     lineHeight: 24,
   },
@@ -409,8 +420,13 @@ export default function Home() {
       }
     >
       <View style={styles.heroCard}>
-        <Text style={styles.heroTitle}>Good to see you</Text>
-        <Text style={styles.heroSubtitle}>{heroSummary}</Text>
+        <View style={styles.heroCardHeader}>
+          <View style={styles.heroHeaderText}>
+            <Text style={styles.heroTitle}>Good to see you</Text>
+            <Text style={styles.heroSubtitle}>{heroSummary}</Text>
+          </View>
+          <BrandLogo size={56} />
+        </View>
         <View style={styles.heroStatRow}>
           <View>
             <Text style={styles.heroStatLabel}>Booked revenue</Text>
