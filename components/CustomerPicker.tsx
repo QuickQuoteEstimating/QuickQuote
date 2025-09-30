@@ -1,5 +1,5 @@
 // components/CustomerPicker.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -33,7 +33,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
   const [addingNew, setAddingNew] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  async function loadCustomers() {
+  const loadCustomers = useCallback(async () => {
     setLoading(true);
     try {
       const db = await openDB();
@@ -47,17 +47,14 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
         "Unable to load customers",
         "Please try again later or contact support if the issue persists."
       );
-      throw error;
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    loadCustomers().catch(() => {
-      // Error is already handled within loadCustomers; this catch prevents unhandled rejections.
-    });
-  }, []);
+    loadCustomers();
+  }, [loadCustomers]);
 
   const filteredCustomers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -65,13 +62,28 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
       return customers;
     }
 
-    const matches = customers.filter((customer) => {
-      const nameMatch = customer.name.toLowerCase().includes(query);
-      const phoneMatch = customer.phone?.toLowerCase().includes(query);
-      const emailMatch = customer.email?.toLowerCase().includes(query);
-      const addressMatch = customer.address?.toLowerCase().includes(query);
+    const normalize = (value?: string | null) => {
+      if (typeof value === "string") {
+        return value.toLowerCase().trim();
+      }
 
-      return Boolean(nameMatch || phoneMatch || emailMatch || addressMatch);
+      if (value === null || value === undefined) {
+        return "";
+      }
+
+      return String(value).toLowerCase().trim();
+    };
+
+    const matches = customers.filter((customer) => {
+      const nameMatch = normalize(customer.name).includes(query);
+      const phoneMatch = normalize(customer.phone).includes(query);
+      const emailMatch = normalize(customer.email).includes(query);
+      const addressMatch = normalize(customer.address).includes(query);
+      const notesMatch = normalize(customer.notes).includes(query);
+
+      return Boolean(
+        nameMatch || phoneMatch || emailMatch || addressMatch || notesMatch
+      );
     });
 
     if (
@@ -89,19 +101,23 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
     return matches;
   }, [customers, searchQuery, selectedCustomer]);
 
+  const getDisplayName = useCallback((customer: Customer) => {
+    const trimmedName = customer.name?.trim();
+    if (trimmedName) {
+      return trimmedName;
+    }
+    return "Unnamed customer";
+  }, []);
+
   if (addingNew) {
     return (
       <CustomerForm
         onSaved={(c) => {
           setAddingNew(false);
-          // add to the list and select it
-          setCustomers((prev) =>
-            [...prev, { id: c.id, name: c.name }].sort((a, b) =>
-              a.name.localeCompare(b.name)
-            )
-          );
           setSearchQuery("");
-          onSelect(c.id);
+          loadCustomers().then(() => {
+            onSelect(c.id);
+          });
         }}
         onCancel={() => setAddingNew(false)}
       />
@@ -160,7 +176,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
           <Picker.Item label="No matching customers" value="" enabled={false} />
         ) : null}
         {filteredCustomers.map((c: Customer) => (
-          <Picker.Item key={c.id} label={c.name} value={c.id} />
+          <Picker.Item key={c.id} label={getDisplayName(c)} value={c.id} />
         ))}
         <Picker.Item label="➕ Add New Customer" value="new" />
       </Picker>
