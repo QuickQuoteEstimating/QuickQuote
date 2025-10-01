@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 
 export const palette = {
+
   background: "#ffffff",
   surface: "#0f1f3d",
   surfaceSubtle: "#152a53",
@@ -12,6 +13,19 @@ export const palette = {
   accentMuted: "#2f5fce",
   danger: "#ef4444",
   success: "#22c55e",
+
+  background: "#111c2e",
+  surface: "#1c2b48",
+  surfaceSubtle: "#243456",
+  border: "rgba(100, 116, 139, 0.3)",
+  primaryText: "#f8fafc",
+  secondaryText: "rgba(226, 232, 240, 0.88)",
+  mutedText: "rgba(148, 163, 184, 0.78)",
+  accent: "#1e40af",
+  accentMuted: "#3b82f6",
+  danger: "#f87171",
+  success: "#34d399",
+
 };
 
 export function cardShadow(depth: number = 12) {
