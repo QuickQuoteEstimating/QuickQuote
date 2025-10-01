@@ -3,19 +3,18 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
+  FlatList,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Badge, Button, Card, FAB, Input, ListItem } from "../../../components/ui";
-import { cardShadow, useTheme, type Theme } from "../../../lib/theme";
 import { openDB } from "../../../lib/sqlite";
+import { useTheme, type Theme } from "../../../theme";
 
-export type EstimateListItem = {
+type EstimateListItem = {
   id: string;
   user_id: string;
   customer_id: string;
@@ -39,374 +38,286 @@ export type EstimateListItem = {
   deleted_at: string | null;
 };
 
-type CustomerRecord = {
-  id: string;
-  name: string | null;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  notes: string | null;
+type EstimateStatusFilter = "all" | "draft" | "sent" | "approved" | "declined";
+
+type StatusDefinition = {
+  key: EstimateStatusFilter;
+  label: string;
 };
+
+const STATUS_FILTERS: StatusDefinition[] = [
+  { key: "all", label: "All" },
+  { key: "draft", label: "Draft" },
+  { key: "sent", label: "Sent" },
+  { key: "approved", label: "Approved" },
+  { key: "declined", label: "Declined" },
+];
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Draft",
   sent: "Sent",
-  accepted: "Accepted",
+  accepted: "Approved",
+  approved: "Approved",
   declined: "Declined",
 };
 
-function formatStatus(status: string | null): string {
-  if (!status) {
-    return "Draft";
-  }
-  const normalized = status.toLowerCase();
-  return STATUS_LABELS[normalized] ?? status;
+function normalizeStatus(status: string | null): string {
+  return status?.toLowerCase() ?? "draft";
 }
 
-function statusTone(status: string | null) {
-  const normalized = status?.toLowerCase();
-  switch (normalized) {
-    case "accepted":
-      return "success" as const;
-    case "declined":
-      return "danger" as const;
-    case "sent":
-      return "info" as const;
-    default:
-      return "warning" as const;
-  }
+function formatStatus(status: string | null): string {
+  const normalized = normalizeStatus(status);
+  return STATUS_LABELS[normalized] ?? status ?? "Draft";
 }
 
 function formatCurrency(value: number | null): string {
-  const total = typeof value === "number" ? value : 0;
+  const amount = typeof value === "number" ? value : 0;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 2,
-  }).format(total);
+  }).format(amount);
+}
+
+function formatEstimateNumber(estimate: EstimateListItem): string {
+  if (typeof estimate.version === "number" && !Number.isNaN(estimate.version)) {
+    return `Q-${String(estimate.version).padStart(4, "0")}`;
+  }
+
+  return `Q-${estimate.id.slice(0, 4).toUpperCase()}`;
 }
 
 export default function EstimatesScreen() {
-  const theme = useTheme();
+  const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const badgeToneStyles = useMemo(
-    () => ({
-      info: styles.statusBadgeInfo,
-      warning: styles.statusBadgeWarning,
-      success: styles.statusBadgeSuccess,
-      danger: styles.statusBadgeDanger,
-    }),
-    [styles],
-  );
-  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(true);
+  const [estimates, setEstimates] = useState<EstimateListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const [customerEstimates, setCustomerEstimates] = useState<EstimateListItem[]>([]);
-  const [loadingEstimates, setLoadingEstimates] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<EstimateStatusFilter>("all");
 
-  const loadCustomers = useCallback(async () => {
-    setLoadingCustomers(true);
+  const fetchEstimates = useCallback(async () => {
     try {
+      setError(null);
       const db = await openDB();
-      const rows = await db.getAllAsync<CustomerRecord>(
-        `SELECT id, name, email, phone, address, notes
-         FROM customers
-         WHERE deleted_at IS NULL
-         ORDER BY name COLLATE NOCASE ASC`,
+      const rows = await db.getAllAsync<EstimateListItem>(
+        `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.notes, e.status, e.version, e.updated_at, e.deleted_at,
+                e.material_total, e.labor_hours, e.labor_rate, e.labor_total, e.subtotal, e.tax_rate, e.tax_total,
+                c.name AS customer_name,
+                c.email AS customer_email,
+                c.phone AS customer_phone,
+                c.address AS customer_address
+         FROM estimates e
+         LEFT JOIN customers c ON c.id = e.customer_id
+         WHERE e.deleted_at IS NULL
+         ORDER BY datetime(e.updated_at) DESC`,
       );
-      setCustomers(rows);
-    } catch (error) {
-      console.error("Failed to load customers", error);
-      Alert.alert(
-        "Unable to load customers",
-        "Please try again later or contact support if the issue persists.",
-      );
-    } finally {
-      setLoadingCustomers(false);
+      setEstimates(rows);
+    } catch (err) {
+      console.error("Failed to load estimates", err);
+      setError("We couldn't load your estimates. Please try again.");
     }
   }, []);
 
   useEffect(() => {
-    loadCustomers();
-  }, [loadCustomers]);
-
-  useEffect(() => {
-    if (!selectedCustomerId) {
-      setCustomerEstimates([]);
-      return;
-    }
-
-    let cancelled = false;
-    setLoadingEstimates(true);
-
+    let isMounted = true;
     (async () => {
-      try {
-        const db = await openDB();
-        const rows = await db.getAllAsync<EstimateListItem>(
-          `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.notes, e.status, e.version, e.updated_at, e.deleted_at,
-                  e.material_total, e.labor_hours, e.labor_rate, e.labor_total, e.subtotal, e.tax_rate, e.tax_total,
-                  c.name AS customer_name,
-                  c.email AS customer_email,
-                  c.phone AS customer_phone,
-                  c.address AS customer_address
-           FROM estimates e
-           LEFT JOIN customers c ON c.id = e.customer_id
-           WHERE e.deleted_at IS NULL AND e.customer_id = ?
-           ORDER BY datetime(e.updated_at) DESC`,
-          [selectedCustomerId],
-        );
-        if (!cancelled) {
-          setCustomerEstimates(rows);
-        }
-      } catch (error) {
-        console.error("Failed to load customer estimates", error);
-        if (!cancelled) {
-          Alert.alert(
-            "Unable to load estimates",
-            "Please try again later or contact support if the issue persists.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingEstimates(false);
-        }
+      setLoading(true);
+      await fetchEstimates();
+      if (isMounted) {
+        setLoading(false);
       }
     })();
 
     return () => {
-      cancelled = true;
+      isMounted = false;
     };
-  }, [selectedCustomerId]);
+  }, [fetchEstimates]);
 
-  const filteredCustomers = useMemo(() => {
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchEstimates();
+    setRefreshing(false);
+  }, [fetchEstimates]);
+
+  const handleRetry = useCallback(async () => {
+    setLoading(true);
+    await fetchEstimates();
+    setLoading(false);
+  }, [fetchEstimates]);
+
+  const filteredEstimates = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      return [];
-    }
 
-    const normalize = (value?: string | null) => {
-      if (typeof value === "string") {
-        return value.toLowerCase();
+    return estimates.filter((estimate) => {
+      const normalizedStatus = normalizeStatus(estimate.status);
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "approved" && normalizedStatus === "accepted") ||
+        normalizedStatus === statusFilter;
+
+      if (!matchesStatus) {
+        return false;
       }
 
-      if (value === null || value === undefined) {
-        return "";
+      if (!query) {
+        return true;
       }
 
-      return String(value).toLowerCase();
-    };
+      const candidateValues = [
+        estimate.customer_name ?? "",
+        estimate.notes ?? "",
+        formatEstimateNumber(estimate),
+        estimate.customer_email ?? "",
+        estimate.customer_phone ?? "",
+        estimate.customer_address ?? "",
+      ];
 
-    return customers.filter((customer) => {
-      const nameMatch = normalize(customer.name).includes(query);
-      const phoneMatch = normalize(customer.phone).includes(query);
-      const emailMatch = normalize(customer.email).includes(query);
-      const addressMatch = normalize(customer.address).includes(query);
-      const notesMatch = normalize(customer.notes).includes(query);
-
-      return Boolean(nameMatch || phoneMatch || emailMatch || addressMatch || notesMatch);
+      return candidateValues.some((value) => value.toLowerCase().includes(query));
     });
-  }, [customers, searchQuery]);
+  }, [estimates, searchQuery, statusFilter]);
 
-  const selectedCustomer = useMemo(() => {
-    if (!selectedCustomerId) {
-      return null;
-    }
-    return customers.find((customer) => customer.id === selectedCustomerId) || null;
-  }, [customers, selectedCustomerId]);
+  const renderEstimateItem = useCallback(
+    ({ item }: { item: EstimateListItem }) => {
+      const statusLabel = formatStatus(item.status);
+      const formattedDate = item.date ? new Date(item.date).toLocaleDateString() : "No date";
+      const estimateNumber = formatEstimateNumber(item);
+      const subtitle = `${formattedDate} • ${estimateNumber}`;
 
-  const header = useMemo(
-    () => (
-      <View style={styles.header}>
-        <View style={styles.headerTitles}>
-          <Text style={styles.headerTitle}>Estimates</Text>
-          <Text style={styles.headerSubtitle}>
-            Manage client proposals, keep tabs on project totals, and send polished quotes from the
-            field.
-          </Text>
-        </View>
-      </View>
-    ),
-    [styles],
+      return (
+        <ListItem
+          title={item.customer_name?.trim() || "Untitled estimate"}
+          subtitle={subtitle}
+          onPress={() => router.push(`/(tabs)/estimates/${item.id}`)}
+          badge={
+            <View style={styles.itemMeta}>
+              <Text style={styles.itemAmount}>{formatCurrency(item.total)}</Text>
+              <Badge style={styles.statusBadge}>{statusLabel}</Badge>
+            </View>
+          }
+          style={styles.listItem}
+        />
+      );
+    },
+    [styles.itemAmount, styles.itemMeta, styles.listItem, styles.statusBadge],
   );
+
+  const renderSeparator = useCallback(() => <View style={styles.separator} />, [styles.separator]);
+
+  const showFab = false; // TODO: Evaluate floating action pattern once design guidance is finalized.
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        {header}
-
-        <Card style={styles.searchCard}>
-          <View>
-            <Text style={styles.sectionLabel}>Find a customer</Text>
-            <Text style={styles.sectionCaption}>
-              Search by name, email, phone number, or job site address to pull up client history.
-            </Text>
-          </View>
-          <Input
-            placeholder="Search customers"
-            value={searchQuery}
-            onChangeText={(value) => {
-              setSearchQuery(value);
-              if (!value) {
-                setSelectedCustomerId(null);
-              }
-            }}
-            leftElement={<Feather name="search" size={18} color={theme.mutedText} />}
-            autoCorrect={false}
-            autoCapitalize="words"
-          />
-          {loadingCustomers ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color={theme.accent} />
-            </View>
-          ) : null}
-          {searchQuery.trim().length === 0 ? (
-            <Text style={styles.helperText}>Start typing to see matching customers.</Text>
-          ) : null}
-          {searchQuery.trim().length > 0 && !loadingCustomers ? (
-            <View style={styles.resultsList}>
-              {filteredCustomers.length === 0 ? (
-                <Text style={styles.helperText}>No matching customers yet.</Text>
-              ) : (
-                filteredCustomers.map((customer) => (
-                  <Pressable key={customer.id} onPress={() => setSelectedCustomerId(customer.id)}>
-                    <View
-                      style={[
-                        styles.resultItem,
-                        selectedCustomerId === customer.id && styles.resultItemSelected,
-                      ]}
-                    >
-                      <Text style={styles.resultName}>
-                        {customer.name?.trim() || "Unnamed customer"}
-                      </Text>
-                      {customer.email ? (
-                        <Text style={styles.resultMeta}>{customer.email}</Text>
-                      ) : null}
-                      {customer.phone ? (
-                        <Text style={styles.resultMeta}>{customer.phone}</Text>
-                      ) : null}
-                      {customer.address ? (
-                        <Text style={styles.resultMeta}>{customer.address}</Text>
-                      ) : null}
-                    </View>
-                  </Pressable>
-                ))
-              )}
-            </View>
-          ) : null}
-        </Card>
-
-        {selectedCustomer ? (
-          <View style={styles.customerSection}>
-            <View>
-              <Text style={styles.sectionLabel}>Customer profile</Text>
-              <Text style={styles.sectionCaption}>
-                Quick snapshot of client contact and service location details.
-              </Text>
-            </View>
-            <Card style={styles.profileCard}>
-              <Text style={styles.customerName}>
-                {selectedCustomer.name?.trim() || "Unnamed customer"}
-              </Text>
-              <View style={styles.profileGrid}>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Email</Text>
-                  <Text style={styles.profileValue}>
-                    {selectedCustomer.email || "Not provided"}
-                  </Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Phone</Text>
-                  <Text style={styles.profileValue}>
-                    {selectedCustomer.phone || "Not provided"}
-                  </Text>
-                </View>
-                <View style={styles.profileRow}>
-                  <Text style={styles.profileLabel}>Address</Text>
-                  <Text style={styles.profileValue}>
-                    {selectedCustomer.address || "Not provided"}
-                  </Text>
-                </View>
-                {selectedCustomer.notes ? (
-                  <View style={styles.profileRow}>
-                    <Text style={styles.profileLabel}>Notes</Text>
-                    <Text style={styles.profileValue}>{selectedCustomer.notes}</Text>
-                  </View>
-                ) : null}
+      <View style={styles.container}>
+        <FlatList
+          data={filteredEstimates}
+          keyExtractor={(item) => item.id}
+          renderItem={renderEstimateItem}
+          ItemSeparatorComponent={renderSeparator}
+          ListHeaderComponent={
+            <View style={styles.headerSection}>
+              <View style={styles.titleBlock}>
+                <Text style={styles.screenTitle}>Estimates</Text>
+                <Text style={styles.screenSubtitle}>
+                  Review proposals, track their status, and keep your pricing up to date.
+                </Text>
               </View>
-            </Card>
-
-            <View>
-              <Text style={styles.sectionLabel}>Estimate history</Text>
-              <Text style={styles.sectionCaption}>
-                Review previous work orders, totals, and sent status.
-              </Text>
-            </View>
-
-            {loadingEstimates ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator color={theme.accent} />
-              </View>
-            ) : null}
-
-            {!loadingEstimates && customerEstimates.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Feather name="file-text" size={24} color={theme.mutedText} />
-                <Text style={styles.helperText}>No estimates created for this customer yet.</Text>
-              </View>
-            ) : null}
-
-            {customerEstimates.length > 0 ? (
-              <Card style={styles.estimateList} elevated={false}>
-                {customerEstimates.map((estimate, index) => {
-                  const status = formatStatus(estimate.status);
-                  const tone = statusTone(estimate.status);
-                  const badgeStyle = badgeToneStyles[tone];
-                  const subtitle = estimate.date
-                    ? new Date(estimate.date).toLocaleDateString()
-                    : "Date not set";
-
-                  return (
-                    <ListItem
-                      key={estimate.id}
-                      title={estimate.customer_name?.trim() || "Unassigned"}
-                      subtitle={subtitle}
-                      onPress={() => router.push(`/(tabs)/estimates/${estimate.id}`)}
-                      style={[
-                        styles.estimateItem,
-                        index < customerEstimates.length - 1 ? styles.estimateDivider : null,
-                      ]}
-                      badge={
-                        <View style={styles.estimateTrailing}>
-                          <Text style={styles.estimateAmount}>
-                            {formatCurrency(estimate.total)}
-                          </Text>
-                          <Badge style={[styles.statusBadge, badgeStyle]}>{status}</Badge>
-                        </View>
-                      }
+              <Card style={styles.filterCard}>
+                <Input
+                  placeholder="Search estimates…"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  leftElement={<Feather name="search" size={18} color={theme.colors.textMuted} />}
+                />
+                <View style={styles.filterRow}>
+                  {STATUS_FILTERS.map((filter) => {
+                    const isSelected = statusFilter === filter.key;
+                    return (
+                    <Button
+                      key={filter.key}
+                      label={filter.label}
+                      variant={isSelected ? "primary" : "ghost"}
+                      alignment="inline"
+                      onPress={() => setStatusFilter(filter.key)}
+                      style={[styles.filterButton, isSelected ? styles.filterButtonActive : null]}
+                      textStyle={[styles.filterButtonLabel]}
+                      accessibilityLabel={`Filter estimates by status: ${filter.label}`}
                     />
                   );
                 })}
+              </View>
+            </Card>
+              {loading ? (
+                <Card style={styles.messageCard}>
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator color={theme.colors.primary} />
+                    <Text style={styles.messageText}>Loading estimates…</Text>
+                  </View>
+                </Card>
+              ) : null}
+              {error ? (
+                <Card style={styles.messageCard}>
+                  <View style={styles.errorContent}>
+                    <Text style={styles.messageText}>{error}</Text>
+                    <Button
+                      label="Retry"
+                      variant="secondary"
+                      alignment="inline"
+                      onPress={handleRetry}
+                      accessibilityLabel="Retry loading estimates"
+                    />
+                  </View>
+                </Card>
+              ) : null}
+            </View>
+          }
+          ListEmptyComponent={
+            !loading && !error ? (
+              <Card style={styles.emptyCard}>
+                <View style={styles.emptyContent}>
+                  <Text style={styles.emptyTitle}>No estimates yet</Text>
+                  <Text style={styles.emptySubtitle}>
+                    Create your first estimate to start tracking proposals and customer totals.
+                  </Text>
+                  <Button
+                    label="Create Estimate"
+                    onPress={() => router.push("/(tabs)/estimates/new")}
+                    accessibilityLabel="Create a new estimate"
+                  />
+                </View>
               </Card>
-            ) : null}
-          </View>
+            ) : null
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={theme.colors.primary}
+              colors={[theme.colors.primary]}
+            />
+          }
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+        />
+        <View style={styles.primaryAction}>
+          <Button
+            label="Create Estimate"
+            onPress={() => router.push("/(tabs)/estimates/new")}
+            accessibilityLabel="Create a new estimate"
+          />
+        </View>
+        {showFab ? (
+          <FAB
+            icon={<Feather name="plus" size={24} color={theme.colors.primaryText} />}
+            onPress={() => router.push("/(tabs)/estimates/new")}
+            accessibilityLabel="Create a new estimate"
+            style={styles.fab}
+          />
         ) : null}
-      </ScrollView>
-      <View style={styles.footer}>
-        <Button label="Create Estimate" onPress={() => router.push("/(tabs)/estimates/new")} />
       </View>
-
-      <FAB
-        accessibilityLabel="Create a new estimate"
-        icon={<Feather name="plus" size={24} color={theme.surface} />}
-        onPress={() => router.push("/(tabs)/estimates/new")}
-        palette="highlight"
-        style={styles.fab}
-      />
     </SafeAreaView>
   );
 }
@@ -415,165 +326,123 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     safeArea: {
       flex: 1,
-      backgroundColor: theme.background,
+      backgroundColor: theme.colors.background,
     },
-    scroll: {
+    container: {
       flex: 1,
+      backgroundColor: theme.colors.background,
     },
-    content: {
-      padding: 24,
-      paddingBottom: 140,
-      gap: 24,
+    listContent: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing.xl,
+      paddingBottom: theme.spacing.xxl * 2,
+      gap: theme.spacing.xl,
     },
-    header: {
-      gap: 20,
+    headerSection: {
+      gap: theme.spacing.xl,
+      marginBottom: theme.spacing.xl,
     },
-    headerTitles: {
-      gap: 8,
+    titleBlock: {
+      gap: theme.spacing.sm,
     },
-    headerTitle: {
-      fontSize: 32,
+    screenTitle: {
+      fontSize: 28,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: theme.colors.primaryText,
     },
-    headerSubtitle: {
-      fontSize: 16,
-      lineHeight: 24,
-      color: theme.secondaryText,
+    screenSubtitle: {
+      fontSize: 15,
+      color: theme.colors.textMuted,
+      lineHeight: 22,
     },
-    sectionLabel: {
+    filterCard: {
+      gap: theme.spacing.lg,
+      padding: theme.spacing.xl,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radii.md,
+    },
+    filterRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
+    },
+    filterButton: {
+      borderRadius: theme.radii.md,
+      minHeight: 48,
+    },
+    filterButtonActive: {
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.12,
+      shadowOffset: { width: 0, height: theme.spacing.xs },
+      shadowRadius: theme.spacing.md,
+    },
+    filterButtonLabel: {
       fontSize: 14,
-      fontWeight: "600",
-      letterSpacing: 0.6,
-      textTransform: "uppercase",
-      color: theme.secondaryText,
     },
-    sectionCaption: {
-      fontSize: 14,
-      lineHeight: 20,
-      color: theme.mutedText,
-      marginTop: 4,
-    },
-    searchCard: {
-      gap: 16,
+    messageCard: {
+      padding: theme.spacing.xl,
+      borderRadius: theme.radii.md,
+      backgroundColor: theme.colors.surface,
     },
     loadingRow: {
-      paddingVertical: 12,
+      flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
+      gap: theme.spacing.md,
     },
-    helperText: {
-      fontSize: 14,
-      color: theme.mutedText,
+    errorContent: {
+      gap: theme.spacing.md,
     },
-    resultsList: {
-      gap: 12,
+    messageText: {
+      fontSize: 15,
+      color: theme.colors.text,
     },
-    resultItem: {
-      borderRadius: 16,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.surface,
-      gap: 4,
-      ...cardShadow(10, theme.mode),
+    emptyCard: {
+      padding: theme.spacing.xl,
+      borderRadius: theme.radii.md,
+      backgroundColor: theme.colors.surface,
     },
-    resultItemSelected: {
-      borderColor: theme.accent,
+    emptyContent: {
+      gap: theme.spacing.lg,
+      alignItems: "flex-start",
     },
-    resultName: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: theme.primaryText,
-    },
-    resultMeta: {
-      fontSize: 14,
-      color: theme.secondaryText,
-    },
-    customerSection: {
-      gap: 24,
-    },
-    profileCard: {
-      gap: 20,
-    },
-    customerName: {
-      fontSize: 24,
+    emptyTitle: {
+      fontSize: 18,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: theme.colors.primaryText,
     },
-    profileGrid: {
-      gap: 16,
-    },
-    profileRow: {
-      gap: 6,
-    },
-    profileLabel: {
-      fontSize: 12,
-      color: theme.mutedText,
-      letterSpacing: 0.6,
-      textTransform: "uppercase",
-    },
-    profileValue: {
-      fontSize: 16,
+    emptySubtitle: {
+      fontSize: 15,
+      color: theme.colors.textMuted,
       lineHeight: 22,
-      color: theme.primaryText,
     },
-    emptyState: {
-      borderRadius: 16,
-      padding: 24,
-      alignItems: "center",
-      gap: 12,
-      backgroundColor: theme.surfaceSubtle,
-      borderWidth: 1,
-      borderColor: theme.border,
+    separator: {
+      height: theme.spacing.lg,
     },
-    estimateList: {
-      padding: 0,
-      gap: 0,
-      overflow: "hidden",
+    listItem: {
+      backgroundColor: theme.colors.surface,
     },
-    estimateItem: {
-      borderRadius: 0,
-      backgroundColor: theme.surface,
-    },
-    estimateDivider: {
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.border,
-    },
-    estimateTrailing: {
+    itemMeta: {
       alignItems: "flex-end",
-      gap: 8,
+      gap: theme.spacing.xs,
     },
-    estimateAmount: {
+    itemAmount: {
       fontSize: 16,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: theme.colors.primaryText,
     },
     statusBadge: {
-      alignSelf: "flex-end",
+      backgroundColor: theme.colors.highlight,
     },
-    statusBadgeInfo: {
-      backgroundColor: theme.accentMuted,
-    },
-    statusBadgeWarning: {
-      backgroundColor: theme.highlight,
-    },
-    statusBadgeSuccess: {
-      backgroundColor: theme.successSurface,
-    },
-    statusBadgeDanger: {
-      backgroundColor: theme.dangerSurface,
-    },
-    footer: {
-      paddingHorizontal: 24,
-      paddingBottom: 32,
-      backgroundColor: theme.background,
+    primaryAction: {
+      position: "absolute",
+      bottom: theme.spacing.xl,
+      left: theme.spacing.xl,
+      right: theme.spacing.xl,
     },
     fab: {
       position: "absolute",
-      bottom: 112,
-      right: 24,
-      ...cardShadow(20, theme.mode),
+      right: theme.spacing.xl,
+      bottom: theme.spacing.xxl,
     },
   });
 }
