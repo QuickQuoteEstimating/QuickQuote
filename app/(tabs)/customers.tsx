@@ -1,22 +1,22 @@
+import { Feather } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomerForm from "../../components/CustomerForm";
-import { Button, Card, Input } from "../../components/ui";
-import { useTheme, type Theme } from "../../lib/theme";
+import { Badge, Button, Card, FAB, Input, ListItem } from "../../components/ui";
+import { useTheme, type Theme } from "../../theme";
 import { openDB, queueChange } from "../../lib/sqlite";
 import { runSync } from "../../lib/sync";
 
-type CustomerRecord = {
+export type CustomerRecord = {
   id: string;
   user_id: string;
   name: string;
@@ -35,10 +35,8 @@ type EditCustomerFormProps = {
   onSaved: (customer: CustomerRecord) => void;
 };
 
-const NEW_CUSTOMER_VALUE = "__new__";
-
 function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps) {
-  const theme = useTheme();
+  const { theme } = useTheme();
   const styles = useMemo(() => createEditStyles(theme), [theme]);
   const [name, setName] = useState(customer.name);
   const [phone, setPhone] = useState(customer.phone ?? "");
@@ -115,7 +113,10 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
 
   return (
     <Card style={styles.card}>
-      <Text style={styles.title}>Edit Customer</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Edit customer</Text>
+        <Badge style={styles.editBadge}>Updating</Badge>
+      </View>
       <Input
         label="Name"
         placeholder="Customer name"
@@ -153,26 +154,34 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
       />
       <View style={styles.actions}>
         <Button label="Cancel" variant="secondary" onPress={onCancel} disabled={saving} />
-        <Button label="Save Changes" onPress={saveChanges} loading={saving} disabled={saving} />
+        <Button label="Save changes" onPress={saveChanges} loading={saving} disabled={saving} />
       </View>
     </Card>
   );
 }
 
 export default function Customers() {
-  const theme = useTheme();
+  const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<CustomerRecord | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const previousCustomersRef = useRef<CustomerRecord[] | null>(null);
 
+  useEffect(() => {
+    const timeout = setTimeout(() => setSearchTerm(searchInput.trim()), 250);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
   const loadCustomers = useCallback(async () => {
     try {
+      setError(null);
       const db = await openDB();
       const rows = await db.getAllAsync<CustomerRecord>(
         `SELECT id, user_id, name, phone, email, address, notes, version, updated_at, deleted_at
@@ -187,9 +196,9 @@ export default function Customers() {
         }
         return rows.length > 0 ? rows[0].id : null;
       });
-    } catch (error) {
-      console.error("Failed to load customers", error);
-      Alert.alert("Error", "Unable to load customers. Please try again.");
+    } catch (err) {
+      console.error("Failed to load customers", err);
+      setError("We couldn’t load your customers. Pull to refresh or try again.");
     }
   }, []);
 
@@ -210,7 +219,7 @@ export default function Customers() {
   }, [loadCustomers]);
 
   const filteredCustomers = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = searchTerm.toLowerCase();
     if (!query) {
       return customers;
     }
@@ -233,20 +242,25 @@ export default function Customers() {
       const notesMatch = normalize(customer.notes).includes(query);
       return nameMatch || emailMatch || phoneMatch || addressMatch || notesMatch;
     });
-  }, [customers, search]);
+  }, [customers, searchTerm]);
 
-  const displayedCustomers = useMemo(() => {
-    if (!selectedCustomerId) {
-      return filteredCustomers;
+  useEffect(() => {
+    if (!searchTerm) {
+      return;
     }
 
-    if (filteredCustomers.some((customer) => customer.id === selectedCustomerId)) {
-      return filteredCustomers;
+    if (filteredCustomers.length === 0) {
+      setSelectedCustomerId(null);
+      return;
     }
 
-    const selected = customers.find((customer) => customer.id === selectedCustomerId);
-    return selected ? [selected, ...filteredCustomers] : filteredCustomers;
-  }, [customers, filteredCustomers, selectedCustomerId]);
+    setSelectedCustomerId((current) => {
+      if (current && filteredCustomers.some((customer) => customer.id === current)) {
+        return current;
+      }
+      return filteredCustomers[0]?.id ?? null;
+    });
+  }, [filteredCustomers, searchTerm]);
 
   const selectedCustomer = useMemo(
     () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
@@ -258,35 +272,21 @@ export default function Customers() {
     return trimmed ? trimmed : "Unnamed customer";
   }, []);
 
-  const handleSelectCustomer = useCallback((value: string | number) => {
-    const stringValue = String(value);
-
-    if (stringValue === NEW_CUSTOMER_VALUE) {
-      setShowAddForm(true);
-      setEditingCustomer(null);
-      setSelectedCustomerId(null);
-      return;
-    }
-
-    if (!stringValue) {
-      setSelectedCustomerId(null);
-      return;
-    }
-
+  const handleSelectCustomer = useCallback((customerId: string) => {
     setShowAddForm(false);
     setEditingCustomer(null);
-    setSelectedCustomerId(stringValue);
+    setSelectedCustomerId(customerId);
   }, []);
 
   const handleDelete = useCallback(
     (customer: CustomerRecord) => {
-      Alert.alert("Delete Customer", `Are you sure you want to delete ${customer.name}?`, [
+      Alert.alert("Delete customer", `Are you sure you want to delete ${customer.name}?`, [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: () => {
-            (async () => {
+            void (async () => {
               previousCustomersRef.current = customers;
               setCustomers((current) => current.filter((existing) => existing.id !== customer.id));
               setEditingCustomer((current) => (current?.id === customer.id ? null : current));
@@ -312,13 +312,13 @@ export default function Customers() {
                 };
 
                 await queueChange("customers", "update", deletedCustomer);
-                await runSync().catch((error) => {
-                  console.error("Failed to sync customer deletion", error);
+                await runSync().catch((syncError) => {
+                  console.error("Failed to sync customer deletion", syncError);
                 });
 
                 await reloadCustomers();
-              } catch (error) {
-                console.error("Failed to delete customer", error);
+              } catch (deleteError) {
+                console.error("Failed to delete customer", deleteError);
                 Alert.alert("Error", "Unable to delete customer. Please try again.");
                 if (previousCustomersRef.current) {
                   setCustomers(previousCustomersRef.current);
@@ -335,181 +335,204 @@ export default function Customers() {
     [customers, reloadCustomers],
   );
 
-  useEffect(() => {
-    if (search.trim().length === 0) {
-      return;
+  const renderCustomerItem = useCallback(
+    ({ item }: { item: CustomerRecord }) => {
+      const subtitle = item.phone?.trim() || item.email?.trim() || "No contact info yet";
+      const hasNotes = Boolean(item.notes?.trim());
+
+      return (
+        <ListItem
+          title={getDisplayName(item)}
+          subtitle={subtitle}
+          onPress={() => handleSelectCustomer(item.id)}
+          style={[
+            styles.listItem,
+            item.id === selectedCustomerId ? styles.listItemActive : null,
+          ]}
+          badge={hasNotes ? <Badge style={styles.notesBadge}>Notes</Badge> : undefined}
+        />
+      );
+    },
+    [getDisplayName, handleSelectCustomer, selectedCustomerId, styles.listItem, styles.listItemActive, styles.notesBadge],
+  );
+
+  const itemSeparator = useCallback(() => <View style={styles.separator} />, [styles.separator]);
+
+  const listEmptyComponent = useMemo(() => {
+    if (loading) {
+      return null;
     }
 
-    if (filteredCustomers.length === 0) {
-      setSelectedCustomerId(null);
-      return;
-    }
-
-    setSelectedCustomerId((current) => {
-      if (current && filteredCustomers.some((customer) => customer.id === current)) {
-        return current;
-      }
-      return filteredCustomers[0]?.id ?? null;
-    });
-  }, [filteredCustomers, search]);
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.accent}
-            colors={[theme.accent]}
-          />
-        }
-      >
-        <View style={styles.header}>
-          <Text style={styles.title}>Customer management</Text>
-          <Text style={styles.subtitle}>
-            Keep every relationship organized with quick notes and contact details.
+    return (
+      <View style={styles.emptyContainer}>
+        <Card style={styles.emptyCard} elevated={false}>
+          <Text style={styles.emptyTitle}>No customers yet</Text>
+          <Text style={styles.emptyBody}>
+            Add your first customer to start estimating faster.
           </Text>
-        </View>
-
-        <Card style={styles.directoryCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>Customer directory</Text>
-            <Text style={styles.sectionCaption}>
-              Search by name, email, phone, address, or notes to jump to the right client fast.
-            </Text>
-          </View>
-          <Input
-            label="Search"
-            placeholder="Name, email, phone, address, or notes"
-            value={search}
-            onChangeText={setSearch}
-            returnKeyType="search"
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-          <View style={styles.pickerShell}>
-            <Picker
-              selectedValue={selectedCustomerId ?? ""}
-              onValueChange={handleSelectCustomer}
-              style={styles.picker}
-              dropdownIconColor={theme.accent}
-            >
-              <Picker.Item label="-- Select --" value="" />
-              {displayedCustomers.length === 0 ? (
-                <Picker.Item label="No matching customers" value="" enabled={false} />
-              ) : null}
-              {displayedCustomers.map((customer) => (
-                <Picker.Item
-                  key={customer.id}
-                  label={getDisplayName(customer)}
-                  value={customer.id}
-                />
-              ))}
-              <Picker.Item label="➕ Add New Customer" value={NEW_CUSTOMER_VALUE} />
-            </Picker>
-          </View>
           <Button
-            label={showAddForm ? "Hide Add Customer" : "Add Customer"}
-            variant={showAddForm ? "secondary" : "primary"}
+            label="Add customer"
             onPress={() => {
-              setShowAddForm((prev) => {
-                const next = !prev;
-                if (next) {
-                  setEditingCustomer(null);
-                  setSelectedCustomerId(null);
-                }
-                return next;
-              });
+              setShowAddForm(true);
+              setEditingCustomer(null);
+              setSelectedCustomerId(null);
             }}
           />
         </Card>
+      </View>
+    );
+  }, [loading, styles.emptyBody, styles.emptyCard, styles.emptyContainer, styles.emptyTitle]);
 
-        {showAddForm ? (
-          <CustomerForm
-            onSaved={(customer) => {
-              setShowAddForm(false);
-              setEditingCustomer(null);
-              setSelectedCustomerId(customer.id);
-              void reloadCustomers();
-            }}
-            onCancel={() => setShowAddForm(false)}
-          />
-        ) : null}
-
-        {editingCustomer ? (
-          <EditCustomerForm
-            customer={editingCustomer}
-            onCancel={() => setEditingCustomer(null)}
-            onSaved={(updated) => {
-              setEditingCustomer(null);
-              setCustomers((prev) =>
-                prev.map((existing) => (existing.id === updated.id ? updated : existing)),
-              );
-              setSelectedCustomerId(updated.id);
-              void reloadCustomers();
-            }}
-          />
-        ) : null}
-
-        {loading ? (
-          <Card style={styles.infoCard}>
-            <ActivityIndicator color={theme.accent} />
-            <Text style={styles.infoText}>Loading customers…</Text>
-          </Card>
-        ) : null}
-
-        {!loading && customers.length === 0 ? (
-          <Card style={styles.infoCard}>
-            <Text style={styles.infoText}>No customers found.</Text>
-            <Text style={styles.infoHint}>
-              Add your first contact to start building quick quotes faster.
-            </Text>
-          </Card>
-        ) : null}
-
-        {selectedCustomer ? (
-          <Card style={styles.detailCard}>
-            <View style={styles.detailHeader}>
-              <Text style={styles.customerName}>{getDisplayName(selectedCustomer)}</Text>
-              <Text style={styles.customerSubtitle}>Primary contact details</Text>
-            </View>
-            {selectedCustomer.email ? (
-              <Text style={styles.customerMeta}>{selectedCustomer.email}</Text>
-            ) : null}
-            {selectedCustomer.phone ? (
-              <Text style={styles.customerMeta}>{selectedCustomer.phone}</Text>
-            ) : null}
-            {selectedCustomer.address ? (
-              <Text style={styles.customerMeta}>{selectedCustomer.address}</Text>
-            ) : null}
-            {selectedCustomer.notes ? (
-              <View style={styles.notesBlock}>
-                <Text style={styles.notesLabel}>Notes</Text>
-                <Text style={styles.notesText}>{selectedCustomer.notes}</Text>
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <FlatList
+          data={loading ? [] : filteredCustomers}
+          keyExtractor={(item) => item.id}
+          renderItem={renderCustomerItem}
+          ItemSeparatorComponent={itemSeparator}
+          ListHeaderComponent={
+            <View style={styles.listHeader}>
+              <View style={styles.headerTextBlock}>
+                <Text style={styles.headerTitle}>Customers</Text>
+                <Text style={styles.headerSubtitle}>
+                  Keep every relationship organized with quick notes and contact details.
+                </Text>
               </View>
-            ) : null}
-            <View style={styles.actionRow}>
-              <Button
-                label="Edit"
-                variant="secondary"
-                onPress={() => {
-                  setEditingCustomer(selectedCustomer);
-                  setShowAddForm(false);
-                }}
-              />
-              <Button
-                label="Delete"
-                variant="ghost"
-                onPress={() => handleDelete(selectedCustomer)}
-                textStyle={{ color: theme.danger }}
-              />
+              <Card style={styles.searchCard}>
+                <Input
+                  label="Search customers…"
+                  placeholder="Search customers…"
+                  value={searchInput}
+                  onChangeText={setSearchInput}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                  caption="Search by name, email, phone, address, or notes."
+                />
+              </Card>
+
+              {loading ? (
+                <Card style={styles.statusCard} elevated={false}>
+                  <ActivityIndicator color={theme.colors.primary} />
+                  <Text style={styles.statusText}>Loading customers…</Text>
+                </Card>
+              ) : null}
+
+              {error ? (
+                <Card style={styles.statusCard} elevated={false}>
+                  <Text style={styles.statusText}>{error}</Text>
+                  <Button label="Retry" onPress={() => void reloadCustomers()} />
+                </Card>
+              ) : null}
+
+              {selectedCustomer ? (
+                <Card style={styles.detailCard}>
+                  <View style={styles.detailHeader}>
+                    <Text style={styles.detailName}>{getDisplayName(selectedCustomer)}</Text>
+                    {selectedCustomer.notes ? (
+                      <Badge style={styles.notesBadge}>Notes</Badge>
+                    ) : null}
+                  </View>
+                  <View style={styles.detailBody}>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Email</Text>
+                      <Text style={styles.detailValue}>
+                        {selectedCustomer.email || "Not provided"}
+                      </Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Phone</Text>
+                      <Text style={styles.detailValue}>
+                        {selectedCustomer.phone || "Not provided"}
+                      </Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Address</Text>
+                      <Text style={styles.detailValue}>
+                        {selectedCustomer.address || "Not provided"}
+                      </Text>
+                    </View>
+                    {selectedCustomer.notes ? (
+                      <View style={[styles.detailRow, styles.notesRow]}>
+                        <Text style={styles.detailLabel}>Notes</Text>
+                        <Text style={styles.detailValue}>{selectedCustomer.notes}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <View style={styles.detailActions}>
+                    <Button
+                      label="Edit customer"
+                      variant="secondary"
+                      onPress={() => {
+                        setEditingCustomer(selectedCustomer);
+                        setShowAddForm(false);
+                      }}
+                    />
+                    <Button
+                      label="Delete customer"
+                      variant="ghost"
+                      onPress={() => handleDelete(selectedCustomer)}
+                      textStyle={styles.deleteLabel}
+                    />
+                  </View>
+                </Card>
+              ) : null}
+
+              {showAddForm ? (
+                <CustomerForm
+                  onSaved={(customer) => {
+                    setShowAddForm(false);
+                    setEditingCustomer(null);
+                    setSelectedCustomerId(customer.id);
+                    void reloadCustomers();
+                  }}
+                  onCancel={() => setShowAddForm(false)}
+                  style={styles.inlineForm}
+                />
+              ) : null}
+
+              {editingCustomer ? (
+                <EditCustomerForm
+                  customer={editingCustomer}
+                  onCancel={() => setEditingCustomer(null)}
+                  onSaved={(updated) => {
+                    setEditingCustomer(null);
+                    setCustomers((prev) =>
+                      prev.map((existing) => (existing.id === updated.id ? updated : existing)),
+                    );
+                    setSelectedCustomerId(updated.id);
+                    void reloadCustomers();
+                  }}
+                />
+              ) : null}
             </View>
-          </Card>
-        ) : null}
-      </ScrollView>
+          }
+          ListEmptyComponent={listEmptyComponent}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
+              colors={[theme.colors.primary]}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+
+        <FAB
+          accessibilityLabel="Add customer"
+          icon={<Feather name="plus" size={24} color={theme.colors.primaryText} />}
+          onPress={() => {
+            setShowAddForm(true);
+            setEditingCustomer(null);
+            setSelectedCustomerId(null);
+          }}
+          palette="highlight"
+          style={styles.fab}
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -518,115 +541,129 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     safeArea: {
       flex: 1,
-      backgroundColor: theme.background,
+      backgroundColor: theme.colors.background,
     },
-    scroll: {
+    container: {
       flex: 1,
+      backgroundColor: theme.colors.background,
     },
-    content: {
-      padding: 24,
-      paddingBottom: 160,
-      gap: 24,
+    listContent: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing.xl,
+      paddingBottom: theme.spacing.xxl * 2,
     },
-    header: {
-      gap: 12,
+    listHeader: {
+      gap: theme.spacing.xxl,
     },
-    title: {
-      fontSize: 30,
+    headerTextBlock: {
+      gap: theme.spacing.sm,
+    },
+    headerTitle: {
+      fontSize: 28,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: theme.colors.primaryText,
     },
-    subtitle: {
-      fontSize: 15,
+    headerSubtitle: {
+      fontSize: 16,
+      color: theme.colors.textMuted,
       lineHeight: 22,
-      color: theme.secondaryText,
     },
-    directoryCard: {
-      gap: 16,
+    searchCard: {
+      gap: theme.spacing.lg,
     },
-    sectionHeader: {
-      gap: 6,
-    },
-    sectionLabel: {
-      fontSize: 14,
-      fontWeight: "600",
-      letterSpacing: 0.6,
-      textTransform: "uppercase",
-      color: theme.secondaryText,
-    },
-    sectionCaption: {
-      fontSize: 13,
-      lineHeight: 18,
-      color: theme.mutedText,
-    },
-    pickerShell: {
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.surfaceSubtle,
-      overflow: "hidden",
-    },
-    picker: {
-      height: 52,
-      color: theme.primaryText,
-    },
-    infoCard: {
+    statusCard: {
       alignItems: "center",
-      gap: 12,
+      gap: theme.spacing.sm,
     },
-    infoText: {
+    statusText: {
       fontSize: 15,
-      color: theme.secondaryText,
-      textAlign: "center",
-    },
-    infoHint: {
-      fontSize: 13,
-      color: theme.mutedText,
+      color: theme.colors.textMuted,
       textAlign: "center",
     },
     detailCard: {
-      gap: 12,
+      gap: theme.spacing.lg,
     },
     detailHeader: {
-      gap: 4,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.md,
     },
-    customerName: {
+    detailName: {
       fontSize: 22,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: theme.colors.text,
     },
-    customerSubtitle: {
-      fontSize: 13,
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-      color: theme.mutedText,
+    detailBody: {
+      gap: theme.spacing.md,
     },
-    customerMeta: {
-      fontSize: 15,
-      color: theme.secondaryText,
+    detailRow: {
+      gap: theme.spacing.xs,
     },
-    notesBlock: {
-      marginTop: 8,
-      gap: 4,
-      padding: 16,
-      borderRadius: 16,
-      backgroundColor: theme.surfaceSubtle,
+    notesRow: {
+      backgroundColor: theme.colors.surfaceMuted,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.lg,
     },
-    notesLabel: {
+    detailLabel: {
       fontSize: 13,
       fontWeight: "600",
-      color: theme.secondaryText,
+      color: theme.colors.textMuted,
+      letterSpacing: 0.4,
       textTransform: "uppercase",
-      letterSpacing: 0.5,
     },
-    notesText: {
+    detailValue: {
+      fontSize: 16,
+      color: theme.colors.text,
+      lineHeight: 22,
+    },
+    detailActions: {
+      flexDirection: "row",
+      gap: theme.spacing.sm,
+    },
+    deleteLabel: {
+      color: theme.colors.danger,
+    },
+    inlineForm: {
+      marginTop: theme.spacing.lg,
+    },
+    listItem: {
+      borderRadius: theme.radii.md,
+    },
+    listItemActive: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.surfaceMuted,
+    },
+    notesBadge: {
+      backgroundColor: theme.colors.primarySoft,
+    },
+    separator: {
+      height: theme.spacing.md,
+    },
+    emptyContainer: {
+      paddingVertical: theme.spacing.xl,
+      alignItems: "center",
+    },
+    emptyCard: {
+      alignItems: "center",
+      gap: theme.spacing.md,
+    },
+    emptyTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: theme.colors.text,
+    },
+    emptyBody: {
       fontSize: 15,
-      color: theme.primaryText,
+      color: theme.colors.textMuted,
+      textAlign: "center",
       lineHeight: 20,
     },
-    actionRow: {
-      flexDirection: "row",
-      gap: 12,
+    fab: {
+      position: "absolute",
+      right: theme.spacing.xl,
+      bottom: theme.spacing.xl,
     },
   });
 }
@@ -634,16 +671,25 @@ function createStyles(theme: Theme) {
 function createEditStyles(theme: Theme) {
   return StyleSheet.create({
     card: {
-      gap: 16,
+      gap: theme.spacing.lg,
+    },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.sm,
     },
     title: {
       fontSize: 18,
       fontWeight: "600",
-      color: theme.primaryText,
+      color: theme.colors.text,
+    },
+    editBadge: {
+      backgroundColor: theme.colors.primarySoft,
     },
     actions: {
       flexDirection: "row",
-      gap: 12,
+      gap: theme.spacing.sm,
     },
   });
 }
