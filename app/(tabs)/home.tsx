@@ -50,7 +50,9 @@ const styles = StyleSheet.create({
     backgroundColor: palette.background,
   },
   heroCard: {
-    backgroundColor: palette.accent,
+
+    backgroundColor: palette.surface,
+
     borderRadius: 28,
     padding: 24,
     shadowColor: "rgba(30, 58, 138, 0.45)",
@@ -106,7 +108,11 @@ const styles = StyleSheet.create({
     marginTop: 22,
   },
   heroBadge: {
+
+    backgroundColor: palette.accentMuted,
+
     backgroundColor: "rgba(15, 23, 42, 0.22)",
+
     borderRadius: 16,
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -119,7 +125,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: palette.primaryText,
+    color: palette.surface,
     letterSpacing: 0.2,
   },
   grid: {
