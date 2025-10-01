@@ -1541,14 +1541,14 @@ export default function EditEstimateScreen() {
     }
   };
 
-  const handleSave = async () => {
+  const saveEstimate = useCallback(async (): Promise<EstimateListItem | null> => {
     if (!estimate || saving) {
-      return;
+      return null;
     }
 
     if (!customerId) {
       Alert.alert("Validation", "Please select a customer.");
-      return;
+      return null;
     }
 
     setSaving(true);
@@ -1642,6 +1642,7 @@ export default function EditEstimateScreen() {
       );
       await runSync();
 
+      estimateRef.current = updatedEstimate;
       setEstimate(updatedEstimate);
       setCustomerContact({
         id: customerId,
@@ -1649,22 +1650,61 @@ export default function EditEstimateScreen() {
         email: customerEmail ?? null,
         phone: customerPhone ?? null,
         address: customerAddress ?? null,
-        notes
+        notes: customerContact?.notes ?? null,
       });
 
       if (estimateId) {
         clearEstimateFormDraft(estimateId);
       }
-      Alert.alert("Success", "Estimate updated successfully.", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+
+      if (releasePdfRef.current) {
+        releasePdfRef.current();
+        releasePdfRef.current = null;
+      }
+      lastPdfRef.current = null;
+
+      return updatedEstimate;
     } catch (error) {
       console.error("Failed to update estimate", error);
       Alert.alert("Error", "Unable to update the estimate. Please try again.");
+      return null;
     } finally {
       setSaving(false);
     }
-  };
+  }, [
+    customerContact,
+    customerId,
+    estimate,
+    estimateDate,
+    estimateId,
+    notes,
+    runSync,
+    saving,
+    status,
+    totals.grandTotal,
+    totals.laborHours,
+    totals.laborRate,
+    totals.laborTotal,
+    totals.materialTotal,
+    totals.subtotal,
+    totals.taxRate,
+    totals.taxTotal,
+  ]);
+
+  const handleSaveDraft = useCallback(async () => {
+    const updated = await saveEstimate();
+    if (updated) {
+      Alert.alert("Draft saved", "Your estimate has been saved as a draft.");
+    }
+  }, [saveEstimate]);
+
+  const handleSaveAndPreview = useCallback(async () => {
+    const updated = await saveEstimate();
+    if (!updated) {
+      return;
+    }
+    await handlePreviewPdf();
+  }, [handlePreviewPdf, saveEstimate]);
 
   useEffect(() => {
     if (!estimateId) {
@@ -1985,10 +2025,10 @@ export default function EditEstimateScreen() {
         </Text>
         <View style={previewStyles.actionColumn}>
           <ThemedButton
-            label="Preview PDF"
+            label="Save & Preview"
             variant="secondary"
-            onPress={handlePreviewPdf}
-            disabled={pdfWorking || smsSending}
+            onPress={handleSaveAndPreview}
+            disabled={pdfWorking || smsSending || saving}
             style={previewStyles.fullWidth}
           />
           <ThemedButton
@@ -2019,8 +2059,8 @@ export default function EditEstimateScreen() {
         </View>
         <View style={styles.buttonFlex}>
           <ThemedButton
-            label={saving ? "Saving…" : "Save"}
-            onPress={handleSave}
+            label={saving ? "Saving…" : "Save Draft"}
+            onPress={handleSaveDraft}
             disabled={saving}
             style={previewStyles.fullWidth}
           />
