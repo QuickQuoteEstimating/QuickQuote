@@ -3,12 +3,14 @@ import {
   ActivityIndicator,
   Alert,
   Button,
-  FlatList,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import CustomerForm from "../../components/CustomerForm";
 import { openDB, queueChange } from "../../lib/sqlite";
 import { runSync } from "../../lib/sync";
@@ -32,6 +34,8 @@ type EditCustomerFormProps = {
   onCancel: () => void;
   onSaved: (customer: CustomerRecord) => void;
 };
+
+const NEW_CUSTOMER_VALUE = "__new__";
 
 function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps) {
   const [name, setName] = useState(customer.name);
@@ -177,9 +181,8 @@ export default function Customers() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<CustomerRecord | null>(
-    null
-  );
+  const [editingCustomer, setEditingCustomer] = useState<CustomerRecord | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -191,19 +194,27 @@ export default function Customers() {
          ORDER BY name COLLATE NOCASE ASC`
       );
       setCustomers(rows);
+      setSelectedCustomerId((current) => {
+        if (current && rows.some((row) => row.id === current)) {
+          return current;
+        }
+        return rows.length > 0 ? rows[0].id : null;
+      });
     } catch (error) {
       console.error("Failed to load customers", error);
       Alert.alert("Error", "Unable to load customers. Please try again.");
     }
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await loadCustomers();
-      setLoading(false);
-    })();
+  const reloadCustomers = useCallback(async () => {
+    setLoading(true);
+    await loadCustomers();
+    setLoading(false);
   }, [loadCustomers]);
+
+  useEffect(() => {
+    void reloadCustomers();
+  }, [reloadCustomers]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -213,7 +224,9 @@ export default function Customers() {
 
   const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return customers;
+    if (!query) {
+      return customers;
+    }
 
     return customers.filter((customer) => {
       const nameMatch = customer.name.toLowerCase().includes(query);
@@ -224,6 +237,49 @@ export default function Customers() {
       return nameMatch || emailMatch || phoneMatch || addressMatch || notesMatch;
     });
   }, [customers, search]);
+
+  const displayedCustomers = useMemo(() => {
+    if (!selectedCustomerId) {
+      return filteredCustomers;
+    }
+
+    if (filteredCustomers.some((customer) => customer.id === selectedCustomerId)) {
+      return filteredCustomers;
+    }
+
+    const selected = customers.find((customer) => customer.id === selectedCustomerId);
+    return selected ? [selected, ...filteredCustomers] : filteredCustomers;
+  }, [customers, filteredCustomers, selectedCustomerId]);
+
+  const selectedCustomer = useMemo(
+    () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
+    [customers, selectedCustomerId]
+  );
+
+  const getDisplayName = useCallback((customer: CustomerRecord) => {
+    const trimmed = customer.name?.trim();
+    return trimmed ? trimmed : "Unnamed customer";
+  }, []);
+
+  const handleSelectCustomer = useCallback((value: string | number) => {
+    const stringValue = String(value);
+
+    if (stringValue === NEW_CUSTOMER_VALUE) {
+      setShowAddForm(true);
+      setEditingCustomer(null);
+      setSelectedCustomerId(null);
+      return;
+    }
+
+    if (!stringValue) {
+      setSelectedCustomerId(null);
+      return;
+    }
+
+    setShowAddForm(false);
+    setEditingCustomer(null);
+    setSelectedCustomerId(stringValue);
+  }, []);
 
   const handleDelete = useCallback(
     (customer: CustomerRecord) => {
@@ -236,18 +292,6 @@ export default function Customers() {
             text: "Delete",
             style: "destructive",
             onPress: () => {
-              let previousCustomers: CustomerRecord[] = [];
-              const previousEditing = editingCustomer;
-
-              setCustomers((prev) => {
-                previousCustomers = prev;
-                return prev.filter((existing) => existing.id !== customer.id);
-              });
-
-              if (previousEditing?.id === customer.id) {
-                setEditingCustomer(null);
-              }
-
               (async () => {
                 try {
                   const db = await openDB();
@@ -269,21 +313,25 @@ export default function Customers() {
                   };
 
                   await queueChange("customers", "update", deletedCustomer);
-                  void runSync().catch((error) => {
+                  await runSync().catch((error) => {
                     console.error("Failed to sync customer deletion", error);
                   });
 
-                  await loadCustomers();
+                  setEditingCustomer((current) =>
+                    current?.id === customer.id ? null : current
+                  );
+                  setSelectedCustomerId((current) =>
+                    current === customer.id ? null : current
+                  );
+
+                  await reloadCustomers();
                 } catch (error) {
                   console.error("Failed to delete customer", error);
                   Alert.alert(
                     "Error",
                     "Unable to delete customer. Please try again."
                   );
-                  setCustomers(() => [...previousCustomers]);
-                  if (previousEditing) {
-                    setEditingCustomer(previousEditing);
-                  }
+                  await reloadCustomers();
                 }
               })();
             },
@@ -291,120 +339,147 @@ export default function Customers() {
         ]
       );
     },
-    [editingCustomer, loadCustomers]
-  );
-
-  const renderCustomer = useCallback(
-    ({ item }: { item: CustomerRecord }) => (
-      <View style={styles.customerCard}>
-        <Text style={styles.customerName}>{item.name}</Text>
-        {item.email ? (
-          <Text style={styles.customerMeta}>{item.email}</Text>
-        ) : null}
-        {item.phone ? (
-          <Text style={styles.customerMeta}>{item.phone}</Text>
-        ) : null}
-        {item.address ? (
-          <Text style={styles.customerMeta}>{item.address}</Text>
-        ) : null}
-        {item.notes ? (
-          <Text style={styles.customerNotes}>{item.notes}</Text>
-        ) : null}
-        <View style={styles.inlineButtons}>
-          <View style={styles.buttonFlex}>
-            <Button
-              title="Edit"
-              color={palette.accent}
-              onPress={() => {
-                setEditingCustomer(item);
-                setShowAddForm(false);
-              }}
-            />
-          </View>
-          <View style={styles.buttonFlex}>
-            <Button
-              title="Delete"
-              color={palette.danger}
-              onPress={() => handleDelete(item)}
-            />
-          </View>
-        </View>
-      </View>
-    ),
-    [handleDelete]
+    [reloadCustomers]
   );
 
   return (
     <View style={styles.screen}>
-      <FlatList
-        data={filteredCustomers}
-        keyExtractor={(item) => item.id}
-        renderItem={renderCustomer}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.title}>Customer management</Text>
-            <Text style={styles.subtitle}>
-              Keep every relationship organized with quick notes and contact details.
-            </Text>
-            <TextInput
-              placeholder="Search by name, email, phone, address, or notes"
-              placeholderTextColor={palette.mutedText}
-              value={search}
-              onChangeText={setSearch}
-              style={styles.input}
-            />
-            <Button
-              title={showAddForm ? "Hide Add Customer" : "Add Customer"}
-              onPress={() => {
-                setShowAddForm((prev) => !prev);
-                setEditingCustomer(null);
-              }}
-              color={palette.accent}
-            />
-            {showAddForm ? (
-              <View style={styles.formCard}>
-                <CustomerForm
-                  onSaved={() => {
-                    setShowAddForm(false);
-                    loadCustomers();
-                  }}
-                  onCancel={() => setShowAddForm(false)}
-                />
-              </View>
-            ) : null}
-            {editingCustomer ? (
-              <EditCustomerForm
-                customer={editingCustomer}
-                onCancel={() => setEditingCustomer(null)}
-                onSaved={(updated) => {
-                  setEditingCustomer(null);
-                  setCustomers((prev) =>
-                    prev.map((existing) =>
-                      existing.id === updated.id ? updated : existing
-                    )
-                  );
-                  loadCustomers();
-                }}
-              />
-            ) : null}
-            {loading ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator color={palette.accent} />
-              </View>
-            ) : null}
-          </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={palette.accent}
+            colors={[palette.accent]}
+          />
         }
-        ListEmptyComponent={
-          !loading ? (
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Customer management</Text>
+          <Text style={styles.subtitle}>
+            Keep every relationship organized with quick notes and contact details.
+          </Text>
+          <TextInput
+            placeholder="Search by name, email, phone, address, or notes"
+            placeholderTextColor={palette.mutedText}
+            value={search}
+            onChangeText={setSearch}
+            style={styles.input}
+          />
+          <View style={styles.pickerCard}>
+            <Text style={styles.pickerLabel}>Select a customer</Text>
+            <Picker
+              selectedValue={selectedCustomerId ?? ""}
+              onValueChange={handleSelectCustomer}
+              style={styles.picker}
+            >
+              <Picker.Item label="-- Select --" value="" />
+              {displayedCustomers.length === 0 ? (
+                <Picker.Item label="No matching customers" value="" enabled={false} />
+              ) : null}
+              {displayedCustomers.map((customer) => (
+                <Picker.Item
+                  key={customer.id}
+                  label={getDisplayName(customer)}
+                  value={customer.id}
+                />
+              ))}
+              <Picker.Item label="➕ Add New Customer" value={NEW_CUSTOMER_VALUE} />
+            </Picker>
+          </View>
+          <Button
+            title={showAddForm ? "Hide Add Customer" : "Add Customer"}
+            onPress={() => {
+              setShowAddForm((prev) => {
+                const next = !prev;
+                if (next) {
+                  setEditingCustomer(null);
+                  setSelectedCustomerId(null);
+                }
+                return next;
+              });
+            }}
+            color={palette.accent}
+          />
+          {showAddForm ? (
+            <View style={styles.formCard}>
+              <CustomerForm
+                onSaved={(customer) => {
+                  setShowAddForm(false);
+                  setEditingCustomer(null);
+                  setSelectedCustomerId(customer.id);
+                  void reloadCustomers();
+                }}
+                onCancel={() => setShowAddForm(false)}
+              />
+            </View>
+          ) : null}
+          {editingCustomer ? (
+            <EditCustomerForm
+              customer={editingCustomer}
+              onCancel={() => setEditingCustomer(null)}
+              onSaved={(updated) => {
+                setEditingCustomer(null);
+                setCustomers((prev) =>
+                  prev.map((existing) =>
+                    existing.id === updated.id ? updated : existing
+                  )
+                );
+                setSelectedCustomerId(updated.id);
+                void reloadCustomers();
+              }}
+            />
+          ) : null}
+          {loading ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator color={palette.accent} />
+            </View>
+          ) : null}
+          {!loading && customers.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No customers found.</Text>
             </View>
-          ) : null
-        }
-        contentContainerStyle={styles.listContent}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-      />
+          ) : null}
+        </View>
+
+        {selectedCustomer ? (
+          <View style={styles.customerCard}>
+            <Text style={styles.customerName}>{getDisplayName(selectedCustomer)}</Text>
+            {selectedCustomer.email ? (
+              <Text style={styles.customerMeta}>{selectedCustomer.email}</Text>
+            ) : null}
+            {selectedCustomer.phone ? (
+              <Text style={styles.customerMeta}>{selectedCustomer.phone}</Text>
+            ) : null}
+            {selectedCustomer.address ? (
+              <Text style={styles.customerMeta}>{selectedCustomer.address}</Text>
+            ) : null}
+            {selectedCustomer.notes ? (
+              <Text style={styles.customerNotes}>{selectedCustomer.notes}</Text>
+            ) : null}
+            <View style={styles.inlineButtons}>
+              <View style={styles.buttonFlex}>
+                <Button
+                  title="Edit"
+                  color={palette.accent}
+                  onPress={() => {
+                    setEditingCustomer(selectedCustomer);
+                    setShowAddForm(false);
+                  }}
+                />
+              </View>
+              <View style={styles.buttonFlex}>
+                <Button
+                  title="Delete"
+                  color={palette.danger}
+                  onPress={() => handleDelete(selectedCustomer)}
+                />
+              </View>
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
     </View>
   );
 }
@@ -415,6 +490,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: palette.background,
+  },
+  scrollContent: {
+    paddingBottom: 24,
   },
   header: {
     gap: 12,
@@ -439,6 +517,24 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     color: palette.primaryText,
     ...cardShadow(4),
+  },
+  pickerCard: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 16,
+    backgroundColor: palette.surface,
+    ...cardShadow(6),
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  pickerLabel: {
+    fontWeight: "600",
+    color: palette.primaryText,
+  },
+  picker: {
+    color: palette.primaryText,
+    height: 48,
   },
   textArea: {
     borderWidth: 1,
@@ -513,8 +609,5 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: palette.mutedText,
-  },
-  listContent: {
-    paddingBottom: 24,
   },
 });

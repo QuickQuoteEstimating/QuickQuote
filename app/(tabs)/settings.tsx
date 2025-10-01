@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -102,6 +103,11 @@ export default function Settings() {
   };
 
   const hapticLabel = HAPTIC_LABELS[settings.hapticIntensity] ?? HAPTIC_LABELS[1];
+
+  const handleSavePreferences = () => {
+    triggerHaptic();
+    Alert.alert("Preferences saved", "Your settings have been saved.");
+  };
 
   if (!isHydrated) {
     return (
@@ -263,6 +269,17 @@ export default function Settings() {
     },
     footerActions: {
       gap: 16,
+    },
+    saveButton: {
+      borderRadius: 14,
+      paddingVertical: 14,
+      alignItems: "center",
+      backgroundColor: colors.accent,
+    },
+    saveText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "600",
     },
     resetButton: {
       borderRadius: 14,
@@ -586,6 +603,14 @@ export default function Settings() {
           <Text style={themedStyles.sectionDescription}>You are signed in as</Text>
           <Text style={[themedStyles.rowLabel, { fontSize: 17 }]}>{user?.email ?? "Unknown"}</Text>
           <View style={themedStyles.footerActions}>
+            <Pressable
+              onPress={handleSavePreferences}
+              style={themedStyles.saveButton}
+              accessibilityRole="button"
+              accessibilityLabel="Save your QuickQuote preferences"
+            >
+              <Text style={themedStyles.saveText}>Save changes</Text>
+            </Pressable>
             <Pressable
               onPress={() => {
                 triggerHaptic();
