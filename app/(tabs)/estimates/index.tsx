@@ -1,18 +1,17 @@
-import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import { router } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   Button,
 } from "react-native";
-import { openDB, queueChange } from "../../../lib/sqlite";
-import { sanitizeEstimateForQueue } from "../../../lib/estimates";
-import { runSync } from "../../../lib/sync";
+import { openDB } from "../../../lib/sqlite";
 import { cardShadow, palette } from "../../../lib/theme";
 
 export type EstimateListItem = {
@@ -37,6 +36,15 @@ export type EstimateListItem = {
   version: number | null;
   updated_at: string;
   deleted_at: string | null;
+};
+
+type CustomerRecord = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  notes: string | null;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -64,13 +72,53 @@ function formatCurrency(value: number | null): string {
 }
 
 export default function EstimatesScreen() {
-  const [estimates, setEstimates] = useState<EstimateListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    null
+  );
+  const [customerEstimates, setCustomerEstimates] = useState<
+    EstimateListItem[]
+  >([]);
+  const [loadingEstimates, setLoadingEstimates] = useState(false);
 
-  const loadEstimates = useCallback(
-    async (signal?: { cancelled: boolean }) => {
+  const loadCustomers = useCallback(async () => {
+    setLoadingCustomers(true);
+    try {
+      const db = await openDB();
+      const rows = await db.getAllAsync<CustomerRecord>(
+        `SELECT id, name, email, phone, address, notes
+         FROM customers
+         WHERE deleted_at IS NULL
+         ORDER BY name COLLATE NOCASE ASC`
+      );
+      setCustomers(rows);
+    } catch (error) {
+      console.error("Failed to load customers", error);
+      Alert.alert(
+        "Unable to load customers",
+        "Please try again later or contact support if the issue persists."
+      );
+    } finally {
+      setLoadingCustomers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
+
+  useEffect(() => {
+    if (!selectedCustomerId) {
+      setCustomerEstimates([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingEstimates(true);
+
+    (async () => {
       try {
         const db = await openDB();
         const rows = await db.getAllAsync<EstimateListItem>(
@@ -82,207 +130,244 @@ export default function EstimatesScreen() {
                   c.address AS customer_address
            FROM estimates e
            LEFT JOIN customers c ON c.id = e.customer_id
-           WHERE e.deleted_at IS NULL
-           ORDER BY datetime(e.updated_at) DESC`
+           WHERE e.deleted_at IS NULL AND e.customer_id = ?
+           ORDER BY datetime(e.updated_at) DESC`,
+          [selectedCustomerId]
         );
-        if (!signal?.cancelled) {
-          const filteredRows = rows.filter(
-            (row) => !pendingDeleteIdsRef.current.has(row.id)
-          );
-          setEstimates(filteredRows);
+        if (!cancelled) {
+          setCustomerEstimates(rows);
         }
       } catch (error) {
-        console.error("Failed to load estimates", error);
-        if (!signal?.cancelled) {
-          Alert.alert("Error", "Unable to load estimates. Please try again.");
+        console.error("Failed to load customer estimates", error);
+        if (!cancelled) {
+          Alert.alert(
+            "Unable to load estimates",
+            "Please try again later or contact support if the issue persists."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingEstimates(false);
         }
       }
-    },
-    []
-  );
+    })();
 
-  useFocusEffect(
-    useCallback(() => {
-      const controller = { cancelled: false };
-      setLoading(true);
-      loadEstimates(controller).finally(() => {
-        if (!controller.cancelled) {
-          setLoading(false);
-        }
-      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCustomerId]);
 
-      return () => {
-        controller.cancelled = true;
-      };
-    }, [loadEstimates])
-  );
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await loadEstimates();
-    } finally {
-      setRefreshing(false);
+  const filteredCustomers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return [];
     }
-  }, [loadEstimates]);
 
-  const handleDelete = useCallback(
-    (estimate: EstimateListItem) => {
-      Alert.alert(
-        "Delete Estimate",
-        "Are you sure you want to delete this estimate?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: () => {
-              let previousEstimates: EstimateListItem[] = [];
-              pendingDeleteIdsRef.current.add(estimate.id);
+    const normalize = (value?: string | null) => {
+      if (typeof value === "string") {
+        return value.toLowerCase();
+      }
 
-              setEstimates((prev) => {
-                previousEstimates = prev;
-                return prev.filter((existing) => existing.id !== estimate.id);
-              });
+      if (value === null || value === undefined) {
+        return "";
+      }
 
-              (async () => {
-                try {
-                  const db = await openDB();
-                  const deletedAt = new Date().toISOString();
-                  const nextVersion = (estimate.version ?? 1) + 1;
-                  await db.runAsync(
-                    `UPDATE estimates
-                     SET deleted_at = ?, updated_at = ?, version = ?
-                     WHERE id = ?`,
-                    [deletedAt, deletedAt, nextVersion, estimate.id]
-                  );
+      return String(value).toLowerCase();
+    };
 
-                  const deletedEstimate = {
-                    ...estimate,
-                    deleted_at: deletedAt,
-                    updated_at: deletedAt,
-                    version: nextVersion,
-                  };
+    return customers.filter((customer) => {
+      const nameMatch = normalize(customer.name).includes(query);
+      const phoneMatch = normalize(customer.phone).includes(query);
+      const emailMatch = normalize(customer.email).includes(query);
+      const addressMatch = normalize(customer.address).includes(query);
+      const notesMatch = normalize(customer.notes).includes(query);
 
-                  await queueChange(
-                    "estimates",
-                    "update",
-                    sanitizeEstimateForQueue(deletedEstimate)
-                  );
-                  void runSync().catch((error) => {
-                    console.error("Failed to sync estimate deletion", error);
-                  });
-
-                  await loadEstimates();
-                } catch (error) {
-                  console.error("Failed to delete estimate", error);
-                  Alert.alert(
-                    "Error",
-                    "Unable to delete the estimate. Please try again."
-                  );
-                  setEstimates(() => [...previousEstimates]);
-                } finally {
-                  pendingDeleteIdsRef.current.delete(estimate.id);
-                }
-              })();
-            },
-          },
-        ]
+      return Boolean(
+        nameMatch || phoneMatch || emailMatch || addressMatch || notesMatch
       );
-    },
-    [loadEstimates]
-  );
+    });
+  }, [customers, searchQuery]);
 
-  const renderEstimate = useCallback(
-    ({ item }: { item: EstimateListItem }) => (
-      <View style={styles.card}>
-        <Pressable
-          onPress={() => router.push(`/(tabs)/estimates/${item.id}`)}
-          style={styles.cardBody}
-        >
-          <Text style={styles.cardTitle}>
-            {item.customer_name ?? "Unknown customer"}
-          </Text>
-          <Text style={styles.cardMeta}>Status: {formatStatus(item.status)}</Text>
-          <Text style={styles.cardMeta}>
-            Total: {formatCurrency(item.total)}
-          </Text>
-          <Text style={styles.cardMeta}>
-            Labor: {formatCurrency(item.labor_total ?? 0)}
-          </Text>
-          <Text style={styles.cardMeta}>
-            Materials: {formatCurrency(item.material_total ?? 0)}
-          </Text>
-          {item.date ? (
-            <Text style={styles.cardMeta}>
-              Date: {new Date(item.date).toLocaleDateString()}
-            </Text>
-          ) : null}
-        </Pressable>
-        <View style={styles.buttonRow}>
-          <View style={styles.buttonFlex}>
-            <Button
-              title="Edit"
-              color={palette.accent}
-              onPress={() => router.push(`/(tabs)/estimates/${item.id}`)}
-            />
-          </View>
-          <View style={styles.buttonFlex}>
-            <Button
-              title="Delete"
-              color={palette.danger}
-              onPress={() => handleDelete(item)}
-            />
-          </View>
-        </View>
-      </View>
-    ),
-    [handleDelete]
-  );
+  const selectedCustomer = useMemo(() => {
+    if (!selectedCustomerId) {
+      return null;
+    }
+    return (
+      customers.find((customer) => customer.id === selectedCustomerId) || null
+    );
+  }, [customers, selectedCustomerId]);
 
   const listHeader = useMemo(
     () => (
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Estimates</Text>
         <Text style={styles.headerSubtitle}>
-          Review drafts, monitor status changes, and keep your pipeline fresh.
+          Search for a customer to review their profile and estimate history.
         </Text>
         <Button
           title="Create Estimate"
           color={palette.accent}
           onPress={() => router.push("/(tabs)/estimates/new")}
         />
-        {loading ? (
+      </View>
+    ),
+    []
+  );
+
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+    >
+      {listHeader}
+
+      <View style={styles.searchSection}>
+        <Text style={styles.sectionTitle}>Find a customer</Text>
+        <TextInput
+          value={searchQuery}
+          onChangeText={(value) => {
+            setSearchQuery(value);
+            if (!value) {
+              setSelectedCustomerId(null);
+            }
+          }}
+          placeholder="Search by name, phone, email, or address"
+          placeholderTextColor={palette.mutedText}
+          autoCorrect={false}
+          style={styles.searchInput}
+        />
+        {loadingCustomers ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator color={palette.accent} />
           </View>
         ) : null}
+        {searchQuery.trim().length === 0 ? (
+          <Text style={styles.helperText}>
+            Start typing to find an existing customer.
+          </Text>
+        ) : null}
+        {searchQuery.trim().length > 0 && !loadingCustomers ? (
+          <View style={styles.resultsList}>
+            {filteredCustomers.length === 0 ? (
+              <Text style={styles.helperText}>No matching customers.</Text>
+            ) : (
+              filteredCustomers.map((customer) => (
+                <Pressable
+                  key={customer.id}
+                  onPress={() => setSelectedCustomerId(customer.id)}
+                  style={[
+                    styles.resultItem,
+                    selectedCustomerId === customer.id &&
+                      styles.resultItemSelected,
+                  ]}
+                >
+                  <Text style={styles.resultName}>
+                    {customer.name?.trim() || "Unnamed customer"}
+                  </Text>
+                  {customer.email ? (
+                    <Text style={styles.resultMeta}>{customer.email}</Text>
+                  ) : null}
+                  {customer.phone ? (
+                    <Text style={styles.resultMeta}>{customer.phone}</Text>
+                  ) : null}
+                  {customer.address ? (
+                    <Text style={styles.resultMeta}>{customer.address}</Text>
+                  ) : null}
+                </Pressable>
+              ))
+            )}
+          </View>
+        ) : null}
       </View>
-    ),
-    [loading]
-  );
 
-  return (
-    <View style={styles.screen}>
-      <FlatList
-        data={estimates}
-        keyExtractor={(item) => item.id}
-        renderItem={renderEstimate}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={listHeader}
-        ListEmptyComponent={
-          !loading ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>
-                No estimates found.
+      {selectedCustomer ? (
+        <View style={styles.customerSection}>
+          <Text style={styles.sectionTitle}>Customer profile</Text>
+          <View style={styles.card}>
+            <Text style={styles.customerName}>
+              {selectedCustomer.name?.trim() || "Unnamed customer"}
+            </Text>
+            <View style={styles.profileRow}>
+              <Text style={styles.profileLabel}>Email</Text>
+              <Text style={styles.profileValue}>
+                {selectedCustomer.email || "Not provided"}
               </Text>
             </View>
-          ) : null
-        }
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-      />
-    </View>
+            <View style={styles.profileRow}>
+              <Text style={styles.profileLabel}>Phone</Text>
+              <Text style={styles.profileValue}>
+                {selectedCustomer.phone || "Not provided"}
+              </Text>
+            </View>
+            <View style={styles.profileRow}>
+              <Text style={styles.profileLabel}>Address</Text>
+              <Text style={styles.profileValue}>
+                {selectedCustomer.address || "Not provided"}
+              </Text>
+            </View>
+            {selectedCustomer.notes ? (
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>Notes</Text>
+                <Text style={styles.profileValue}>{selectedCustomer.notes}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <Text style={styles.sectionTitle}>Estimate history</Text>
+          {loadingEstimates ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator color={palette.accent} />
+            </View>
+          ) : null}
+          {!loadingEstimates && customerEstimates.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>
+                This customer does not have any estimates yet.
+              </Text>
+            </View>
+          ) : null}
+          {customerEstimates.map((estimate) => (
+            <View key={estimate.id} style={styles.card}>
+              <Pressable
+                onPress={() => router.push(`/(tabs)/estimates/${estimate.id}`)}
+                style={styles.cardBody}
+              >
+                <Text style={styles.cardTitle}>
+                  Estimate #{estimate.id.slice(0, 8)}
+                </Text>
+                <Text style={styles.cardMeta}>
+                  Status: {formatStatus(estimate.status)}
+                </Text>
+                <Text style={styles.cardMeta}>
+                  Total: {formatCurrency(estimate.total)}
+                </Text>
+                <Text style={styles.cardMeta}>
+                  Labor: {formatCurrency(estimate.labor_total ?? 0)}
+                </Text>
+                <Text style={styles.cardMeta}>
+                  Materials: {formatCurrency(estimate.material_total ?? 0)}
+                </Text>
+                {estimate.date ? (
+                  <Text style={styles.cardMeta}>
+                    Date: {new Date(estimate.date).toLocaleDateString()}
+                  </Text>
+                ) : null}
+              </Pressable>
+              <View style={styles.buttonRow}>
+                <View style={styles.buttonFlex}>
+                  <Button
+                    title="View"
+                    color={palette.accent}
+                    onPress={() => router.push(`/(tabs)/estimates/${estimate.id}`)}
+                  />
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </ScrollView>
   );
 }
 
@@ -292,10 +377,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: palette.background,
-  },
-  header: {
-    gap: 12,
-    marginBottom: 12,
   },
   headerTitle: {
     fontSize: 28,
@@ -307,12 +388,17 @@ const styles = StyleSheet.create({
     color: palette.secondaryText,
     lineHeight: 20,
   },
+  header: {
+    gap: 12,
+    marginBottom: 12,
+  },
+  scrollContent: {
+    paddingBottom: 48,
+    gap: 24,
+  },
   loadingRow: {
     paddingVertical: 16,
-  },
-  listContent: {
-    paddingBottom: 32,
-    gap: 16,
+    alignItems: "center",
   },
   card: {
     backgroundColor: palette.surface,
@@ -342,10 +428,73 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   emptyState: {
-    paddingVertical: 48,
+    paddingVertical: 24,
     alignItems: "center",
   },
   emptyText: {
     color: palette.mutedText,
+  },
+  searchSection: {
+    gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: palette.primaryText,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: palette.surfaceSubtle,
+    borderColor: palette.border,
+    color: palette.primaryText,
+  },
+  helperText: {
+    color: palette.secondaryText,
+  },
+  resultsList: {
+    gap: 12,
+  },
+  resultItem: {
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: palette.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    gap: 4,
+    ...cardShadow(6),
+  },
+  resultItemSelected: {
+    borderColor: palette.accent,
+  },
+  resultName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: palette.primaryText,
+  },
+  resultMeta: {
+    color: palette.secondaryText,
+  },
+  customerSection: {
+    gap: 16,
+  },
+  customerName: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: palette.primaryText,
+  },
+  profileRow: {
+    gap: 4,
+  },
+  profileLabel: {
+    fontSize: 12,
+    color: palette.mutedText,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  profileValue: {
+    color: palette.primaryText,
   },
 });
