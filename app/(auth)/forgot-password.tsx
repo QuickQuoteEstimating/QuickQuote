@@ -1,23 +1,18 @@
 import { Link } from "expo-router";
-import { useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { useMemo, useState } from "react";
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
+import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
+import { useTheme, type Theme } from "../../theme";
 
 const RESET_REDIRECT = process.env.EXPO_PUBLIC_SUPABASE_RESET_REDIRECT;
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const handleReset = async () => {
     if (!email) {
@@ -52,93 +47,64 @@ export default function ForgotPasswordScreen() {
       behavior={Platform.select({ ios: "padding", android: undefined })}
       style={styles.container}
     >
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <View style={styles.logoContainer}>
           <BrandLogo size={80} />
         </View>
-        <Text style={styles.title}>Reset your password</Text>
-        <TextInput
+        <Title style={styles.title}>Reset your password</Title>
+        <Subtitle style={styles.subtitle}>
+          Enter the email linked to your account and we'll send reset instructions.
+        </Subtitle>
+        <Input
           autoCapitalize="none"
           autoComplete="email"
           autoCorrect={false}
           keyboardType="email-address"
-          placeholder="Email"
-          placeholderTextColor="#888"
-          style={styles.input}
+          placeholder="you@example.com"
+          label="Email"
           value={email}
           onChangeText={setEmail}
         />
-        <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={handleReset} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? "Sending..." : "Send reset link"}</Text>
-        </Pressable>
+        <Button label="Send reset link" onPress={handleReset} loading={loading} />
         <View style={styles.linksRow}>
-          <Link href="/(auth)/login" style={styles.link}>
-            Back to sign in
+          <Link href="/(auth)/login">
+            <Body style={styles.link}>Back to sign in</Body>
           </Link>
         </View>
-      </View>
+      </Card>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0f172a",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 24,
-    gap: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  logoContainer: {
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#0f172a",
-    textAlign: "center",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: "#0f172a",
-  },
-  button: {
-    backgroundColor: "#1e40af",
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  linksRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  link: {
-    color: "#1e40af",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.xl,
+    },
+    card: {
+      gap: theme.spacing.lg,
+    },
+    logoContainer: {
+      alignItems: "center",
+      marginBottom: theme.spacing.xs,
+    },
+    title: {
+      textAlign: "center",
+      color: theme.colors.primaryText,
+    },
+    subtitle: {
+      textAlign: "center",
+    },
+    linksRow: {
+      flexDirection: "row",
+      justifyContent: "center",
+    },
+    link: {
+      color: theme.colors.primary,
+      fontWeight: "600",
+    },
+  });
+}

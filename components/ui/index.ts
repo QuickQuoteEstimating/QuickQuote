@@ -10,3 +10,4 @@ export { ListItem } from "./ListItem";
 export type { ListItemProps } from "./ListItem";
 export { FAB } from "./FAB";
 export type { FABProps } from "./FAB";
+export { Title, Subtitle, Body } from "./Typography";
