@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
-  Button,
+  Button as RNButton,
   FlatList,
   Image,
   Linking,
@@ -56,13 +56,14 @@ import {
 } from "../../../lib/pdf";
 import { calculateEstimateTotals } from "../../../lib/estimateMath";
 import { formatPercentageInput } from "../../../lib/numberFormat";
+import { Badge, Button, Card, type BadgeTone } from "../../../components/ui";
 import {
-  Button as ThemedButton,
-  Card as ThemedCard,
-  Badge,
-  type BadgeTone,
-} from "../../../components/ui";
-import { cardShadow, palette, useTheme, type Theme } from "../../../lib/theme";
+  cardShadow,
+  palette,
+  useTheme as useLegacyTheme,
+  type Theme as LegacyTheme,
+} from "../../../lib/theme";
+import { useTheme as useDesignTheme, type Theme as DesignTheme } from "../../../theme";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
 
@@ -188,8 +189,12 @@ export default function EditEstimateScreen() {
   const estimateId = params.id ?? "";
   const { user, session } = useAuth();
   const { settings } = useSettings();
-  const theme = useTheme();
-  const previewStyles = useMemo(() => createPreviewStyles(theme), [theme]);
+  const theme = useLegacyTheme();
+  const { theme: designTheme } = useDesignTheme();
+  const previewStyles = useMemo(
+    () => createPreviewStyles(theme, designTheme),
+    [theme, designTheme],
+  );
   const userId = user?.id ?? session?.user?.id ?? null;
   const { openEditor } = useItemEditor();
   const draftRef = useRef<EstimateFormDraftState | null>(
@@ -232,6 +237,9 @@ export default function EditEstimateScreen() {
   const [saving, setSaving] = useState(false);
   const [pdfWorking, setPdfWorking] = useState(false);
   const [smsSending, setSmsSending] = useState(false);
+  const [sendSuccessMessage, setSendSuccessMessage] = useState<string | null>(
+    null,
+  );
   const [customerContact, setCustomerContact] = useState<CustomerRecord | null>(
     null
   );
@@ -257,6 +265,13 @@ export default function EditEstimateScreen() {
       ? new Date(estimateDate).toLocaleDateString()
       : "Date not set";
   }, [estimateDate]);
+  const previewLineItems = useMemo(() => {
+    const count = items.length;
+    if (count === 0) {
+      return "No line items";
+    }
+    return count === 1 ? "1 line item" : `${count} line items`;
+  }, [items]);
   const estimateRef = useRef<EstimateListItem | null>(null);
   const lastPdfRef = useRef<EstimatePdfResult | null>(null);
   const releasePdfRef = useRef<(() => void) | null>(null);
@@ -864,7 +879,7 @@ export default function EditEstimateScreen() {
         </View>
         <View style={styles.inlineButtons}>
           <View style={styles.buttonFlex}>
-            <Button
+            <RNButton
               title="Edit"
               color={palette.accent}
               onPress={() =>
@@ -884,7 +899,7 @@ export default function EditEstimateScreen() {
             />
           </View>
           <View style={styles.buttonFlex}>
-            <Button
+            <RNButton
               title="Remove"
               color={palette.danger}
               onPress={() => handleDeleteItem(item)}
@@ -1188,6 +1203,11 @@ export default function EditEstimateScreen() {
         if (status !== "sent") {
           setStatus("sent");
         }
+        setSendSuccessMessage(
+          channel === "email"
+            ? "Estimate sent to your client via email."
+            : "Estimate sent to your client via text message.",
+        );
         return;
       }
 
@@ -1212,6 +1232,11 @@ export default function EditEstimateScreen() {
         estimateRef.current = updated;
         setEstimate(updated);
         setStatus("sent");
+        setSendSuccessMessage(
+          channel === "email"
+            ? "Estimate sent to your client via email."
+            : "Estimate sent to your client via text message.",
+        );
 
         await queueChange(
           "estimates",
@@ -1227,7 +1252,7 @@ export default function EditEstimateScreen() {
         );
       }
     },
-    [setEstimate, setStatus, status]
+    [setEstimate, setSendSuccessMessage, setStatus, status]
   );
 
   const handleShareEmail = useCallback(async () => {
@@ -1244,6 +1269,7 @@ export default function EditEstimateScreen() {
     }
 
     try {
+      setSendSuccessMessage(null);
       setPdfWorking(true);
       const pdf = await ensurePdfReady();
       if (!pdf) {
@@ -1314,6 +1340,7 @@ export default function EditEstimateScreen() {
     estimate,
     totals.grandTotal,
     logEstimateDelivery,
+    setSendSuccessMessage,
   ]);
 
   const handleShareSms = useCallback(async () => {
@@ -1335,6 +1362,7 @@ export default function EditEstimateScreen() {
     }
 
     try {
+      setSendSuccessMessage(null);
       setSmsSending(true);
       const pdf = await ensurePdfReady();
       if (!pdf) {
@@ -1390,7 +1418,44 @@ export default function EditEstimateScreen() {
     estimate,
     totals.grandTotal,
     logEstimateDelivery,
+    setSendSuccessMessage,
   ]);
+
+  const handleSendToClient = useCallback(() => {
+    const hasEmail = Boolean(customerContact?.email);
+    const hasPhone = Boolean(customerContact?.phone);
+
+    if (!hasEmail && !hasPhone) {
+      Alert.alert(
+        "Add client contact",
+        "Add an email address or mobile number before sending this estimate.",
+      );
+      return;
+    }
+
+    const sendEmail = () => {
+      void handleShareEmail();
+    };
+    const sendSms = () => {
+      void handleShareSms();
+    };
+
+    if (hasEmail && hasPhone) {
+      Alert.alert("Send estimate", "Choose how you'd like to send the estimate.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Text message", onPress: sendSms },
+        { text: "Email", onPress: sendEmail },
+      ]);
+      return;
+    }
+
+    if (hasEmail) {
+      sendEmail();
+      return;
+    }
+
+    sendSms();
+  }, [customerContact?.email, customerContact?.phone, handleShareEmail, handleShareSms]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1758,13 +1823,16 @@ export default function EditEstimateScreen() {
     return null;
   }
 
+  const sendingToClient = pdfWorking || smsSending;
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.card}>
-        <Text style={styles.pageTitle}>Edit Estimate</Text>
-        <Text style={styles.sectionSubtitle}>
-          Update pricing, attach photos, and send a polished quote in seconds.
-        </Text>
+    <View style={styles.screenContainer}>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <View style={styles.card}>
+          <Text style={styles.pageTitle}>Edit Estimate</Text>
+          <Text style={styles.sectionSubtitle}>
+            Update pricing, attach photos, and send a polished quote in seconds.
+          </Text>
         <View style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>Customer</Text>
           <CustomerPicker
@@ -1826,7 +1894,7 @@ export default function EditEstimateScreen() {
                 />
                 <View style={styles.inlineButtons}>
                   <View style={styles.buttonFlex}>
-                    <Button
+                    <RNButton
                       title="Save"
                       color={palette.accent}
                       onPress={() => handleSavePhotoDescription(photo)}
@@ -1834,7 +1902,7 @@ export default function EditEstimateScreen() {
                     />
                   </View>
                   <View style={styles.buttonFlex}>
-                    <Button
+                    <RNButton
                       title="Remove"
                       color={palette.danger}
                       onPress={() => handleDeletePhoto(photo)}
@@ -1847,14 +1915,14 @@ export default function EditEstimateScreen() {
           })
         )}
         {photos.length > 0 ? (
-          <Button
+          <RNButton
             title={photoSyncing ? "Syncing photos..." : "Sync photos"}
             onPress={handleRetryPhotoSync}
             disabled={photoSyncing}
             color={palette.accent}
           />
         ) : null}
-        <Button
+        <RNButton
           title={addingPhoto ? "Adding photo..." : "Add Photo"}
           onPress={handleAddPhoto}
           disabled={addingPhoto}
@@ -1879,7 +1947,7 @@ export default function EditEstimateScreen() {
             </View>
           }
         />
-        <Button
+        <RNButton
           title="Add line item"
           color={palette.accent}
           onPress={() =>
@@ -1999,151 +2067,255 @@ export default function EditEstimateScreen() {
           />
         </View>
       </View>
-
-      <ThemedCard style={[styles.card, previewStyles.card]}>
-        <View style={previewStyles.headerBand}>
-          <Text style={previewStyles.headerText}>QuickQuote</Text>
-        </View>
-        <View style={previewStyles.summaryBlock}>
-          <Text style={previewStyles.summaryTitle}>
-            Estimate {previewEstimateNumber}
-          </Text>
-          <Text style={previewStyles.summarySubtitle}>{previewCustomerName}</Text>
-          <Text style={previewStyles.summaryMeta}>{previewDate}</Text>
-          <View style={previewStyles.summaryRow}>
-            <Text style={previewStyles.summaryLabel}>Project total</Text>
-            <Text style={previewStyles.summaryTotal}>
+      <View style={previewStyles.previewSection}>
+        <Text style={previewStyles.previewTitle}>Send to client preview</Text>
+        <Text style={previewStyles.previewSubtitle}>
+          Double-check the essentials before sharing the full PDF with your client.
+        </Text>
+        {sendSuccessMessage ? (
+          <View style={previewStyles.successBanner}>
+            <Text style={previewStyles.successText}>{sendSuccessMessage}</Text>
+          </View>
+        ) : null}
+        <Card style={previewStyles.previewCard}>
+          <View style={previewStyles.previewHeader}>
+            <View style={previewStyles.brandBlock}>
+              <Text style={previewStyles.brandName}>QuickQuote</Text>
+              <Text style={previewStyles.brandTagline}>Estimate summary</Text>
+            </View>
+            <View style={previewStyles.metaBlock}>
+              <Text style={previewStyles.metaLabel}>Estimate #</Text>
+              <Text style={previewStyles.metaValue}>{previewEstimateNumber}</Text>
+            </View>
+          </View>
+          <Badge tone={statusBadgeTone} style={previewStyles.statusBadge}>
+            {statusLabel}
+          </Badge>
+          <View style={previewStyles.summaryDivider} />
+          <View style={previewStyles.summaryGrid}>
+            <View style={previewStyles.summaryRow}>
+              <Text style={previewStyles.summaryLabel}>Client</Text>
+              <Text style={previewStyles.summaryValue}>{previewCustomerName}</Text>
+            </View>
+            <View style={previewStyles.summaryRow}>
+              <Text style={previewStyles.summaryLabel}>Line items</Text>
+              <Text style={previewStyles.summaryValue}>{previewLineItems}</Text>
+            </View>
+            <View style={previewStyles.summaryRow}>
+              <Text style={previewStyles.summaryLabel}>Estimate date</Text>
+              <Text style={previewStyles.summaryValue}>{previewDate}</Text>
+            </View>
+          </View>
+          <View style={previewStyles.totalBlock}>
+            <Text style={previewStyles.totalLabel}>Total amount</Text>
+            <Text style={previewStyles.totalValue}>
               {formatCurrency(totals.grandTotal)}
             </Text>
           </View>
-        </View>
-        <Badge tone={statusBadgeTone} style={previewStyles.statusBadge}>
-          {statusLabel}
-        </Badge>
-        <Text style={previewStyles.actionHint}>
-          Preview your polished PDF and send it straight to the client.
+        </Card>
+        <Text style={previewStyles.previewHint}>
+          A polished PDF and this summary will be included when you send the estimate.
         </Text>
-        <View style={previewStyles.actionColumn}>
-          <ThemedButton
-            label="Save & Preview"
+        <View style={previewStyles.previewActions}>
+          <Button
+            label="Save & Preview PDF"
             variant="secondary"
             onPress={handleSaveAndPreview}
             disabled={pdfWorking || smsSending || saving}
-            style={previewStyles.fullWidth}
+            loading={pdfWorking}
           />
-          <ThemedButton
+          <Button
             label="Share via Email"
+            variant="ghost"
             onPress={handleShareEmail}
             disabled={pdfWorking || smsSending}
-            style={previewStyles.fullWidth}
           />
-          <ThemedButton
+          <Button
             label="Share via SMS"
-            variant="secondary"
+            variant="ghost"
             onPress={handleShareSms}
             disabled={smsSending || pdfWorking}
-            style={previewStyles.fullWidth}
           />
         </View>
-      </ThemedCard>
-
+      </View>
       <View style={styles.footerButtons}>
         <View style={styles.buttonFlex}>
-          <ThemedButton
+          <Button
             label="Cancel"
             variant="secondary"
             onPress={handleCancel}
             disabled={saving}
-            style={previewStyles.fullWidth}
           />
         </View>
         <View style={styles.buttonFlex}>
-          <ThemedButton
+          <Button
             label={saving ? "Saving…" : "Save Draft"}
             onPress={handleSaveDraft}
             disabled={saving}
-            style={previewStyles.fullWidth}
           />
         </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+      <View style={previewStyles.bottomBar}>
+        <Button
+          label={sendingToClient ? "Sending…" : "Send to Client"}
+          onPress={handleSendToClient}
+          disabled={sendingToClient}
+          loading={sendingToClient}
+        />
+      </View>
+    </View>
   );
 }
 
-function createPreviewStyles(theme: Theme) {
+function createPreviewStyles(theme: LegacyTheme, designTheme: DesignTheme) {
   return StyleSheet.create({
-    card: {
-      padding: 0,
-      gap: 0,
-      overflow: "hidden",
-      alignItems: "stretch",
+    previewSection: {
+      marginTop: 28,
+      alignItems: "center",
+      alignSelf: "stretch",
+      gap: 20,
     },
-    headerBand: {
-      backgroundColor: theme.accent,
-      paddingHorizontal: 24,
-      paddingVertical: 18,
-    },
-    headerText: {
-      color: theme.surface,
-      fontSize: 16,
-      fontWeight: "700",
-      letterSpacing: 1,
-      textTransform: "uppercase",
-    },
-    summaryBlock: {
-      paddingHorizontal: 24,
-      paddingVertical: 20,
-      gap: 8,
-      backgroundColor: theme.surface,
-    },
-    summaryTitle: {
+    previewTitle: {
       fontSize: 22,
       fontWeight: "700",
       color: theme.primaryText,
+      textAlign: "center",
     },
-    summarySubtitle: {
-      fontSize: 16,
+    previewSubtitle: {
+      fontSize: 15,
+      lineHeight: 22,
       color: theme.secondaryText,
+      textAlign: "center",
+      maxWidth: 520,
     },
-    summaryMeta: {
-      fontSize: 14,
+    successBanner: {
+      alignSelf: "center",
+      maxWidth: 520,
+      width: "100%",
+      backgroundColor: designTheme.colors.successSoft,
+      borderColor: designTheme.colors.success,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderRadius: 18,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+    },
+    successText: {
+      color: designTheme.colors.success,
+      fontWeight: "600",
+      textAlign: "center",
+    },
+    previewCard: {
+      width: "100%",
+      maxWidth: 520,
+      backgroundColor: theme.surface,
+      borderRadius: 26,
+      padding: 28,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+      gap: 20,
+      ...cardShadow(20, theme.mode),
+    },
+    previewHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 16,
+    },
+    brandBlock: {
+      gap: 6,
+    },
+    brandName: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    brandTagline: {
+      fontSize: 12,
+      letterSpacing: 1,
+      textTransform: "uppercase",
       color: theme.mutedText,
     },
-    summaryRow: {
-      marginTop: 16,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
+    metaBlock: {
+      alignItems: "flex-end",
+      gap: 4,
     },
-    summaryLabel: {
+    metaLabel: {
       fontSize: 12,
       textTransform: "uppercase",
       letterSpacing: 0.8,
       color: theme.mutedText,
     },
-    summaryTotal: {
-      fontSize: 26,
+    metaValue: {
+      fontSize: 18,
       fontWeight: "700",
       color: theme.primaryText,
     },
     statusBadge: {
-      alignSelf: "center",
-      marginTop: 20,
+      alignSelf: "flex-end",
     },
-    actionHint: {
-      paddingHorizontal: 24,
-      textAlign: "center",
+    summaryDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.border,
+    },
+    summaryGrid: {
+      gap: 16,
+    },
+    summaryRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: 16,
+    },
+    summaryLabel: {
       fontSize: 14,
       color: theme.secondaryText,
-      marginTop: 16,
     },
-    actionColumn: {
-      padding: 24,
-      paddingTop: 12,
+    summaryValue: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: theme.primaryText,
+      textAlign: "right",
+    },
+    totalBlock: {
+      marginTop: 8,
+      paddingTop: 16,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.border,
+      alignItems: "flex-end",
+      gap: 4,
+    },
+    totalLabel: {
+      fontSize: 13,
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: theme.mutedText,
+    },
+    totalValue: {
+      fontSize: 30,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    previewHint: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: theme.secondaryText,
+      textAlign: "center",
+      maxWidth: 520,
+    },
+    previewActions: {
+      width: "100%",
+      maxWidth: 520,
       gap: 12,
     },
-    fullWidth: {
-      alignSelf: "stretch",
+    bottomBar: {
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 24,
+      backgroundColor: theme.surface,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.border,
+      ...cardShadow(16, theme.mode),
     },
   });
 }
@@ -2155,6 +2327,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: palette.background,
   },
+  screenContainer: {
+    flex: 1,
+    backgroundColor: palette.background,
+  },
   screen: {
     flex: 1,
     backgroundColor: palette.background,
@@ -2162,7 +2338,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     gap: 20,
-    paddingBottom: 32,
+    paddingBottom: 220,
   },
   card: {
     backgroundColor: palette.surface,
