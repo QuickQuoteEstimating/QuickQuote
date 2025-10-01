@@ -37,6 +37,7 @@ export type ThemeColors = {
   textMuted: string;
   border: string;
   separator: string;
+  highlight: string;
   success: string;
   successSoft: string;
   warning: string;
@@ -88,6 +89,7 @@ export const light: Theme = {
     textMuted: "#5B667A",
     border: "#D3DBE8",
     separator: "#E4E8F0",
+    highlight: "#F5B700",
     success: "#2FBF71",
     successSoft: "#E3F7ED",
     warning: "#F59E0B",
@@ -113,6 +115,7 @@ export const dark: Theme = {
     textMuted: "#94A3B8",
     border: "#243049",
     separator: "#1D2740",
+    highlight: "#F5B700",
     success: "#3DD68C",
     successSoft: "#123D2C",
     warning: "#FBBF24",
@@ -132,9 +135,14 @@ type ThemeContextValue = {
   toggleMode: () => void;
 };
 
-export const ThemeContext = createContext<ThemeContextValue | undefined>(
-  undefined
-);
+const defaultThemeContext: ThemeContextValue = {
+  mode: "light",
+  theme: light,
+  setMode: () => {},
+  toggleMode: () => {},
+};
+
+export const ThemeContext = createContext<ThemeContextValue>(defaultThemeContext);
 
 export type ThemeProviderProps = {
   children: ReactNode;
@@ -162,11 +170,5 @@ export function ThemeProvider({
 }
 
 export function useTheme() {
-  const context = useContext(ThemeContext);
-
-  if (!context) {
-    throw new Error("useTheme must be used within a ThemeProvider");
-  }
-
-  return context;
+  return useContext(ThemeContext);
 }

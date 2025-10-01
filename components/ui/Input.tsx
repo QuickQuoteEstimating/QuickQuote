@@ -17,7 +17,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { useTheme } from "../../lib/theme";
+import { useTheme } from "../../theme";
 
 export interface InputProps extends TextInputProps {
   label?: string;
@@ -43,7 +43,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   }: InputProps,
   ref: ForwardedRef<TextInput>,
 ) {
-  const theme = useTheme();
+  const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [isFocused, setFocused] = useState(false);
 
@@ -86,7 +86,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
         {leftElement ? <View style={styles.adornment}>{leftElement}</View> : null}
         <TextInput
           ref={ref}
-          placeholderTextColor={theme.mutedText}
+          placeholderTextColor={theme.colors.textMuted}
           {...textInputProps}
           multiline={multiline}
           style={[styles.input, multiline ? styles.multilineInput : null, inputStyle]}
@@ -103,48 +103,48 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   );
 });
 
-function createStyles(theme: ReturnType<typeof useTheme>) {
+function createStyles(theme: ReturnType<typeof useTheme>["theme"]) {
   return StyleSheet.create({
     container: {
-      gap: 6,
+      gap: theme.spacing.xs,
     },
     label: {
       fontSize: 14,
       fontWeight: "600",
-      color: theme.secondaryText,
+      color: theme.colors.textMuted,
     },
     fieldShell: {
       flexDirection: "row",
       alignItems: "center",
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.inputBorder,
-      backgroundColor: theme.inputBackground,
-      paddingHorizontal: 16,
-      minHeight: 52,
-      gap: 12,
+      borderRadius: theme.radii.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      paddingHorizontal: theme.spacing.lg,
+      minHeight: theme.spacing.xxl + theme.spacing.lg,
+      gap: theme.spacing.sm,
     },
     multilineShell: {
       alignItems: "flex-start",
-      paddingVertical: 12,
+      paddingVertical: theme.spacing.sm,
     },
     input: {
       flex: 1,
       fontSize: 16,
-      color: theme.primaryText,
-      paddingVertical: 12,
+      color: theme.colors.text,
+      paddingVertical: theme.spacing.sm,
     },
     multilineInput: {
       textAlignVertical: "top",
-      minHeight: 100,
+      minHeight: theme.spacing.xxl * 3,
     },
     caption: {
       fontSize: 12,
-      color: theme.mutedText,
+      color: theme.colors.textMuted,
     },
     errorText: {
       fontSize: 12,
-      color: theme.danger,
+      color: theme.colors.danger,
     },
     adornment: {
       justifyContent: "center",
@@ -154,14 +154,14 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       marginLeft: "auto",
     },
     focusedState: {
-      borderColor: theme.accent,
-      shadowColor: theme.accent,
+      borderColor: theme.colors.primary,
+      shadowColor: theme.colors.primary,
       shadowOpacity: Platform.OS === "ios" ? 0.16 : 0,
-      shadowOffset: { width: 0, height: 6 },
-      shadowRadius: 12,
+      shadowOffset: { width: 0, height: theme.spacing.sm },
+      shadowRadius: theme.spacing.xl,
     },
     errorState: {
-      borderColor: theme.danger,
+      borderColor: theme.colors.danger,
     },
   });
 }

@@ -1,10 +1,19 @@
-import { ActivityIndicator, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, ViewStyle } from "react-native";
-import { ReactNode, useMemo } from "react";
-import { useTheme } from "../../lib/theme";
+import { useMemo, type ReactNode } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextStyle,
+  View,
+  ViewStyle,
+} from "react-native";
+import { useTheme } from "../../theme";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost";
 
-type ButtonSize = "default" | "small";
+type ButtonAlignment = "inline" | "full";
 
 export interface ButtonProps {
   label: string;
@@ -12,12 +21,12 @@ export interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   variant?: ButtonVariant;
-  icon?: ReactNode;
+  alignment?: ButtonAlignment;
+  leadingIcon?: ReactNode;
   trailingIcon?: ReactNode;
   style?: StyleProp<ViewStyle>;
-  contentStyle?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
-  size?: ButtonSize;
+  contentStyle?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
 }
 
@@ -27,52 +36,42 @@ export function Button({
   disabled = false,
   loading = false,
   variant = "primary",
-  icon,
+  alignment = "full",
+  leadingIcon,
   trailingIcon,
   style,
-  contentStyle,
   textStyle,
-  size = "default",
+  contentStyle,
   accessibilityLabel,
 }: ButtonProps) {
-  const theme = useTheme();
-
+  const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const sizeStyles = size === "small" ? styles.small : styles.default;
   const isDisabled = disabled || loading;
 
   return (
     <Pressable
-      accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       disabled={isDisabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.base,
         styles[variant],
-        sizeStyles,
+        alignment === "full" ? styles.fullWidth : null,
         pressed && !isDisabled ? styles.pressed : null,
-        isDisabled ? styles.disabled : null,
         style,
       ]}
     >
-      <View style={[styles.content, sizeStyles, contentStyle]}>
+      <View style={[styles.content, contentStyle]}>
         {loading ? (
-          <ActivityIndicator color={variant === "secondary" ? theme.accent : theme.surface} />
+          <ActivityIndicator
+            color={variant === "primary" ? theme.colors.surface : theme.colors.primary}
+          />
         ) : (
           <>
-            {icon ? <View style={styles.icon}>{icon}</View> : null}
-            <Text
-              style={[
-                styles.label,
-                styles[`${variant}Text` as const],
-                size === "small" ? styles.smallText : null,
-                textStyle,
-              ]}
-            >
-              {label}
-            </Text>
+            {leadingIcon ? <View style={styles.icon}>{leadingIcon}</View> : null}
+            <Text style={[styles.label, styles[`${variant}Label`], textStyle]}>{label}</Text>
             {trailingIcon ? <View style={styles.icon}>{trailingIcon}</View> : null}
           </>
         )}
@@ -81,24 +80,20 @@ export function Button({
   );
 }
 
-function createStyles(theme: ReturnType<typeof useTheme>) {
+function createStyles(theme: ReturnType<typeof useTheme>["theme"]) {
   return StyleSheet.create({
     base: {
-      borderRadius: 16,
+      borderRadius: theme.radii.lg,
       overflow: "hidden",
-    },
-    default: {
-      minHeight: 56,
-    },
-    small: {
-      minHeight: 44,
+      minHeight: 48,
     },
     content: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 20,
-      gap: 10,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xl,
+      gap: theme.spacing.sm,
     },
     icon: {
       alignItems: "center",
@@ -109,34 +104,32 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       fontWeight: "600",
       letterSpacing: 0.2,
     },
-    smallText: {
-      fontSize: 14,
-    },
     primary: {
-      backgroundColor: theme.accent,
+      backgroundColor: theme.colors.primary,
     },
-    primaryText: {
-      color: theme.surface,
+    primaryLabel: {
+      color: theme.colors.surface,
     },
     secondary: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.primary,
       backgroundColor: "transparent",
-      borderWidth: 1,
-      borderColor: theme.accent,
     },
-    secondaryText: {
-      color: theme.accent,
+    secondaryLabel: {
+      color: theme.colors.primary,
     },
     ghost: {
       backgroundColor: "transparent",
     },
-    ghostText: {
-      color: theme.primaryText,
+    ghostLabel: {
+      color: theme.colors.primary,
+    },
+    fullWidth: {
+      alignSelf: "stretch",
+      width: "100%",
     },
     pressed: {
-      opacity: 0.85,
-    },
-    disabled: {
-      opacity: 0.6,
+      opacity: 0.9,
     },
   });
 }
