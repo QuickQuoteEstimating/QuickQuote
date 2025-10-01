@@ -235,48 +235,63 @@ export default function Customers() {
           {
             text: "Delete",
             style: "destructive",
-            onPress: async () => {
-              try {
-                const db = await openDB();
-                const deletedAt = new Date().toISOString();
-                const nextVersion = (customer.version ?? 1) + 1;
+            onPress: () => {
+              let previousCustomers: CustomerRecord[] = [];
+              const previousEditing = editingCustomer;
 
-                await db.runAsync(
-                  `UPDATE customers
-                   SET deleted_at = ?, updated_at = ?, version = ?
-                   WHERE id = ?`,
-                  [deletedAt, deletedAt, nextVersion, customer.id]
-                );
+              setCustomers((prev) => {
+                previousCustomers = prev;
+                return prev.filter((existing) => existing.id !== customer.id);
+              });
 
-                const deletedCustomer: CustomerRecord = {
-                  ...customer,
-                  deleted_at: deletedAt,
-                  updated_at: deletedAt,
-                  version: nextVersion,
-                };
-
-                await queueChange("customers", "update", deletedCustomer);
-                await runSync();
-
-                setCustomers((prev) =>
-                  prev.filter((existing) => existing.id !== customer.id)
-                );
-                if (editingCustomer?.id === customer.id) {
-                  setEditingCustomer(null);
-                }
-              } catch (error) {
-                console.error("Failed to delete customer", error);
-                Alert.alert(
-                  "Error",
-                  "Unable to delete customer. Please try again."
-                );
+              if (previousEditing?.id === customer.id) {
+                setEditingCustomer(null);
               }
+
+              (async () => {
+                try {
+                  const db = await openDB();
+                  const deletedAt = new Date().toISOString();
+                  const nextVersion = (customer.version ?? 1) + 1;
+
+                  await db.runAsync(
+                    `UPDATE customers
+                     SET deleted_at = ?, updated_at = ?, version = ?
+                     WHERE id = ?`,
+                    [deletedAt, deletedAt, nextVersion, customer.id]
+                  );
+
+                  const deletedCustomer: CustomerRecord = {
+                    ...customer,
+                    deleted_at: deletedAt,
+                    updated_at: deletedAt,
+                    version: nextVersion,
+                  };
+
+                  await queueChange("customers", "update", deletedCustomer);
+                  void runSync().catch((error) => {
+                    console.error("Failed to sync customer deletion", error);
+                  });
+
+                  await loadCustomers();
+                } catch (error) {
+                  console.error("Failed to delete customer", error);
+                  Alert.alert(
+                    "Error",
+                    "Unable to delete customer. Please try again."
+                  );
+                  setCustomers(() => [...previousCustomers]);
+                  if (previousEditing) {
+                    setEditingCustomer(previousEditing);
+                  }
+                }
+              })();
             },
           },
         ]
       );
     },
-    [editingCustomer]
+    [editingCustomer, loadCustomers]
   );
 
   const renderCustomer = useCallback(

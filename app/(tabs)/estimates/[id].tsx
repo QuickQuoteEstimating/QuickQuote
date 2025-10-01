@@ -731,55 +731,75 @@ export default function EditEstimateScreen() {
           {
             text: "Delete",
             style: "destructive",
-            onPress: async () => {
-              try {
+            onPress: () => {
+              const previousItems = items;
+              const previousTotals = calculateEstimateTotals({
+                materialLineItems: previousItems,
+                laborHours,
+                laborRate: hourlyRate,
+                taxRate,
+              });
+              const nextItems = items.filter((existing) => existing.id !== item.id);
+              const nextTotals = calculateEstimateTotals({
+                materialLineItems: nextItems,
+                laborHours,
+                laborRate: hourlyRate,
+                taxRate,
+              });
+
+              setItems(nextItems);
+
+              (async () => {
                 const db = await openDB();
                 const now = new Date().toISOString();
                 const nextVersion = (item.version ?? 1) + 1;
 
-                await db.runAsync(
-                  `UPDATE estimate_items
-                   SET deleted_at = ?, updated_at = ?, version = ?
-                   WHERE id = ?`,
-                  [now, now, nextVersion, item.id]
-                );
+                try {
+                  await db.runAsync(
+                    `UPDATE estimate_items
+                     SET deleted_at = ?, updated_at = ?, version = ?
+                     WHERE id = ?`,
+                    [now, now, nextVersion, item.id]
+                  );
 
-                const deletedItem: EstimateItemRecord = {
-                  ...item,
-                  deleted_at: now,
-                  updated_at: now,
-                  version: nextVersion,
-                };
+                  const deletedItem: EstimateItemRecord = {
+                    ...item,
+                    deleted_at: now,
+                    updated_at: now,
+                    version: nextVersion,
+                  };
 
-                await queueChange("estimate_items", "update", deletedItem);
-
-                let nextItems: EstimateItemRecord[] = [];
-                setItems((prev) => {
-                  nextItems = prev.filter((existing) => existing.id !== item.id);
-                  return nextItems;
-                });
-
-                const nextTotals = calculateEstimateTotals({
-                  materialLineItems: nextItems,
-                  laborHours,
-                  laborRate: hourlyRate,
-                  taxRate,
-                });
-                await persistEstimateTotals(nextTotals);
-                await runSync();
-              } catch (error) {
-                console.error("Failed to delete estimate item", error);
-                Alert.alert(
-                  "Error",
-                  "Unable to delete the item. Please try again."
-                );
-              }
+                  await queueChange("estimate_items", "update", deletedItem);
+                  await persistEstimateTotals(nextTotals);
+                  void runSync().catch((error) => {
+                    console.error("Failed to sync item deletion", error);
+                  });
+                } catch (error) {
+                  console.error("Failed to delete estimate item", error);
+                  Alert.alert(
+                    "Error",
+                    "Unable to delete the item. Please try again."
+                  );
+                  setItems(previousItems);
+                  try {
+                    await persistEstimateTotals(previousTotals);
+                    await db.runAsync(
+                      `UPDATE estimate_items
+                       SET deleted_at = NULL, updated_at = ?, version = ?
+                       WHERE id = ?`,
+                      [item.updated_at, item.version ?? 1, item.id]
+                    );
+                  } catch (recoveryError) {
+                    console.error("Failed to revert local item deletion", recoveryError);
+                  }
+                }
+              })();
             },
           },
         ]
       );
     },
-    [hourlyRate, laborHours, persistEstimateTotals, taxRate]
+    [hourlyRate, items, laborHours, persistEstimateTotals, taxRate]
   );
 
   const renderItem = useCallback(
@@ -966,43 +986,62 @@ export default function EditEstimateScreen() {
           {
             text: "Remove",
             style: "destructive",
-            onPress: async () => {
-              try {
-                setPhotoDeletingId(photo.id);
+            onPress: () => {
+              setPhotoDeletingId(photo.id);
+              const previousPhotos = photos;
+              const nextPhotos = photos.filter((existing) => existing.id !== photo.id);
+              applyPhotoState(nextPhotos);
+
+              (async () => {
                 const db = await openDB();
                 const now = new Date().toISOString();
                 const nextVersion = (photo.version ?? 1) + 1;
 
-                await db.runAsync(
-                  `UPDATE photos
-                   SET deleted_at = ?, updated_at = ?, version = ?, local_uri = NULL
-                   WHERE id = ?`,
-                  [now, now, nextVersion, photo.id]
-                );
+                try {
+                  await db.runAsync(
+                    `UPDATE photos
+                     SET deleted_at = ?, updated_at = ?, version = ?, local_uri = NULL
+                     WHERE id = ?`,
+                    [now, now, nextVersion, photo.id]
+                  );
 
-                await deleteLocalPhoto(
-                  photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri)
-                );
+                  await deleteLocalPhoto(
+                    photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri)
+                  );
 
-                await queueChange("photos", "delete", { id: photo.id });
+                  await queueChange("photos", "delete", { id: photo.id });
 
-                await runSync();
-                await refreshPhotosFromDb();
-              } catch (error) {
-                console.error("Failed to delete photo", error);
-                Alert.alert(
-                  "Error",
-                  "Unable to delete the photo. Please try again."
-                );
-              } finally {
-                setPhotoDeletingId(null);
-              }
+                  void runSync().catch((error) => {
+                    console.error("Failed to sync photo deletion", error);
+                  });
+                  await refreshPhotosFromDb();
+                } catch (error) {
+                  console.error("Failed to delete photo", error);
+                  Alert.alert(
+                    "Error",
+                    "Unable to delete the photo. Please try again."
+                  );
+                  applyPhotoState(previousPhotos);
+                  try {
+                    await db.runAsync(
+                      `UPDATE photos
+                       SET deleted_at = NULL, updated_at = ?, version = ?
+                       WHERE id = ?`,
+                      [photo.updated_at, photo.version ?? 1, photo.id]
+                    );
+                  } catch (recoveryError) {
+                    console.error("Failed to revert local photo deletion", recoveryError);
+                  }
+                } finally {
+                  setPhotoDeletingId(null);
+                }
+              })();
             },
           },
         ]
       );
     },
-    [refreshPhotosFromDb]
+    [applyPhotoState, photos, refreshPhotosFromDb]
   );
 
   const handleRetryPhotoSync = useCallback(async () => {
