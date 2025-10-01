@@ -10,7 +10,7 @@ export default function TabsLayout() {
   const palette = {
     background: "#f8fafc",
     card: "#ffffff",
-    accent: "#2563eb",
+    accent: "#1e40af",
     primaryText: "#0f172a",
     muted: "#64748b",
     border: "#e2e8f0",

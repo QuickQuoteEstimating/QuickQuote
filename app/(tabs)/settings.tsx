@@ -74,7 +74,7 @@ export default function Settings() {
       primaryText: isDark ? "#f8fafc" : "#0f172a",
       secondaryText: isDark ? "#cbd5f5" : "#475569",
       border: isDark ? "#334155" : "#e2e8f0",
-      accent: "#2563eb",
+      accent: "#1e40af",
       destructive: "#ef4444",
     };
   }, [resolvedTheme]);
