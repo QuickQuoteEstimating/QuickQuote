@@ -273,42 +273,42 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
         <style>
           :root { color-scheme: light; }
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f4f5; margin: 0; padding: 32px; color: #1f2937; }
-          .document { max-width: 960px; margin: 0 auto; background: #fff; border-radius: 16px; box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08); overflow: hidden; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #F5F6F7; margin: 0; padding: 32px; color: #1F2933; }
+          .document { max-width: 960px; margin: 0 auto; background: #FFFFFF; border-radius: 20px; box-shadow: 0 28px 60px rgba(15, 23, 42, 0.12); overflow: hidden; }
           .inner { padding: 36px 40px 48px; }
-          .header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; border-bottom: 6px solid #c1272d; padding-bottom: 24px; margin-bottom: 28px; }
-          .branding { max-width: 55%; }
-          .branding .logo { font-size: 28px; font-weight: 800; letter-spacing: 0.18em; color: #c1272d; text-transform: uppercase; }
-          .branding .tagline { margin-top: 4px; font-size: 14px; color: #6b7280; letter-spacing: 0.04em; text-transform: uppercase; }
-          .status-badge { display: inline-flex; align-items: center; gap: 8px; background: #fef2f2; color: #b91c1c; border-radius: 999px; font-size: 12px; font-weight: 600; padding: 6px 14px; margin-top: 16px; letter-spacing: 0.05em; text-transform: uppercase; }
-          .estimate-meta { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 20px; min-width: 220px; }
-          .meta-row { display: flex; justify-content: space-between; font-size: 13px; color: #374151; padding: 4px 0; }
-          .meta-row strong { color: #111827; }
-          .info-grid { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 28px; }
-          .info-card { flex: 1 1 280px; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
-          .card-title { background: #c1272d; color: #fff; padding: 10px 16px; font-weight: 600; letter-spacing: 0.08em; font-size: 13px; text-transform: uppercase; }
-          .card-body { padding: 16px 18px; font-size: 14px; line-height: 1.6; }
+          .header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; background: #005BBB; color: #FFFFFF; padding: 28px 32px; border-radius: 18px; margin-bottom: 32px; box-shadow: 0 20px 40px rgba(0, 91, 187, 0.25); }
+          .branding { max-width: 60%; }
+          .branding .logo { font-size: 28px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: #FFFFFF; }
+          .branding .tagline { margin-top: 6px; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.82); }
+          .status-badge { display: inline-flex; align-items: center; gap: 8px; background: #F5B700; color: #1F2933; border-radius: 999px; font-size: 12px; font-weight: 600; padding: 6px 16px; margin-top: 18px; letter-spacing: 0.08em; text-transform: uppercase; }
+          .estimate-meta { background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 16px; padding: 20px 22px; min-width: 220px; }
+          .meta-row { display: flex; justify-content: space-between; font-size: 13px; color: rgba(255, 255, 255, 0.88); padding: 4px 0; }
+          .meta-row strong { color: #FFFFFF; }
+          .info-grid { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 36px; }
+          .info-card { flex: 1 1 280px; border: 1px solid #C8CFD8; border-radius: 16px; overflow: hidden; background: #FFFFFF; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08); }
+          .card-title { background: #005BBB; color: #FFFFFF; padding: 12px 18px; font-weight: 600; letter-spacing: 0.08em; font-size: 13px; text-transform: uppercase; }
+          .card-body { padding: 18px 20px; font-size: 14px; line-height: 1.6; color: #1F2933; }
           .card-body div + div { margin-top: 6px; }
-          .muted { color: #6b7280; }
-          .notice { background: #fbeaea; border: 1px solid rgba(193, 39, 45, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 32px; color: #9b1c22; font-size: 13px; font-weight: 500; text-align: center; letter-spacing: 0.02em; }
-          .section { margin-bottom: 32px; }
-          .section-title { background: #c1272d; color: #fff; padding: 10px 16px; font-weight: 600; letter-spacing: 0.08em; font-size: 13px; text-transform: uppercase; border-radius: 10px 10px 0 0; }
-          .section-body { border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px; padding: 18px 20px; font-size: 14px; line-height: 1.6; }
-          .totals-grid { display: flex; flex-wrap: wrap; gap: 16px; }
-          .totals-card { flex: 1 1 160px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 18px; background: #f9fafb; }
-          .totals-card .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; font-weight: 600; }
-          .totals-card .value { margin-top: 6px; font-size: 18px; font-weight: 700; color: #111827; }
+          .muted { color: #4B5563; }
+          .notice { background: #E6F0FF; border: 1px solid rgba(0, 91, 187, 0.24); border-radius: 16px; padding: 16px 20px; margin-bottom: 36px; color: #1F2933; font-size: 13px; font-weight: 500; text-align: center; letter-spacing: 0.04em; }
+          .section { margin-bottom: 36px; }
+          .section-title { background: #005BBB; color: #FFFFFF; padding: 12px 18px; font-weight: 600; letter-spacing: 0.08em; font-size: 13px; text-transform: uppercase; border-radius: 14px 14px 0 0; }
+          .section-body { border: 1px solid #C8CFD8; border-top: none; border-radius: 0 0 14px 14px; padding: 20px; font-size: 14px; line-height: 1.6; background: #FFFFFF; }
+          .totals-grid { display: flex; flex-wrap: wrap; gap: 18px; }
+          .totals-card { flex: 1 1 160px; border: 1px solid #C8CFD8; border-radius: 16px; padding: 18px; background: #EEF5FF; }
+          .totals-card .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #4B5563; font-weight: 600; }
+          .totals-card .value { margin-top: 8px; font-size: 20px; font-weight: 700; color: #1F2933; }
           .line-items { width: 100%; border-collapse: collapse; }
-          .line-items th { background: #f9fafb; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: left; }
-          .line-items td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+          .line-items th { background: #EEF5FF; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #1F2933; padding: 10px 12px; border-bottom: 1px solid #C8CFD8; text-align: left; }
+          .line-items td { padding: 10px 12px; border-bottom: 1px solid #E3E6EA; font-size: 13px; color: #1F2933; }
           .line-items td:nth-child(3) { text-align: center; }
           .line-items td:nth-child(4), .line-items td:nth-child(5) { text-align: right; font-variant-numeric: tabular-nums; }
           .line-items tr:last-child td { border-bottom: none; }
-          .line-items .empty { text-align: center; color: #9ca3af; padding: 18px 12px; font-style: italic; }
+          .line-items .empty { text-align: center; color: #9AA1AB; padding: 18px 12px; font-style: italic; }
           .photo-grid { display: flex; flex-wrap: wrap; gap: 18px; }
-          .photo-card { flex: 1 1 280px; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; background: #f9fafb; }
+          .photo-card { flex: 1 1 280px; border: 1px solid #C8CFD8; border-radius: 16px; overflow: hidden; background: #FFFFFF; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); }
           .photo-card img { display: block; width: 100%; height: auto; object-fit: cover; }
-          .photo-card .caption { padding: 12px 14px; font-size: 12px; color: #4b5563; background: #fff; }
+          .photo-card .caption { padding: 12px 14px; font-size: 12px; color: #4B5563; background: #F5F6F7; }
           .static-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
           .static-notes .section-body { min-height: 180px; }
           .list { margin: 0; padding-left: 18px; }

@@ -1,25 +1,28 @@
 // components/CustomerForm.tsx
-import React, { useState } from "react";
-import { View, TextInput, Button, Alert, StyleSheet } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Alert, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
 import { openDB, queueChange } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
 import { useAuth } from "../context/AuthContext";
-import { palette, cardShadow } from "../lib/theme";
+import { Button, Card, Input } from "./ui";
 
 type Props = {
   onSaved?: (customer: { id: string; name: string }) => void;
   onCancel?: () => void;
+  style?: StyleProp<ViewStyle>;
 };
 
-export default function CustomerForm({ onSaved, onCancel }: Props) {
+export default function CustomerForm({ onSaved, onCancel, style }: Props) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
   const { user, session } = useAuth();
+  const [saving, setSaving] = useState(false);
+  const styles = useMemo(() => createStyles(), []);
 
   async function saveCustomer() {
     if (!name.trim()) {
@@ -50,113 +53,117 @@ export default function CustomerForm({ onSaved, onCancel }: Props) {
     };
 
     // Local mirror (so it appears immediately in pickers/lists)
-    const db = await openDB();
-    await db.runAsync(
-      `INSERT OR REPLACE INTO customers
-       (id, user_id, name, phone, email, address, notes, version, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        newCustomer.id,
-        newCustomer.user_id,
-        newCustomer.name,
-        newCustomer.phone ?? null,
-        newCustomer.email ?? null,
-        newCustomer.address ?? null,
-        newCustomer.notes ?? null,
-        newCustomer.version ?? 1,
-        newCustomer.updated_at ?? new Date().toISOString(),
-        newCustomer.deleted_at ?? null,
-      ]
-    );
+    try {
+      setSaving(true);
+      const db = await openDB();
+      await db.runAsync(
+        `INSERT OR REPLACE INTO customers
+         (id, user_id, name, phone, email, address, notes, version, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newCustomer.id,
+          newCustomer.user_id,
+          newCustomer.name,
+          newCustomer.phone ?? null,
+          newCustomer.email ?? null,
+          newCustomer.address ?? null,
+          newCustomer.notes ?? null,
+          newCustomer.version ?? 1,
+          newCustomer.updated_at ?? new Date().toISOString(),
+          newCustomer.deleted_at ?? null,
+        ],
+      );
 
-    // Queue for server sync
-    await queueChange("customers", "insert", newCustomer);
-    await runSync();
+      // Queue for server sync
+      await queueChange("customers", "insert", newCustomer);
+      await runSync();
 
-    Alert.alert("Success", "Customer saved (will sync when online).");
-    if (onSaved) onSaved({ id: newCustomer.id, name: newCustomer.name });
+      Alert.alert("Success", "Customer saved (will sync when online).");
+      if (onSaved) onSaved({ id: newCustomer.id, name: newCustomer.name });
 
-    // reset form
-    setName("");
-    setPhone("");
-    setEmail("");
-    setAddress("");
-    setNotes("");
+      // reset form
+      setName("");
+      setPhone("");
+      setEmail("");
+      setAddress("");
+      setNotes("");
+    } catch (error) {
+      console.error("Failed to save customer", error);
+      Alert.alert("Error", "Unable to save this customer. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <View style={styles.container}>
-      <TextInput
-        placeholder="Name"
-        placeholderTextColor={palette.mutedText}
+    <Card style={[styles.card, style]}>
+      <Input
+        label="Name"
+        placeholder="John Doe"
         value={name}
         onChangeText={setName}
-        style={styles.input}
+        autoCapitalize="words"
+        returnKeyType="next"
       />
-      <TextInput
-        placeholder="Phone"
-        placeholderTextColor={palette.mutedText}
+      <Input
+        label="Phone"
+        placeholder="(555) 123-4567"
         value={phone}
         onChangeText={setPhone}
-        style={styles.input}
+        keyboardType="phone-pad"
+        returnKeyType="next"
       />
-      <TextInput
-        placeholder="Email"
-        placeholderTextColor={palette.mutedText}
+      <Input
+        label="Email"
+        placeholder="you@example.com"
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
-        style={styles.input}
+        textContentType="emailAddress"
+        returnKeyType="next"
       />
-      <TextInput
-        placeholder="Address"
-        placeholderTextColor={palette.mutedText}
+      <Input
+        label="Address"
+        placeholder="123 Elm St"
         value={address}
         onChangeText={setAddress}
-        style={styles.input}
+        returnKeyType="next"
       />
-      <TextInput
-        placeholder="Account notes"
-        placeholderTextColor={palette.mutedText}
+      <Input
+        label="Account notes"
+        placeholder="Project preferences, gate codes, etc."
         value={notes}
         onChangeText={setNotes}
         multiline
-        numberOfLines={3}
-        style={styles.textArea}
       />
-      <Button title="Save Customer" onPress={saveCustomer} color={palette.accent} />
-      {onCancel ? (
-        <Button title="Cancel" onPress={onCancel} color={palette.secondaryText} />
-      ) : null}
-    </View>
+      <View style={styles.actions}>
+        <Button
+          label="Save Customer"
+          onPress={saveCustomer}
+          loading={saving}
+          disabled={saving}
+        />
+        {onCancel ? (
+          <Button
+            label="Cancel"
+            variant="secondary"
+            onPress={onCancel}
+            disabled={saving}
+          />
+        ) : null}
+      </View>
+    </Card>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 10,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: palette.surface,
-    color: palette.primaryText,
-    ...cardShadow(4),
-  },
-  textArea: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: palette.surface,
-    color: palette.primaryText,
-    minHeight: 90,
-    textAlignVertical: "top",
-    ...cardShadow(4),
-  },
-});
+function createStyles() {
+  return StyleSheet.create({
+    card: {
+      gap: 16,
+    },
+    actions: {
+      gap: 12,
+    },
+  });
+}

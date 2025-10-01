@@ -9,7 +9,6 @@ import {
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
@@ -19,6 +18,7 @@ import CustomerPicker from "../../../components/CustomerPicker";
 import BrandLogo from "../../../components/BrandLogo";
 import { useAuth } from "../../../context/AuthContext";
 import { useSettings } from "../../../context/SettingsContext";
+import { Button, Card, Input } from "../../../components/ui";
 import { openDB, queueChange } from "../../../lib/sqlite";
 import { runSync } from "../../../lib/sync";
 import {
@@ -28,6 +28,7 @@ import {
 } from "../../../lib/itemCatalog";
 import { calculateEstimateTotals } from "../../../lib/estimateMath";
 import { formatPercentageInput } from "../../../lib/numberFormat";
+import { useTheme, type Theme } from "../../../lib/theme";
 
 type EstimateItemRecord = {
   id: string;
@@ -111,18 +112,7 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-type ThemePalette = {
-  background: string;
-  card: string;
-  border: string;
-  primaryText: string;
-  secondaryText: string;
-  accent: string;
-  muted: string;
-  inputBackground: string;
-};
-
-function createStyles(theme: ThemePalette) {
+function createStyles(theme: Theme) {
   return StyleSheet.create({
     screen: {
       flex: 1,
@@ -130,25 +120,17 @@ function createStyles(theme: ThemePalette) {
     },
     content: {
       padding: 24,
+      paddingBottom: 140,
       gap: 24,
     },
     card: {
-      backgroundColor: theme.card,
-      borderRadius: 18,
-      padding: 20,
-      gap: 18,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.border,
-      shadowColor: theme.primaryText,
-      shadowOpacity: theme.background === "#0f172a" ? 0.4 : 0.08,
-      shadowOffset: { width: 0, height: 8 },
-      shadowRadius: 24,
-      elevation: 4,
+      gap: 20,
     },
     headerRow: {
       flexDirection: "row",
+      alignItems: "flex-start",
       justifyContent: "space-between",
-      gap: 16,
+      gap: 20,
     },
     companyInfo: {
       flex: 1,
@@ -156,22 +138,22 @@ function createStyles(theme: ThemePalette) {
       gap: 16,
     },
     logoWrapper: {
-      width: 76,
-      height: 76,
-      borderRadius: 18,
-      borderWidth: StyleSheet.hairlineWidth,
+      width: 80,
+      height: 80,
+      borderRadius: 20,
+      borderWidth: 1,
       borderColor: theme.border,
       alignItems: "center",
       justifyContent: "center",
+      backgroundColor: theme.surfaceSubtle,
       overflow: "hidden",
-      backgroundColor: theme.inputBackground,
     },
     companyText: {
       flex: 1,
-      gap: 4,
+      gap: 6,
     },
     companyName: {
-      fontSize: 20,
+      fontSize: 22,
       fontWeight: "700",
       color: theme.primaryText,
     },
@@ -182,52 +164,25 @@ function createStyles(theme: ThemePalette) {
     },
     emptyCompanyHint: {
       fontSize: 13,
-      color: theme.muted,
-      marginTop: 4,
+      color: theme.mutedText,
+      marginTop: 6,
     },
     estimateMeta: {
-      minWidth: 140,
-      borderRadius: 16,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.border,
-      padding: 16,
-      gap: 12,
-      backgroundColor: theme.inputBackground,
+      width: 220,
+      gap: 14,
     },
     estimateNumber: {
       fontSize: 16,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: theme.secondaryText,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
     },
-    fieldLabel: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.primaryText,
-    },
-    textField: {
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 16,
-      color: theme.primaryText,
-      backgroundColor: theme.inputBackground,
-    },
-    textArea: {
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 16,
-      color: theme.primaryText,
-      backgroundColor: theme.inputBackground,
-      minHeight: 100,
-      textAlignVertical: "top",
+    estimateDateInput: {
+      marginTop: 4,
     },
     sectionTitle: {
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: "700",
       color: theme.primaryText,
     },
@@ -236,6 +191,11 @@ function createStyles(theme: ThemePalette) {
       color: theme.secondaryText,
       lineHeight: 20,
     },
+    fieldLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.secondaryText,
+    },
     savedItemsRow: {
       flexDirection: "row",
       gap: 12,
@@ -243,42 +203,28 @@ function createStyles(theme: ThemePalette) {
     },
     savedPickerContainer: {
       flex: 1,
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: theme.border,
-      borderRadius: 12,
+      backgroundColor: theme.surfaceSubtle,
       overflow: "hidden",
-      backgroundColor: theme.inputBackground,
     },
-    secondaryButton: {
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.inputBackground,
+    savedAction: {
+      flexShrink: 0,
     },
-    secondaryButtonText: {
-      color: theme.primaryText,
-      fontWeight: "600",
+    fullWidthButton: {
+      alignSelf: "stretch",
     },
-    addButton: {
-      paddingVertical: 14,
-      borderRadius: 14,
-      alignItems: "center",
-      backgroundColor: theme.accent,
-    },
-    addButtonText: {
-      color: "#fff",
-      fontSize: 16,
-      fontWeight: "600",
+    itemList: {
+      gap: 16,
     },
     itemCard: {
+      borderRadius: 18,
       borderWidth: 1,
       borderColor: theme.border,
-      borderRadius: 16,
-      padding: 16,
-      gap: 12,
-      backgroundColor: theme.inputBackground,
+      backgroundColor: theme.surfaceSubtle,
+      padding: 18,
+      gap: 16,
     },
     itemHeader: {
       flexDirection: "row",
@@ -291,7 +237,7 @@ function createStyles(theme: ThemePalette) {
       color: theme.primaryText,
     },
     removeButton: {
-      color: "#ef4444",
+      color: theme.danger,
       fontSize: 14,
       fontWeight: "600",
     },
@@ -307,12 +253,25 @@ function createStyles(theme: ThemePalette) {
       alignItems: "center",
       justifyContent: "space-between",
     },
+    saveToggleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
     mutedText: {
       fontSize: 13,
-      color: theme.muted,
+      color: theme.mutedText,
+    },
+    totalsCard: {
+      borderRadius: 18,
+      backgroundColor: theme.surfaceSubtle,
+      padding: 18,
+      gap: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
     },
     totalsRow: {
-      gap: 8,
+      gap: 12,
     },
     totalsLine: {
       flexDirection: "row",
@@ -320,16 +279,18 @@ function createStyles(theme: ThemePalette) {
       alignItems: "center",
     },
     totalsLabel: {
-      fontSize: 15,
-      color: theme.secondaryText,
+      fontSize: 12,
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: theme.mutedText,
     },
     totalsValue: {
-      fontSize: 15,
+      fontSize: 16,
       fontWeight: "600",
       color: theme.primaryText,
     },
     totalsGrand: {
-      fontSize: 18,
+      fontSize: 22,
       fontWeight: "700",
       color: theme.primaryText,
     },
@@ -337,38 +298,15 @@ function createStyles(theme: ThemePalette) {
       flexDirection: "row",
       gap: 16,
     },
-    cancelButton: {
+    flex1: {
       flex: 1,
-      paddingVertical: 16,
-      borderRadius: 14,
-      alignItems: "center",
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.card,
-    },
-    cancelText: {
-      color: theme.primaryText,
-      fontSize: 16,
-      fontWeight: "600",
-    },
-    primaryAction: {
-      flex: 1,
-      paddingVertical: 16,
-      borderRadius: 14,
-      alignItems: "center",
-      backgroundColor: theme.accent,
-    },
-    primaryActionText: {
-      color: "#fff",
-      fontSize: 16,
-      fontWeight: "600",
     },
     statusPicker: {
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: theme.border,
-      borderRadius: 12,
+      backgroundColor: theme.surfaceSubtle,
       overflow: "hidden",
-      backgroundColor: theme.inputBackground,
     },
   });
 }
@@ -382,7 +320,8 @@ const STATUS_OPTIONS = [
 
 export default function NewEstimateScreen() {
   const { user, session } = useAuth();
-  const { settings, resolvedTheme } = useSettings();
+  const { settings } = useSettings();
+  const theme = useTheme();
   const draftRef = useRef<NewEstimateDraftState | null>(getNewEstimateDraft());
   const hasRestoredDraftRef = useRef(Boolean(draftRef.current));
   const [estimateId] = useState(() => draftRef.current?.estimateId ?? uuidv4());
@@ -410,21 +349,7 @@ export default function NewEstimateScreen() {
   const [savedItems, setSavedItems] = useState<ItemCatalogRecord[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
 
-  const themeColors = useMemo(() => {
-    const isDark = resolvedTheme === "dark";
-    return {
-      background: isDark ? "#0f172a" : "#f8fafc",
-      card: isDark ? "#1e293b" : "#fff",
-      border: isDark ? "#334155" : "#e2e8f0",
-      primaryText: isDark ? "#f8fafc" : "#0f172a",
-      secondaryText: isDark ? "#cbd5f5" : "#475569",
-      accent: "#1e40af",
-      muted: isDark ? "#94a3b8" : "#64748b",
-      inputBackground: isDark ? "rgba(15, 23, 42, 0.7)" : "#f8fafc",
-    } satisfies ThemePalette;
-  }, [resolvedTheme]);
-
-  const styles = useMemo(() => createStyles(themeColors), [themeColors]);
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const { companyProfile } = settings;
   const userId = user?.id ?? session?.user?.id ?? null;
@@ -808,7 +733,7 @@ export default function NewEstimateScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <View style={styles.headerRow}>
           <View style={styles.companyInfo}>
             <View style={styles.logoWrapper}>
@@ -843,26 +768,26 @@ export default function NewEstimateScreen() {
           </View>
           <View style={styles.estimateMeta}>
             <Text style={styles.estimateNumber}>Estimate #{estimateNumber}</Text>
-            <Text style={styles.fieldLabel}>Date</Text>
-            <TextInput
+            <Input
+              label="Date"
               placeholder="YYYY-MM-DD"
               value={estimateDate}
               onChangeText={setEstimateDate}
-              style={styles.textField}
+              containerStyle={styles.estimateDateInput}
             />
           </View>
         </View>
-      </View>
+      </Card>
 
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Client information</Text>
         <Text style={styles.sectionSubtitle}>
           Choose an existing customer or add a new one so the estimate is addressed correctly.
         </Text>
         <CustomerPicker selectedCustomer={customerId} onSelect={setCustomerId} />
-      </View>
+      </Card>
 
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Estimate items</Text>
         <Text style={styles.sectionSubtitle}>
           Build out the work you&apos;re quoting. Saved items let you reuse common tasks in seconds.
@@ -872,153 +797,168 @@ export default function NewEstimateScreen() {
             <View style={styles.savedPickerContainer}>
               <Picker
                 selectedValue={selectedTemplateId}
-                onValueChange={(value) => setSelectedTemplateId(value ? String(value) : "")}
+                onValueChange={(value) =>
+                  setSelectedTemplateId(value ? String(value) : "")
+                }
               >
                 <Picker.Item label="Add from saved items" value="" />
                 {savedItems.map((item) => (
-                  <Picker.Item key={item.id} label={item.description} value={item.id} />
+                  <Picker.Item
+                    key={item.id}
+                    label={item.description}
+                    value={item.id}
+                  />
                 ))}
               </Picker>
             </View>
-            <Pressable style={styles.secondaryButton} onPress={handleAddSavedItem}>
-              <Text style={styles.secondaryButtonText}>Add saved item</Text>
-            </Pressable>
+            <Button
+              label="Add saved item"
+              variant="secondary"
+              size="small"
+              onPress={handleAddSavedItem}
+              style={styles.savedAction}
+            />
           </View>
         ) : null}
 
-        <Pressable style={styles.addButton} onPress={handleAddItem}>
-          <Text style={styles.addButtonText}>Add line item</Text>
-        </Pressable>
+        <Button
+          label="Add line item"
+          onPress={handleAddItem}
+          variant="secondary"
+          style={styles.fullWidthButton}
+        />
 
         {items.length === 0 ? (
           <Text style={styles.mutedText}>
-            No items yet. Start with a blank line or pull from your saved library.
+            No items yet. Start with a blank line or pull from your saved
+            library.
           </Text>
         ) : null}
 
-        {computedItems.map((item, index) => (
-          <View key={item.id} style={styles.itemCard}>
-            <View style={styles.itemHeader}>
-              <Text style={styles.itemTitle}>Item {index + 1}</Text>
-              <Pressable onPress={() => handleRemoveItem(item.id)}>
-                <Text style={styles.removeButton}>Remove</Text>
-              </Pressable>
-            </View>
-            <View>
-              <Text style={styles.fieldLabel}>Description</Text>
-              <TextInput
+        <View style={styles.itemList}>
+          {computedItems.map((item, index) => (
+            <View key={item.id} style={styles.itemCard}>
+              <View style={styles.itemHeader}>
+                <Text style={styles.itemTitle}>Item {index + 1}</Text>
+                <Pressable onPress={() => handleRemoveItem(item.id)}>
+                  <Text style={styles.removeButton}>Remove</Text>
+                </Pressable>
+              </View>
+              <Input
+                label="Description"
                 placeholder="Describe the work"
                 value={item.description}
-                onChangeText={(text) => updateItem(item.id, { description: text })}
-                style={styles.textField}
+                onChangeText={(text) =>
+                  updateItem(item.id, { description: text })
+                }
               />
-            </View>
-            <View style={styles.itemRow}>
-              <View style={styles.itemInputHalf}>
-                <Text style={styles.fieldLabel}>Quantity</Text>
-                <TextInput
+              <View style={styles.itemRow}>
+                <Input
+                  label="Quantity"
                   placeholder="Qty"
                   value={items[index].quantityText}
-                  onChangeText={(text) => updateItem(item.id, { quantityText: text })}
+                  onChangeText={(text) =>
+                    updateItem(item.id, { quantityText: text })
+                  }
                   keyboardType="numeric"
-                  style={styles.textField}
+                  containerStyle={styles.itemInputHalf}
                 />
-              </View>
-              <View style={styles.itemInputHalf}>
-                <Text style={styles.fieldLabel}>Unit cost</Text>
-                <TextInput
+                <Input
+                  label="Unit cost"
                   placeholder="$0.00"
                   value={items[index].unitPriceText}
-                  onChangeText={(text) => updateItem(item.id, { unitPriceText: text })}
+                  onChangeText={(text) =>
+                    updateItem(item.id, { unitPriceText: text })
+                  }
                   keyboardType="decimal-pad"
-                  style={styles.textField}
+                  containerStyle={styles.itemInputHalf}
                 />
               </View>
-            </View>
-            <View style={styles.itemFooter}>
-              <Text style={styles.fieldLabel}>Line total: {formatCurrency(item.total)}</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={styles.mutedText}>Save to library</Text>
-                <Switch
-                  value={items[index].saveToLibrary}
-                  onValueChange={(value) => updateItem(item.id, { saveToLibrary: value })}
-                />
+              <View style={styles.itemFooter}>
+                <Text style={styles.fieldLabel}>
+                  Line total: {formatCurrency(item.total)}
+                </Text>
+                <View style={styles.saveToggleRow}>
+                  <Text style={styles.mutedText}>Save to library</Text>
+                  <Switch
+                    value={items[index].saveToLibrary}
+                    onValueChange={(value) =>
+                      updateItem(item.id, { saveToLibrary: value })
+                    }
+                  />
+                </View>
               </View>
             </View>
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
+      </Card>
 
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Labor & totals</Text>
         <Text style={styles.sectionSubtitle}>
           QuickQuote automatically calculates your labor and tax totals as you fill in the details.
         </Text>
-        <View>
-          <Text style={styles.fieldLabel}>Project hours</Text>
-          <TextInput
-            placeholder="0"
-            value={laborHoursText}
-            onChangeText={setLaborHoursText}
-            keyboardType="decimal-pad"
-            style={styles.textField}
-          />
-        </View>
-        <View>
-          <Text style={styles.fieldLabel}>Hourly rate</Text>
-          <TextInput
-            placeholder="0.00"
-            value={hourlyRateText}
-            onChangeText={setHourlyRateText}
-            keyboardType="decimal-pad"
-            style={styles.textField}
-          />
-        </View>
-        <View>
-          <Text style={styles.fieldLabel}>Tax rate (%)</Text>
-          <TextInput
-            placeholder="0"
-            value={taxRateText}
-            onChangeText={setTaxRateText}
-            keyboardType="decimal-pad"
-            style={styles.textField}
-          />
-        </View>
-        <View style={styles.totalsRow}>
-          <View style={styles.totalsLine}>
-            <Text style={styles.totalsLabel}>Materials</Text>
-            <Text style={styles.totalsValue}>{formatCurrency(totals.materialTotal)}</Text>
+        <Input
+          label="Project hours"
+          placeholder="0"
+          value={laborHoursText}
+          onChangeText={setLaborHoursText}
+          keyboardType="decimal-pad"
+        />
+        <Input
+          label="Hourly rate"
+          placeholder="0.00"
+          value={hourlyRateText}
+          onChangeText={setHourlyRateText}
+          keyboardType="decimal-pad"
+        />
+        <Input
+          label="Tax rate (%)"
+          placeholder="0"
+          value={taxRateText}
+          onChangeText={setTaxRateText}
+          keyboardType="decimal-pad"
+        />
+        <View style={styles.totalsCard}>
+          <View style={styles.totalsRow}>
+            <View style={styles.totalsLine}>
+              <Text style={styles.totalsLabel}>Materials</Text>
+              <Text style={styles.totalsValue}>
+                {formatCurrency(totals.materialTotal)}
+              </Text>
+            </View>
+            <View style={styles.totalsLine}>
+              <Text style={styles.totalsLabel}>Labor</Text>
+              <Text style={styles.totalsValue}>
+                {formatCurrency(totals.laborTotal)}
+              </Text>
+            </View>
+            <View style={styles.totalsLine}>
+              <Text style={styles.totalsLabel}>Tax</Text>
+              <Text style={styles.totalsValue}>
+                {formatCurrency(totals.taxTotal)}
+              </Text>
+            </View>
+            <View style={styles.totalsLine}>
+              <Text style={styles.totalsGrand}>Project total</Text>
+              <Text style={styles.totalsGrand}>{formatCurrency(total)}</Text>
+            </View>
           </View>
-          <View style={styles.totalsLine}>
-            <Text style={styles.totalsLabel}>Labor</Text>
-            <Text style={styles.totalsValue}>{formatCurrency(totals.laborTotal)}</Text>
-          </View>
-          <View style={styles.totalsLine}>
-            <Text style={styles.totalsLabel}>Tax</Text>
-            <Text style={styles.totalsValue}>{formatCurrency(totals.taxTotal)}</Text>
-          </View>
-          <View style={styles.totalsLine}>
-            <Text style={styles.totalsGrand}>Project total</Text>
-            <Text style={styles.totalsGrand}>{formatCurrency(total)}</Text>
-          </View>
         </View>
-      </View>
+      </Card>
 
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Notes & status</Text>
         <Text style={styles.sectionSubtitle}>
           Internal notes stay private to your team. Status helps you track progress.
         </Text>
-        <View>
-          <Text style={styles.fieldLabel}>Notes</Text>
-          <TextInput
-            placeholder="Internal notes"
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            style={styles.textArea}
-          />
-        </View>
+        <Input
+          label="Notes"
+          placeholder="Internal notes"
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+        />
         <View>
           <Text style={styles.fieldLabel}>Status</Text>
           <View style={styles.statusPicker}>
@@ -1029,15 +969,22 @@ export default function NewEstimateScreen() {
             </Picker>
           </View>
         </View>
-      </View>
+      </Card>
 
       <View style={styles.actionRow}>
-        <Pressable style={styles.cancelButton} onPress={handleCancel} disabled={saving}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </Pressable>
-        <Pressable style={styles.primaryAction} onPress={handleSave} disabled={saving}>
-          <Text style={styles.primaryActionText}>{saving ? "Saving…" : "Save estimate"}</Text>
-        </Pressable>
+        <Button
+          label="Cancel"
+          variant="secondary"
+          onPress={handleCancel}
+          disabled={saving}
+          style={styles.flex1}
+        />
+        <Button
+          label={saving ? "Saving…" : "Save & Preview"}
+          onPress={handleSave}
+          disabled={saving}
+          style={styles.flex1}
+        />
       </View>
     </ScrollView>
   );

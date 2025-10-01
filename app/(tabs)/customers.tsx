@@ -2,19 +2,19 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Button,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import { SafeAreaView } from "react-native-safe-area-context";
 import CustomerForm from "../../components/CustomerForm";
+import { Button, Card, Input } from "../../components/ui";
+import { useTheme, type Theme } from "../../lib/theme";
 import { openDB, queueChange } from "../../lib/sqlite";
 import { runSync } from "../../lib/sync";
-import { cardShadow, palette } from "../../lib/theme";
 
 type CustomerRecord = {
   id: string;
@@ -38,6 +38,8 @@ type EditCustomerFormProps = {
 const NEW_CUSTOMER_VALUE = "__new__";
 
 function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps) {
+  const theme = useTheme();
+  const styles = useMemo(() => createEditStyles(theme), [theme]);
   const [name, setName] = useState(customer.name);
   const [phone, setPhone] = useState(customer.phone ?? "");
   const [email, setEmail] = useState(customer.email ?? "");
@@ -83,7 +85,7 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
           nextVersion,
           updatedAt,
           customer.id,
-        ]
+        ],
       );
 
       const updatedCustomer: CustomerRecord = {
@@ -112,70 +114,64 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
   }, [address, customer, email, name, notes, phone, onSaved]);
 
   return (
-    <View style={styles.editCard}>
-      <Text style={styles.editTitle}>Edit Customer</Text>
-      <TextInput
-        placeholder="Name"
-        placeholderTextColor={palette.mutedText}
+    <Card style={styles.card}>
+      <Text style={styles.title}>Edit Customer</Text>
+      <Input
+        label="Name"
+        placeholder="Customer name"
         value={name}
         onChangeText={setName}
-        style={styles.input}
+        autoCapitalize="words"
       />
-      <TextInput
-        placeholder="Phone"
-        placeholderTextColor={palette.mutedText}
+      <Input
+        label="Phone"
+        placeholder="(555) 123-4567"
         value={phone}
         onChangeText={setPhone}
-        style={styles.input}
+        keyboardType="phone-pad"
       />
-      <TextInput
-        placeholder="Email"
-        placeholderTextColor={palette.mutedText}
+      <Input
+        label="Email"
+        placeholder="you@example.com"
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
-        style={styles.input}
       />
-      <TextInput
-        placeholder="Address"
-        placeholderTextColor={palette.mutedText}
+      <Input
+        label="Address"
+        placeholder="Job site or billing address"
         value={address}
         onChangeText={setAddress}
-        style={styles.input}
       />
-      <TextInput
-        placeholder="Account notes"
-        placeholderTextColor={palette.mutedText}
+      <Input
+        label="Account notes"
+        placeholder="Notes, preferences, or job history"
         value={notes}
         onChangeText={setNotes}
         multiline
-        numberOfLines={3}
-        style={styles.textArea}
       />
-      <View style={styles.inlineButtons}>
-        <View style={styles.buttonFlex}>
-          <Button
-            title="Cancel"
-            onPress={onCancel}
-            disabled={saving}
-            color={palette.secondaryText}
-          />
-        </View>
-        <View style={styles.buttonFlex}>
-          <Button
-            title="Save"
-            onPress={saveChanges}
-            disabled={saving}
-            color={palette.accent}
-          />
-        </View>
+      <View style={styles.actions}>
+        <Button
+          label="Cancel"
+          variant="secondary"
+          onPress={onCancel}
+          disabled={saving}
+        />
+        <Button
+          label="Save Changes"
+          onPress={saveChanges}
+          loading={saving}
+          disabled={saving}
+        />
       </View>
-    </View>
+    </Card>
   );
 }
 
 export default function Customers() {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -191,7 +187,7 @@ export default function Customers() {
         `SELECT id, user_id, name, phone, email, address, notes, version, updated_at, deleted_at
          FROM customers
          WHERE deleted_at IS NULL
-         ORDER BY name COLLATE NOCASE ASC`
+         ORDER BY name COLLATE NOCASE ASC`,
       );
       setCustomers(rows);
       setSelectedCustomerId((current) => {
@@ -228,12 +224,22 @@ export default function Customers() {
       return customers;
     }
 
+    const normalize = (value?: string | null) => {
+      if (typeof value === "string") {
+        return value.toLowerCase().trim();
+      }
+      if (value === null || value === undefined) {
+        return "";
+      }
+      return String(value).toLowerCase().trim();
+    };
+
     return customers.filter((customer) => {
-      const nameMatch = customer.name.toLowerCase().includes(query);
-      const emailMatch = (customer.email ?? "").toLowerCase().includes(query);
-      const phoneMatch = (customer.phone ?? "").toLowerCase().includes(query);
-      const addressMatch = (customer.address ?? "").toLowerCase().includes(query);
-      const notesMatch = (customer.notes ?? "").toLowerCase().includes(query);
+      const nameMatch = normalize(customer.name).includes(query);
+      const emailMatch = normalize(customer.email).includes(query);
+      const phoneMatch = normalize(customer.phone).includes(query);
+      const addressMatch = normalize(customer.address).includes(query);
+      const notesMatch = normalize(customer.notes).includes(query);
       return nameMatch || emailMatch || phoneMatch || addressMatch || notesMatch;
     });
   }, [customers, search]);
@@ -253,7 +259,7 @@ export default function Customers() {
 
   const selectedCustomer = useMemo(
     () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
-    [customers, selectedCustomerId]
+    [customers, selectedCustomerId],
   );
 
   const getDisplayName = useCallback((customer: CustomerRecord) => {
@@ -302,7 +308,7 @@ export default function Customers() {
                     `UPDATE customers
                      SET deleted_at = ?, updated_at = ?, version = ?
                      WHERE id = ?`,
-                    [deletedAt, deletedAt, nextVersion, customer.id]
+                    [deletedAt, deletedAt, nextVersion, customer.id],
                   );
 
                   const deletedCustomer: CustomerRecord = {
@@ -318,10 +324,10 @@ export default function Customers() {
                   });
 
                   setEditingCustomer((current) =>
-                    current?.id === customer.id ? null : current
+                    current?.id === customer.id ? null : current,
                   );
                   setSelectedCustomerId((current) =>
-                    current === customer.id ? null : current
+                    current === customer.id ? null : current,
                   );
 
                   await reloadCustomers();
@@ -329,29 +335,30 @@ export default function Customers() {
                   console.error("Failed to delete customer", error);
                   Alert.alert(
                     "Error",
-                    "Unable to delete customer. Please try again."
+                    "Unable to delete customer. Please try again.",
                   );
                   await reloadCustomers();
                 }
               })();
             },
           },
-        ]
+        ],
       );
     },
-    [reloadCustomers]
+    [reloadCustomers],
   );
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.safeArea}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={palette.accent}
-            colors={[palette.accent]}
+            tintColor={theme.accent}
+            colors={[theme.accent]}
           />
         }
       >
@@ -360,19 +367,31 @@ export default function Customers() {
           <Text style={styles.subtitle}>
             Keep every relationship organized with quick notes and contact details.
           </Text>
-          <TextInput
-            placeholder="Search by name, email, phone, address, or notes"
-            placeholderTextColor={palette.mutedText}
+        </View>
+
+        <Card style={styles.directoryCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>Customer directory</Text>
+            <Text style={styles.sectionCaption}>
+              Search by name, email, phone, address, or notes to jump to the right
+              client fast.
+            </Text>
+          </View>
+          <Input
+            label="Search"
+            placeholder="Name, email, phone, address, or notes"
             value={search}
             onChangeText={setSearch}
-            style={styles.input}
+            returnKeyType="search"
+            autoCorrect={false}
+            autoCapitalize="none"
           />
-          <View style={styles.pickerCard}>
-            <Text style={styles.pickerLabel}>Select a customer</Text>
+          <View style={styles.pickerShell}>
             <Picker
               selectedValue={selectedCustomerId ?? ""}
               onValueChange={handleSelectCustomer}
               style={styles.picker}
+              dropdownIconColor={theme.accent}
             >
               <Picker.Item label="-- Select --" value="" />
               {displayedCustomers.length === 0 ? (
@@ -389,7 +408,8 @@ export default function Customers() {
             </Picker>
           </View>
           <Button
-            title={showAddForm ? "Hide Add Customer" : "Add Customer"}
+            label={showAddForm ? "Hide Add Customer" : "Add Customer"}
+            variant={showAddForm ? "secondary" : "primary"}
             onPress={() => {
               setShowAddForm((prev) => {
                 const next = !prev;
@@ -400,52 +420,62 @@ export default function Customers() {
                 return next;
               });
             }}
-            color={palette.accent}
           />
-          {showAddForm ? (
-            <View style={styles.formCard}>
-              <CustomerForm
-                onSaved={(customer) => {
-                  setShowAddForm(false);
-                  setEditingCustomer(null);
-                  setSelectedCustomerId(customer.id);
-                  void reloadCustomers();
-                }}
-                onCancel={() => setShowAddForm(false)}
-              />
-            </View>
-          ) : null}
-          {editingCustomer ? (
-            <EditCustomerForm
-              customer={editingCustomer}
-              onCancel={() => setEditingCustomer(null)}
-              onSaved={(updated) => {
-                setEditingCustomer(null);
-                setCustomers((prev) =>
-                  prev.map((existing) =>
-                    existing.id === updated.id ? updated : existing
-                  )
-                );
-                setSelectedCustomerId(updated.id);
-                void reloadCustomers();
-              }}
-            />
-          ) : null}
-          {loading ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color={palette.accent} />
-            </View>
-          ) : null}
-          {!loading && customers.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No customers found.</Text>
-            </View>
-          ) : null}
-        </View>
+        </Card>
+
+        {showAddForm ? (
+          <CustomerForm
+            onSaved={(customer) => {
+              setShowAddForm(false);
+              setEditingCustomer(null);
+              setSelectedCustomerId(customer.id);
+              void reloadCustomers();
+            }}
+            onCancel={() => setShowAddForm(false)}
+          />
+        ) : null}
+
+        {editingCustomer ? (
+          <EditCustomerForm
+            customer={editingCustomer}
+            onCancel={() => setEditingCustomer(null)}
+            onSaved={(updated) => {
+              setEditingCustomer(null);
+              setCustomers((prev) =>
+                prev.map((existing) =>
+                  existing.id === updated.id ? updated : existing,
+                ),
+              );
+              setSelectedCustomerId(updated.id);
+              void reloadCustomers();
+            }}
+          />
+        ) : null}
+
+        {loading ? (
+          <Card style={styles.infoCard}>
+            <ActivityIndicator color={theme.accent} />
+            <Text style={styles.infoText}>Loading customers…</Text>
+          </Card>
+        ) : null}
+
+        {!loading && customers.length === 0 ? (
+          <Card style={styles.infoCard}>
+            <Text style={styles.infoText}>No customers found.</Text>
+            <Text style={styles.infoHint}>
+              Add your first contact to start building quick quotes faster.
+            </Text>
+          </Card>
+        ) : null}
 
         {selectedCustomer ? (
-          <View style={styles.customerCard}>
-            <Text style={styles.customerName}>{getDisplayName(selectedCustomer)}</Text>
+          <Card style={styles.detailCard}>
+            <View style={styles.detailHeader}>
+              <Text style={styles.customerName}>
+                {getDisplayName(selectedCustomer)}
+              </Text>
+              <Text style={styles.customerSubtitle}>Primary contact details</Text>
+            </View>
             {selectedCustomer.email ? (
               <Text style={styles.customerMeta}>{selectedCustomer.email}</Text>
             ) : null}
@@ -456,158 +486,164 @@ export default function Customers() {
               <Text style={styles.customerMeta}>{selectedCustomer.address}</Text>
             ) : null}
             {selectedCustomer.notes ? (
-              <Text style={styles.customerNotes}>{selectedCustomer.notes}</Text>
+              <View style={styles.notesBlock}>
+                <Text style={styles.notesLabel}>Notes</Text>
+                <Text style={styles.notesText}>{selectedCustomer.notes}</Text>
+              </View>
             ) : null}
-            <View style={styles.inlineButtons}>
-              <View style={styles.buttonFlex}>
-                <Button
-                  title="Edit"
-                  color={palette.accent}
-                  onPress={() => {
-                    setEditingCustomer(selectedCustomer);
-                    setShowAddForm(false);
-                  }}
-                />
-              </View>
-              <View style={styles.buttonFlex}>
-                <Button
-                  title="Delete"
-                  color={palette.danger}
-                  onPress={() => handleDelete(selectedCustomer)}
-                />
-              </View>
+            <View style={styles.actionRow}>
+              <Button
+                label="Edit"
+                variant="secondary"
+                onPress={() => {
+                  setEditingCustomer(selectedCustomer);
+                  setShowAddForm(false);
+                }}
+              />
+              <Button
+                label="Delete"
+                variant="ghost"
+                onPress={() => handleDelete(selectedCustomer)}
+                textStyle={{ color: theme.danger }}
+              />
             </View>
-          </View>
+          </Card>
         ) : null}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: palette.background,
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  header: {
-    gap: 12,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: palette.primaryText,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: palette.secondaryText,
-    lineHeight: 20,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: palette.surface,
-    color: palette.primaryText,
-    ...cardShadow(4),
-  },
-  pickerCard: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 16,
-    backgroundColor: palette.surface,
-    ...cardShadow(6),
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 6,
-  },
-  pickerLabel: {
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  picker: {
-    color: palette.primaryText,
-    height: 48,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: palette.surface,
-    color: palette.primaryText,
-    minHeight: 90,
-    textAlignVertical: "top",
-  },
-  formCard: {
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: palette.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    ...cardShadow(10),
-  },
-  editCard: {
-    gap: 10,
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: palette.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    ...cardShadow(10),
-  },
-  editTitle: {
-    fontWeight: "600",
-    fontSize: 16,
-    color: palette.primaryText,
-  },
-  inlineButtons: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
-  },
-  buttonFlex: {
-    flex: 1,
-  },
-  customerCard: {
-    backgroundColor: palette.surface,
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    ...cardShadow(12),
-    gap: 6,
-  },
-  customerName: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  customerMeta: {
-    color: palette.secondaryText,
-  },
-  customerNotes: {
-    marginTop: 6,
-    color: palette.mutedText,
-    fontStyle: "italic",
-  },
-  loadingRow: {
-    paddingVertical: 16,
-  },
-  emptyState: {
-    paddingVertical: 40,
-    alignItems: "center",
-  },
-  emptyText: {
-    color: palette.mutedText,
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    scroll: {
+      flex: 1,
+    },
+    content: {
+      padding: 24,
+      paddingBottom: 160,
+      gap: 24,
+    },
+    header: {
+      gap: 12,
+    },
+    title: {
+      fontSize: 30,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    subtitle: {
+      fontSize: 15,
+      lineHeight: 22,
+      color: theme.secondaryText,
+    },
+    directoryCard: {
+      gap: 16,
+    },
+    sectionHeader: {
+      gap: 6,
+    },
+    sectionLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: theme.secondaryText,
+    },
+    sectionCaption: {
+      fontSize: 13,
+      lineHeight: 18,
+      color: theme.mutedText,
+    },
+    pickerShell: {
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceSubtle,
+      overflow: "hidden",
+    },
+    picker: {
+      height: 52,
+      color: theme.primaryText,
+    },
+    infoCard: {
+      alignItems: "center",
+      gap: 12,
+    },
+    infoText: {
+      fontSize: 15,
+      color: theme.secondaryText,
+      textAlign: "center",
+    },
+    infoHint: {
+      fontSize: 13,
+      color: theme.mutedText,
+      textAlign: "center",
+    },
+    detailCard: {
+      gap: 12,
+    },
+    detailHeader: {
+      gap: 4,
+    },
+    customerName: {
+      fontSize: 22,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    customerSubtitle: {
+      fontSize: 13,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      color: theme.mutedText,
+    },
+    customerMeta: {
+      fontSize: 15,
+      color: theme.secondaryText,
+    },
+    notesBlock: {
+      marginTop: 8,
+      gap: 4,
+      padding: 16,
+      borderRadius: 16,
+      backgroundColor: theme.surfaceSubtle,
+    },
+    notesLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: theme.secondaryText,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    notesText: {
+      fontSize: 15,
+      color: theme.primaryText,
+      lineHeight: 20,
+    },
+    actionRow: {
+      flexDirection: "row",
+      gap: 12,
+    },
+  });
+}
+
+function createEditStyles(theme: Theme) {
+  return StyleSheet.create({
+    card: {
+      gap: 16,
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: theme.primaryText,
+    },
+    actions: {
+      flexDirection: "row",
+      gap: 12,
+    },
+  });
+}
