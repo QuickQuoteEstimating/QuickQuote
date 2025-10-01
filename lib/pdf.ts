@@ -137,6 +137,7 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
     const fallback = Math.max(0, Math.round((base - laborTotal) * 100) / 100);
     return fallback;
   })();
+  const subtotalDisplay = subtotal > 0 ? subtotal : Math.max(0, total - taxTotal);
   const customer = estimate.customer ?? {};
 
   const photoSources = await Promise.all(
@@ -152,46 +153,36 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
       const safeDescription = escapeHtml(item.description);
       return `
         <tr>
-          <td style=\"padding:8px;border:1px solid #ddd;\">${index + 1}</td>
-          <td style=\"padding:8px;border:1px solid #ddd;\">${safeDescription}</td>
-          <td style=\"padding:8px;border:1px solid #ddd;text-align:center;\">${item.quantity}</td>
-          <td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${formatCurrency(
-            item.unitPrice
-          )}</td>
-          <td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${formatCurrency(
-            item.total
-          )}</td>
+          <td>${index + 1}</td>
+          <td>${safeDescription}</td>
+          <td>${item.quantity}</td>
+          <td>${formatCurrency(item.unitPrice)}</td>
+          <td>${formatCurrency(item.total)}</td>
         </tr>
       `;
     })
-    .join("") ||
-    `<tr><td colspan=\"5\" style=\"padding:12px;text-align:center;border:1px solid #ddd;color:#666;\">No line items recorded.</td></tr>`;
+    .join("");
 
   const photoGrid = photoSources
     .filter((photo) => photo.source)
     .map((photo) => {
       const caption = photo.description
-        ? `<div style=\"margin-top:4px;font-size:12px;color:#555;\">${escapeHtml(
-            photo.description
-          )}</div>`
+        ? `<div class=\"caption\">${escapeHtml(photo.description)}</div>`
         : "";
       return `
-        <div style=\"width:48%;margin-bottom:16px;\">
-          <div style=\"border:1px solid #ddd;border-radius:8px;overflow:hidden;padding:8px;\">
-            <img src=\"${photo.source}\" style=\"width:100%;height:auto;border-radius:4px;object-fit:cover;\" />
-            ${caption}
-          </div>
+        <div class=\"photo-card\">
+          <img src=\"${photo.source}\" alt=\"Estimate photo\" />
+          ${caption}
         </div>
       `;
     })
     .join("");
 
-  const photoSection = photoGrid
-    ? `<div style=\"display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;\">${photoGrid}</div>`
-    : `<p style=\"color:#666;\">No photos attached.</p>`;
-
   const customerAddress = customer.address
-    ? `<div>${escapeHtml(customer.address)}</div>`
+    ? customer.address
+        .split(/\r?\n/)
+        .map((line) => `<div>${escapeHtml(line)}</div>`)
+        .join("")
     : "<div>Address not provided</div>";
 
   return `
@@ -199,64 +190,201 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
       <head>
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; color: #111; }
-          h1 { font-size: 24px; margin-bottom: 4px; }
-          h2 { font-size: 18px; margin-top: 24px; margin-bottom: 8px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          :root { color-scheme: light; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f4f5; margin: 0; padding: 32px; color: #1f2937; }
+          .document { max-width: 960px; margin: 0 auto; background: #fff; border-radius: 16px; box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08); overflow: hidden; }
+          .inner { padding: 36px 40px 48px; }
+          .header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; border-bottom: 6px solid #c1272d; padding-bottom: 24px; margin-bottom: 28px; }
+          .branding { max-width: 55%; }
+          .branding .logo { font-size: 28px; font-weight: 800; letter-spacing: 0.18em; color: #c1272d; text-transform: uppercase; }
+          .branding .tagline { margin-top: 4px; font-size: 14px; color: #6b7280; letter-spacing: 0.04em; text-transform: uppercase; }
+          .status-badge { display: inline-flex; align-items: center; gap: 8px; background: #fef2f2; color: #b91c1c; border-radius: 999px; font-size: 12px; font-weight: 600; padding: 6px 14px; margin-top: 16px; letter-spacing: 0.05em; text-transform: uppercase; }
+          .estimate-meta { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 20px; min-width: 220px; }
+          .meta-row { display: flex; justify-content: space-between; font-size: 13px; color: #374151; padding: 4px 0; }
+          .meta-row strong { color: #111827; }
+          .info-grid { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 28px; }
+          .info-card { flex: 1 1 280px; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+          .card-title { background: #c1272d; color: #fff; padding: 10px 16px; font-weight: 600; letter-spacing: 0.08em; font-size: 13px; text-transform: uppercase; }
+          .card-body { padding: 16px 18px; font-size: 14px; line-height: 1.6; }
+          .card-body div + div { margin-top: 6px; }
+          .muted { color: #6b7280; }
+          .notice { background: #fbeaea; border: 1px solid rgba(193, 39, 45, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 32px; color: #9b1c22; font-size: 13px; font-weight: 500; text-align: center; letter-spacing: 0.02em; }
+          .section { margin-bottom: 32px; }
+          .section-title { background: #c1272d; color: #fff; padding: 10px 16px; font-weight: 600; letter-spacing: 0.08em; font-size: 13px; text-transform: uppercase; border-radius: 10px 10px 0 0; }
+          .section-body { border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px; padding: 18px 20px; font-size: 14px; line-height: 1.6; }
+          .totals-grid { display: flex; flex-wrap: wrap; gap: 16px; }
+          .totals-card { flex: 1 1 160px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 18px; background: #f9fafb; }
+          .totals-card .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; font-weight: 600; }
+          .totals-card .value { margin-top: 6px; font-size: 18px; font-weight: 700; color: #111827; }
+          .line-items { width: 100%; border-collapse: collapse; }
+          .line-items th { background: #f9fafb; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+          .line-items td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+          .line-items td:nth-child(3) { text-align: center; }
+          .line-items td:nth-child(4), .line-items td:nth-child(5) { text-align: right; font-variant-numeric: tabular-nums; }
+          .line-items tr:last-child td { border-bottom: none; }
+          .line-items .empty { text-align: center; color: #9ca3af; padding: 18px 12px; font-style: italic; }
+          .photo-grid { display: flex; flex-wrap: wrap; gap: 18px; }
+          .photo-card { flex: 1 1 280px; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; background: #f9fafb; }
+          .photo-card img { display: block; width: 100%; height: auto; object-fit: cover; }
+          .photo-card .caption { padding: 12px 14px; font-size: 12px; color: #4b5563; background: #fff; }
+          .static-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+          .static-notes .section-body { min-height: 180px; }
+          .list { margin: 0; padding-left: 18px; }
+          .list li { margin-bottom: 6px; }
+          @media (max-width: 720px) {
+            body { padding: 16px; }
+            .inner { padding: 28px 24px 36px; }
+            .branding { max-width: 100%; margin-bottom: 20px; }
+            .estimate-meta { width: 100%; }
+          }
         </style>
       </head>
       <body>
-        <h1>Estimate ${escapeHtml(estimate.id)}</h1>
-        <div style=\"margin-bottom:16px;color:#555;\">Status: ${escapeHtml(
-          statusLabel
-        )}</div>
+        <div class=\"document\">
+          <div class=\"inner\">
+            <header class=\"header\">
+              <div class=\"branding\">
+                <div class=\"logo\">QuickQuote</div>
+                <div class=\"tagline\">Commercial Estimate</div>
+                <div class=\"status-badge\">Status: ${escapeHtml(statusLabel)}</div>
+              </div>
+              <div class=\"estimate-meta\">
+                <div class=\"meta-row\"><span>Estimate #</span><strong>${escapeHtml(
+                  estimate.id
+                )}</strong></div>
+                <div class=\"meta-row\"><span>Date</span><strong>${escapeHtml(
+                  issueDate
+                )}</strong></div>
+                <div class=\"meta-row\"><span>Total</span><strong>${formatCurrency(
+                  total
+                )}</strong></div>
+                <div class=\"meta-row\"><span>Tax</span><strong>${formatCurrency(
+                  taxTotal
+                )}</strong></div>
+              </div>
+            </header>
 
-        <section style=\"margin-bottom:24px;\">
-          <h2>Customer</h2>
-          <div><strong>${escapeHtml(
-            customer.name ?? "No name on file"
-          )}</strong></div>
-          ${customerAddress}
-          <div>Email: ${escapeHtml(customer.email ?? "N/A")}</div>
-          <div>Phone: ${escapeHtml(customer.phone ?? "N/A")}</div>
-        </section>
+            <div class=\"info-grid\">
+              <div class=\"info-card\">
+                <div class=\"card-title\">Customer</div>
+                <div class=\"card-body\">
+                  <div><strong>${escapeHtml(
+                    customer.name ?? "No name on file"
+                  )}</strong></div>
+                  ${customerAddress}
+                  <div>Email: ${escapeHtml(customer.email ?? "N/A")}</div>
+                  <div>Phone: ${escapeHtml(customer.phone ?? "N/A")}</div>
+                </div>
+              </div>
+              <div class=\"info-card\">
+                <div class=\"card-title\">Service Location</div>
+                <div class=\"card-body\">
+                  ${customerAddress}
+                  <div class=\"muted\">Service contact: ${escapeHtml(
+                    customer.name ?? "Not provided"
+                  )}</div>
+                </div>
+              </div>
+            </div>
 
-        <section style=\"margin-bottom:24px;\">
-          <h2>Estimate Summary</h2>
-          <div>Date: ${escapeHtml(issueDate)}</div>
-          <div>Materials: ${formatCurrency(materialTotal)}</div>
-          <div>Labor: ${formatCurrency(laborTotal)}</div>
-          <div>Tax: ${formatCurrency(taxTotal)}</div>
-          <div><strong>Total: ${formatCurrency(total)}</strong></div>
-        </section>
+            <div class=\"notice\">All prices quoted are valid for 30 days from the date indicated above.</div>
 
-        <section style=\"margin-bottom:24px;\">
-          <h2>Line Items</h2>
-          <table>
-            <thead>
-              <tr>
-                <th style=\"text-align:left;padding:8px;border:1px solid #ddd;\">#</th>
-                <th style=\"text-align:left;padding:8px;border:1px solid #ddd;\">Description</th>
-                <th style=\"text-align:center;padding:8px;border:1px solid #ddd;\">Qty</th>
-                <th style=\"text-align:right;padding:8px;border:1px solid #ddd;\">Unit Price</th>
-                <th style=\"text-align:right;padding:8px;border:1px solid #ddd;\">Line Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows}
-            </tbody>
-          </table>
-        </section>
+            <section class=\"section\">
+              <div class=\"section-title\">Estimate Summary</div>
+              <div class=\"section-body\">
+                <div class=\"totals-grid\">
+                  <div class=\"totals-card\">
+                    <div class=\"label\">Materials</div>
+                    <div class=\"value\">${formatCurrency(materialTotal)}</div>
+                  </div>
+                  <div class=\"totals-card\">
+                    <div class=\"label\">Labor</div>
+                    <div class=\"value\">${formatCurrency(laborTotal)}</div>
+                  </div>
+                  <div class=\"totals-card\">
+                    <div class=\"label\">Subtotal</div>
+                    <div class=\"value\">${formatCurrency(subtotalDisplay)}</div>
+                  </div>
+                  <div class=\"totals-card\">
+                    <div class=\"label\">Total Due</div>
+                    <div class=\"value\">${formatCurrency(total)}</div>
+                  </div>
+                </div>
+              </div>
+            </section>
 
-        <section style=\"margin-bottom:24px;\">
-          <h2>Notes</h2>
-          ${renderNotes(estimate.notes ?? null)}
-        </section>
+            <section class=\"section\">
+              <div class=\"section-title\">Work Description &amp; Line Items</div>
+              <div class=\"section-body\">
+                <table class=\"line-items\">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Description</th>
+                      <th>Qty</th>
+                      <th>Unit Price</th>
+                      <th>Line Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rows || `<tr><td class=\"empty\" colspan=\"5\">No line items recorded.</td></tr>`}
+                  </tbody>
+                </table>
+              </div>
+            </section>
 
-        <section>
-          <h2>Photos</h2>
-          ${photoSection}
-        </section>
+            <section class=\"section\">
+              <div class=\"section-title\">Project Notes</div>
+              <div class=\"section-body\">${renderNotes(estimate.notes ?? null)}</div>
+            </section>
+
+            <section class=\"section\">
+              <div class=\"section-title\">Estimate Photos</div>
+              <div class=\"section-body\">${
+                photoGrid
+                  ? `<div class=\\"photo-grid\\">${photoGrid}</div>`
+                  : '<p class=\\"muted\\">No photos attached.</p>'
+              }</div>
+            </section>
+
+            <div class=\"static-notes\">
+              <section class=\"section\">
+                <div class=\"section-title\">Terms &amp; Conditions</div>
+                <div class=\"section-body\">
+                  <ul class=\"list\">
+                    <li>Estimates are valid for 30 days unless otherwise noted.</li>
+                    <li>Work will be scheduled upon approval and receipt of the required deposit.</li>
+                    <li>Any additional work not listed will require a separate change order.</li>
+                    <li>Manufacturer warranties apply to supplied products. Labor is warranted for one year.</li>
+                  </ul>
+                </div>
+              </section>
+              <section class=\"section\">
+                <div class=\"section-title\">Payment Details</div>
+                <div class=\"section-body\">
+                  <p>A deposit may be required prior to scheduling. Final balance is due upon completion.</p>
+                  <p>Please make payments to <strong>QuickQuote Services</strong>. We accept major credit cards and checks.</p>
+                </div>
+              </section>
+              <section class=\"section\">
+                <div class=\"section-title\">Acceptance</div>
+                <div class=\"section-body\">
+                  <p>By signing below you acknowledge acceptance of this estimate and authorize QuickQuote to proceed with the work described.</p>
+                  <div style=\"margin-top:24px; display:flex; gap:32px; flex-wrap:wrap;\">
+                    <div style=\"flex:1 1 220px;\">
+                      <div style=\"border-bottom:1px solid #d1d5db; height:32px;\"></div>
+                      <div class=\"muted\" style=\"margin-top:8px; font-size:12px; text-transform:uppercase; letter-spacing:0.08em;\">Authorized Signature</div>
+                    </div>
+                    <div style=\"flex:0 0 160px;\">
+                      <div style=\"border-bottom:1px solid #d1d5db; height:32px;\"></div>
+                      <div class=\"muted\" style=\"margin-top:8px; font-size:12px; text-transform:uppercase; letter-spacing:0.08em;\">Date</div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
       </body>
     </html>
   `;
