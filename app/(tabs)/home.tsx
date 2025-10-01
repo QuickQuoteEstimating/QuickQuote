@@ -1,17 +1,24 @@
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { openDB } from "../../lib/sqlite";
 import { BrandLogo } from "../../components/BrandLogo";
-import { useTheme, type Theme } from "../../lib/theme";
+import {
+  Badge,
+  Body,
+  Button,
+  Card,
+  ListItem,
+  Title,
+} from "../../components/ui";
+import { useTheme, type Theme } from "../../theme";
 
 type DashboardMetrics = {
   jobsSold: number;
@@ -42,176 +49,150 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.background,
+      backgroundColor: theme.colors.background,
+    },
+    scroll: {
+      flex: 1,
     },
     content: {
-      paddingHorizontal: 24,
-      paddingBottom: 32,
-      gap: 24,
-      backgroundColor: theme.background,
+      paddingHorizontal: theme.spacing.xl,
+      gap: theme.spacing.xxl,
+      backgroundColor: theme.colors.background,
     },
     heroCard: {
-      backgroundColor: theme.accent,
-      borderRadius: 28,
-      padding: 24,
-      shadowColor: "rgba(30, 58, 138, 0.45)",
-      shadowOpacity: 0.35,
-      shadowRadius: 24,
-      shadowOffset: { width: 0, height: 10 },
-      elevation: 6,
+      backgroundColor: theme.colors.primarySoft,
+      gap: theme.spacing.lg,
     },
-    heroCardHeader: {
+    heroHeader: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      gap: 20,
-      marginBottom: 20,
+      gap: theme.spacing.lg,
     },
-    heroHeaderText: {
+    heroText: {
       flex: 1,
+      gap: theme.spacing.xs,
     },
     heroTitle: {
-      color: theme.surface,
-      fontSize: 28,
-      fontWeight: "700",
-      letterSpacing: 0.2,
+      color: theme.colors.primaryText,
     },
-    heroSubtitle: {
-      color: "rgba(248, 250, 252, 0.82)",
-      marginTop: 8,
-      fontSize: 16,
-      lineHeight: 24,
+    heroSummary: {
+      color: theme.colors.textMuted,
     },
-    heroStatRow: {
+    heroStatsRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-end",
-      marginTop: 28,
+    },
+    heroStatBlock: {
+      gap: theme.spacing.xs,
     },
     heroStatLabel: {
-      color: "rgba(226, 232, 240, 0.88)",
+      color: theme.colors.textMuted,
       fontSize: 13,
-      textTransform: "uppercase",
       fontWeight: "600",
-      letterSpacing: 1,
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
     },
     heroStatValue: {
-      color: theme.surface,
-      fontSize: 40,
+      color: theme.colors.primaryText,
+      fontSize: 32,
       fontWeight: "700",
+      letterSpacing: 0.3,
     },
-    heroBadges: {
+    heroMetaRow: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 12,
-      marginTop: 22,
+      gap: theme.spacing.md,
     },
-    heroBadge: {
-      backgroundColor: "rgba(15, 23, 42, 0.22)",
-      borderRadius: 16,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
+    heroMetaItem: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radii.md,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.sm,
+      gap: theme.spacing.xxs,
     },
-    heroBadgeText: {
-      color: theme.surface,
-      fontSize: 14,
-      fontWeight: "500",
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: theme.primaryText,
-      letterSpacing: 0.2,
-    },
-    grid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 16,
-    },
-    metricCard: {
-      flexGrow: 1,
-      minWidth: "48%",
-      backgroundColor: theme.surface,
-      borderRadius: 22,
-      padding: 20,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.border,
-      shadowColor: "rgba(15, 23, 42, 0.35)",
-      shadowOpacity: 0.28,
-      shadowRadius: 22,
-      shadowOffset: { width: 0, height: 18 },
-      elevation: 6,
-    },
-    metricLabel: {
+    heroMetaLabel: {
+      color: theme.colors.textMuted,
       fontSize: 12,
-      color: theme.secondaryText,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      fontWeight: "600",
+    },
+    heroMetaValue: {
+      color: theme.colors.text,
+      fontWeight: "600",
+    },
+    sectionCard: {
+      gap: theme.spacing.lg,
+    },
+    sectionHeading: {
+      fontSize: 20,
+      color: theme.colors.primaryText,
+    },
+    statsGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.lg,
+    },
+    statItem: {
+      flexGrow: 1,
+      flexBasis: "48%",
+      backgroundColor: theme.colors.surfaceMuted,
+      borderRadius: theme.radii.md,
+      padding: theme.spacing.lg,
+      gap: theme.spacing.sm,
+    },
+    statLabel: {
+      color: theme.colors.textMuted,
+      fontSize: 12,
       textTransform: "uppercase",
       fontWeight: "600",
-      letterSpacing: 0.8,
+      letterSpacing: 0.6,
     },
-    metricValue: {
-      marginTop: 12,
+    statValue: {
+      color: theme.colors.primaryText,
       fontSize: 24,
       fontWeight: "700",
-      color: theme.primaryText,
+      letterSpacing: 0.2,
     },
-    metricHint: {
-      marginTop: 6,
-      fontSize: 14,
-      color: theme.mutedText,
-      lineHeight: 20,
-    },
-    listCard: {
-      backgroundColor: theme.surface,
-      borderRadius: 22,
-      padding: 20,
-      gap: 18,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.border,
-      shadowColor: "rgba(15, 23, 42, 0.35)",
-      shadowOpacity: 0.28,
-      shadowRadius: 22,
-      shadowOffset: { width: 0, height: 18 },
-      elevation: 6,
+    statHint: {
+      color: theme.colors.textMuted,
     },
     listItem: {
+      backgroundColor: theme.colors.surfaceMuted,
+      borderRadius: theme.radii.md,
+      paddingVertical: theme.spacing.md,
+    },
+    listAmount: {
+      color: theme.colors.primaryText,
+    },
+    emptyState: {
+      color: theme.colors.textMuted,
+    },
+    topJobDetails: {
+      gap: theme.spacing.md,
+    },
+    topJobHeader: {
       flexDirection: "row",
-      justifyContent: "space-between",
       alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.md,
     },
-    listItemLeft: {
-      gap: 4,
+    topJobTotal: {
+      fontSize: 24,
+      color: theme.colors.primaryText,
+      fontWeight: "700",
     },
-    listItemName: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: theme.primaryText,
+    statusBadge: {
+      backgroundColor: theme.colors.primarySoft,
     },
-    listItemMeta: {
-      fontSize: 13,
-      color: theme.secondaryText,
-    },
-    listItemValue: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: theme.primaryText,
-    },
-    topJobCard: {
-      backgroundColor: theme.surface,
-      borderRadius: 22,
-      padding: 20,
-      gap: 10,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.border,
-      shadowColor: "rgba(15, 23, 42, 0.35)",
-      shadowOpacity: 0.28,
-      shadowRadius: 22,
-      shadowOffset: { width: 0, height: 18 },
-      elevation: 6,
-    },
-    muted: {
-      color: theme.mutedText,
-      fontSize: 13,
+    footer: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingTop: theme.spacing.lg,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.separator,
+      backgroundColor: theme.colors.background,
     },
   });
 }
@@ -252,7 +233,7 @@ function formatStatus(value: string) {
 
 export default function Home() {
   const insets = useSafeAreaInsets();
-  const theme = useTheme();
+  const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -413,145 +394,173 @@ export default function Home() {
 
   const heroStatValue = metrics ? formatCurrency(metrics.yearlyEarnings) : "—";
 
+  const topPadding = Math.max(insets.top, theme.spacing.xl);
+  const bottomPadding = Math.max(insets.bottom, theme.spacing.lg);
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 10 }]}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => {
-            setRefreshing(true);
-            refreshMetrics();
-          }}
-          tintColor={theme.accent}
-        />
-      }
-    >
-      <View style={styles.heroCard}>
-        <View style={styles.heroCardHeader}>
-          <View style={styles.heroHeaderText}>
-            <Text style={styles.heroTitle}>Good to see you</Text>
-            <Text style={styles.heroSubtitle}>{heroSummary}</Text>
-          </View>
-          <BrandLogo size={56} />
-        </View>
-        <View style={styles.heroStatRow}>
-          <View>
-            <Text style={styles.heroStatLabel}>Booked revenue</Text>
-            <Text style={styles.heroStatValue}>{heroStatValue}</Text>
-          </View>
-          {loading ? (
-            <ActivityIndicator color={theme.surface} />
-          ) : (
-            <View>
-              <Text style={styles.heroStatLabel}>Close rate</Text>
-              <Text style={styles.heroStatValue}>{formatPercent(metrics?.closeRate ?? null)}</Text>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: topPadding, paddingBottom: bottomPadding + theme.spacing.xxl },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              refreshMetrics();
+            }}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        <Card style={styles.heroCard}>
+          <View style={styles.heroHeader}>
+            <View style={styles.heroText}>
+              <Title style={styles.heroTitle}>Good to see you</Title>
+              <Body style={styles.heroSummary}>{heroSummary}</Body>
             </View>
-          )}
-        </View>
-        <View style={styles.heroBadges}>
-          <View style={styles.heroBadge}>
-            <Text style={styles.heroBadgeText}>
-              Avg. deal{" "}
-              {metrics?.averageDealSize != null ? formatCurrency(metrics.averageDealSize) : "—"}
-            </Text>
+            <BrandLogo size={56} />
           </View>
-          <View style={styles.heroBadge}>
-            <Text style={styles.heroBadgeText}>
-              Pipeline {formatCurrency(metrics?.pipelineValue ?? 0)}
-            </Text>
+          <View style={styles.heroStatsRow}>
+            <View style={styles.heroStatBlock}>
+              <Body style={styles.heroStatLabel}>Booked revenue</Body>
+              <Title style={styles.heroStatValue}>{heroStatValue}</Title>
+            </View>
+            {loading ? (
+              <ActivityIndicator color={theme.colors.primary} />
+            ) : (
+              <View style={styles.heroStatBlock}>
+                <Body style={styles.heroStatLabel}>Close rate</Body>
+                <Title style={styles.heroStatValue}>
+                  {formatPercent(metrics?.closeRate ?? null)}
+                </Title>
+              </View>
+            )}
           </View>
-          <View style={styles.heroBadge}>
-            <Text style={styles.heroBadgeText}>
-              {metrics?.pipelineCount ?? 0} active{" "}
-              {metrics?.pipelineCount === 1 ? "estimate" : "estimates"}
-            </Text>
+          <View style={styles.heroMetaRow}>
+            <View style={styles.heroMetaItem}>
+              <Body style={styles.heroMetaLabel}>Avg. deal</Body>
+              <Body style={styles.heroMetaValue}>
+                {metrics?.averageDealSize != null
+                  ? formatCurrency(metrics.averageDealSize)
+                  : "—"}
+              </Body>
+            </View>
+            <View style={styles.heroMetaItem}>
+              <Body style={styles.heroMetaLabel}>Pipeline</Body>
+              <Body style={styles.heroMetaValue}>
+                {formatCurrency(metrics?.pipelineValue ?? 0)}
+              </Body>
+            </View>
+            <View style={styles.heroMetaItem}>
+              <Body style={styles.heroMetaLabel}>Active estimates</Body>
+              <Body style={styles.heroMetaValue}>
+                {metrics?.pipelineCount ?? 0}
+              </Body>
+            </View>
           </View>
-        </View>
-      </View>
+        </Card>
 
-      <View>
-        <Text style={styles.sectionTitle}>Quick stats</Text>
-        <View style={styles.grid}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Jobs sold</Text>
-            <Text style={styles.metricValue}>{metrics?.jobsSold ?? 0}</Text>
-            <Text style={styles.metricHint}>Accepted estimates that became booked work.</Text>
+        <Card style={styles.sectionCard}>
+          <Title style={styles.sectionHeading}>Quick stats</Title>
+          <View style={styles.statsGrid}>
+            <View style={styles.statItem}>
+              <Body style={styles.statLabel}>Jobs sold</Body>
+              <Title style={styles.statValue}>{metrics?.jobsSold ?? 0}</Title>
+              <Body style={styles.statHint}>
+                Accepted estimates that became booked work.
+              </Body>
+            </View>
+            <View style={styles.statItem}>
+              <Body style={styles.statLabel}>Avg. deal size</Body>
+              <Title style={styles.statValue}>
+                {metrics?.averageDealSize != null
+                  ? formatCurrency(metrics.averageDealSize)
+                  : "—"}
+              </Title>
+              <Body style={styles.statHint}>
+                Average value of every accepted estimate.
+              </Body>
+            </View>
+            <View style={styles.statItem}>
+              <Body style={styles.statLabel}>Pipeline value</Body>
+              <Title style={styles.statValue}>
+                {formatCurrency(metrics?.pipelineValue ?? 0)}
+              </Title>
+              <Body style={styles.statHint}>
+                Open sent estimates waiting for approval.
+              </Body>
+            </View>
+            <View style={styles.statItem}>
+              <Body style={styles.statLabel}>Active estimates</Body>
+              <Title style={styles.statValue}>{metrics?.pipelineCount ?? 0}</Title>
+              <Body style={styles.statHint}>
+                Deals currently in play with customers.
+              </Body>
+            </View>
           </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Avg. deal size</Text>
-            <Text style={styles.metricValue}>
-              {metrics?.averageDealSize != null ? formatCurrency(metrics.averageDealSize) : "—"}
-            </Text>
-            <Text style={styles.metricHint}>Average value of every accepted estimate.</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Pipeline value</Text>
-            <Text style={styles.metricValue}>{formatCurrency(metrics?.pipelineValue ?? 0)}</Text>
-            <Text style={styles.metricHint}>Open sent estimates waiting for approval.</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Active estimates</Text>
-            <Text style={styles.metricValue}>{metrics?.pipelineCount ?? 0}</Text>
-            <Text style={styles.metricHint}>Deals currently in play with customers.</Text>
-          </View>
-        </View>
-      </View>
+        </Card>
 
-      <View>
-        <Text style={styles.sectionTitle}>Top customers</Text>
-        <View style={styles.listCard}>
+        <Card style={styles.sectionCard}>
+          <Title style={styles.sectionHeading}>Top customers</Title>
           {metrics && metrics.topCustomers.length > 0 ? (
             metrics.topCustomers.map((customer) => (
-              <View key={`${customer.name}-${customer.total}`} style={styles.listItem}>
-                <View style={styles.listItemLeft}>
-                  <Text style={styles.listItemName}>{customer.name}</Text>
-                  <Text style={styles.listItemMeta}>
-                    {customer.jobs} {customer.jobs === 1 ? "job" : "jobs"} ·{" "}
-                    {formatCurrency(customer.total)}
-                  </Text>
-                </View>
-                <Text style={styles.listItemValue}>{formatCurrency(customer.total)}</Text>
-              </View>
+              <ListItem
+                key={`${customer.name}-${customer.total}`}
+                title={customer.name}
+                subtitle={`${customer.jobs} ${customer.jobs === 1 ? "job" : "jobs"}`}
+                amount={formatCurrency(customer.total)}
+                style={styles.listItem}
+                amountStyle={styles.listAmount}
+              />
             ))
           ) : (
-            <Text style={styles.muted}>
+            <Body style={styles.emptyState}>
               No customers yet. Send your first estimate to get started.
-            </Text>
+            </Body>
           )}
-        </View>
-      </View>
+        </Card>
 
-      <View>
-        <Text style={styles.sectionTitle}>Top job</Text>
-        <View style={styles.topJobCard}>
+        <Card style={styles.sectionCard}>
+          <Title style={styles.sectionHeading}>Top job</Title>
           {metrics?.topJob ? (
-            <>
-              <Text style={styles.metricLabel}>Customer</Text>
-              <Text style={styles.metricValue}>{metrics.topJob.customer}</Text>
-              <Text style={styles.metricHint}>
-                {`Status · ${formatStatus(metrics.topJob.status)}`}
-              </Text>
-              <Text style={styles.metricLabel}>Total</Text>
-              <Text style={styles.metricValue}>{formatCurrency(metrics.topJob.total)}</Text>
-              {metrics.topJob.date ? (
-                <Text style={styles.metricHint}>
-                  {new Date(metrics.topJob.date).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </Text>
-              ) : null}
-            </>
+            <View style={styles.topJobDetails}>
+              <View style={styles.topJobHeader}>
+                <Body style={styles.statLabel}>Customer</Body>
+                <Badge style={styles.statusBadge}>{formatStatus(metrics.topJob.status)}</Badge>
+              </View>
+              <Title style={styles.statValue}>{metrics.topJob.customer}</Title>
+              <Body style={styles.statHint}>
+                {metrics.topJob.date
+                  ? new Date(metrics.topJob.date).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })
+                  : "Date not set"}
+              </Body>
+              <Body style={styles.statLabel}>Total</Body>
+              <Title style={styles.topJobTotal}>
+                {formatCurrency(metrics.topJob.total)}
+              </Title>
+            </View>
           ) : (
-            <Text style={styles.muted}>
+            <Body style={styles.emptyState}>
               Create or send an estimate to see your top-performing job.
-            </Text>
+            </Body>
           )}
-        </View>
+        </Card>
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: bottomPadding }]}>
+        <Button
+          label="Create Estimate"
+          onPress={() => router.push("/(tabs)/estimates/new")}
+        />
       </View>
-    </ScrollView>
+    </View>
   );
 }
