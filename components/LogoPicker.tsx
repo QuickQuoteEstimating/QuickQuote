@@ -1,13 +1,5 @@
 import { useCallback } from "react";
-import {
-  Alert,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from "react-native";
+import { Alert, Image, Pressable, StyleSheet, Text, useColorScheme, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import BrandLogo from "./BrandLogo";
 
@@ -27,7 +19,7 @@ export function LogoPicker({ label = "Company logo", value, onChange }: LogoPick
     if (!permission.granted) {
       Alert.alert(
         "Permission needed",
-        "We need access to your photo library so you can choose a company logo."
+        "We need access to your photo library so you can choose a company logo.",
       );
       return;
     }
@@ -71,11 +63,7 @@ export function LogoPicker({ label = "Company logo", value, onChange }: LogoPick
           ]}
         >
           {value ? (
-            <Image
-              source={{ uri: value }}
-              resizeMode="contain"
-              style={styles.previewImage}
-            />
+            <Image source={{ uri: value }} resizeMode="contain" style={styles.previewImage} />
           ) : (
             <BrandLogo size={64} style={styles.placeholderLogo} />
           )}

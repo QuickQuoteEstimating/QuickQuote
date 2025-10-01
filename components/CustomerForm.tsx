@@ -32,10 +32,7 @@ export default function CustomerForm({ onSaved, onCancel, style }: Props) {
 
     const user_id = user?.id ?? session?.user?.id ?? null;
     if (!user_id) {
-      Alert.alert(
-        "Sign in required",
-        "You must be signed in before you can create customers."
-      );
+      Alert.alert("Sign in required", "You must be signed in before you can create customers.");
       return;
     }
 
@@ -138,19 +135,9 @@ export default function CustomerForm({ onSaved, onCancel, style }: Props) {
         multiline
       />
       <View style={styles.actions}>
-        <Button
-          label="Save Customer"
-          onPress={saveCustomer}
-          loading={saving}
-          disabled={saving}
-        />
+        <Button label="Save Customer" onPress={saveCustomer} loading={saving} disabled={saving} />
         {onCancel ? (
-          <Button
-            label="Cancel"
-            variant="secondary"
-            onPress={onCancel}
-            disabled={saving}
-          />
+          <Button label="Cancel" variant="secondary" onPress={onCancel} disabled={saving} />
         ) : null}
       </View>
     </Card>

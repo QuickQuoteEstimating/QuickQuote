@@ -272,7 +272,7 @@ export default function Home() {
          COALESCE(SUM(CASE WHEN LOWER(status) = 'sent' THEN total ELSE 0 END), 0) AS pipeline_total
        FROM estimates
        WHERE deleted_at IS NULL`,
-      [currentYear]
+      [currentYear],
     );
 
     const summary = summaryRows[0] ?? {
@@ -299,7 +299,7 @@ export default function Home() {
          AND LOWER(e.status) = 'accepted'
        GROUP BY e.customer_id, COALESCE(NULLIF(c.name, ''), 'Unnamed customer')
        ORDER BY total DESC
-       LIMIT 3`
+       LIMIT 3`,
     );
 
     const topJobRows = await db.getAllAsync<{
@@ -319,7 +319,7 @@ export default function Home() {
        LEFT JOIN customers c ON c.id = e.customer_id
        WHERE e.deleted_at IS NULL
        ORDER BY CASE WHEN LOWER(e.status) = 'accepted' THEN 0 ELSE 1 END, e.total DESC
-       LIMIT 1`
+       LIMIT 1`,
     );
 
     const jobsSold = Number(summary.accepted_count ?? 0);
@@ -398,7 +398,7 @@ export default function Home() {
       return () => {
         isActive = false;
       };
-    }, [loadMetrics])
+    }, [loadMetrics]),
   );
 
   const heroSummary = useMemo(() => {
@@ -416,10 +416,7 @@ export default function Home() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: Math.max(insets.top, 20) + 10 },
-      ]}
+      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 20) + 10 }]}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -456,11 +453,8 @@ export default function Home() {
         <View style={styles.heroBadges}>
           <View style={styles.heroBadge}>
             <Text style={styles.heroBadgeText}>
-              Avg. deal
-              {" "}
-              {metrics?.averageDealSize != null
-                ? formatCurrency(metrics.averageDealSize)
-                : "—"}
+              Avg. deal{" "}
+              {metrics?.averageDealSize != null ? formatCurrency(metrics.averageDealSize) : "—"}
             </Text>
           </View>
           <View style={styles.heroBadge}>
@@ -470,7 +464,8 @@ export default function Home() {
           </View>
           <View style={styles.heroBadge}>
             <Text style={styles.heroBadgeText}>
-              {metrics?.pipelineCount ?? 0} active {metrics?.pipelineCount === 1 ? "estimate" : "estimates"}
+              {metrics?.pipelineCount ?? 0} active{" "}
+              {metrics?.pipelineCount === 1 ? "estimate" : "estimates"}
             </Text>
           </View>
         </View>
@@ -487,17 +482,13 @@ export default function Home() {
           <View style={styles.metricCard}>
             <Text style={styles.metricLabel}>Avg. deal size</Text>
             <Text style={styles.metricValue}>
-              {metrics?.averageDealSize != null
-                ? formatCurrency(metrics.averageDealSize)
-                : "—"}
+              {metrics?.averageDealSize != null ? formatCurrency(metrics.averageDealSize) : "—"}
             </Text>
             <Text style={styles.metricHint}>Average value of every accepted estimate.</Text>
           </View>
           <View style={styles.metricCard}>
             <Text style={styles.metricLabel}>Pipeline value</Text>
-            <Text style={styles.metricValue}>
-              {formatCurrency(metrics?.pipelineValue ?? 0)}
-            </Text>
+            <Text style={styles.metricValue}>{formatCurrency(metrics?.pipelineValue ?? 0)}</Text>
             <Text style={styles.metricHint}>Open sent estimates waiting for approval.</Text>
           </View>
           <View style={styles.metricCard}>
@@ -517,14 +508,17 @@ export default function Home() {
                 <View style={styles.listItemLeft}>
                   <Text style={styles.listItemName}>{customer.name}</Text>
                   <Text style={styles.listItemMeta}>
-                    {customer.jobs} {customer.jobs === 1 ? "job" : "jobs"} · {formatCurrency(customer.total)}
+                    {customer.jobs} {customer.jobs === 1 ? "job" : "jobs"} ·{" "}
+                    {formatCurrency(customer.total)}
                   </Text>
                 </View>
                 <Text style={styles.listItemValue}>{formatCurrency(customer.total)}</Text>
               </View>
             ))
           ) : (
-            <Text style={styles.muted}>No customers yet. Send your first estimate to get started.</Text>
+            <Text style={styles.muted}>
+              No customers yet. Send your first estimate to get started.
+            </Text>
           )}
         </View>
       </View>
@@ -552,7 +546,9 @@ export default function Home() {
               ) : null}
             </>
           ) : (
-            <Text style={styles.muted}>Create or send an estimate to see your top-performing job.</Text>
+            <Text style={styles.muted}>
+              Create or send an estimate to see your top-performing job.
+            </Text>
           )}
         </View>
       </View>

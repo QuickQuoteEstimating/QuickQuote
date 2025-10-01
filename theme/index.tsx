@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
 export type ThemeSpacing = {
   none: number;
@@ -149,10 +143,7 @@ export type ThemeProviderProps = {
   defaultMode?: ThemeMode;
 };
 
-export function ThemeProvider({
-  children,
-  defaultMode = "light",
-}: ThemeProviderProps) {
+export function ThemeProvider({ children, defaultMode = "light" }: ThemeProviderProps) {
   const [mode, setMode] = useState<ThemeMode>(defaultMode);
 
   const value = useMemo<ThemeContextValue>(() => {

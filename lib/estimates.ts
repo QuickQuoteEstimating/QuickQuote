@@ -7,11 +7,10 @@ export const ESTIMATE_JOIN_ONLY_KEYS = [
 
 type EstimateJoinOnlyKey = (typeof ESTIMATE_JOIN_ONLY_KEYS)[number];
 
-type AnyEstimateRecord = Record<string, unknown> &
-  Partial<Record<EstimateJoinOnlyKey, unknown>>;
+type AnyEstimateRecord = Record<string, unknown> & Partial<Record<EstimateJoinOnlyKey, unknown>>;
 
 export function sanitizeEstimateForQueue<T extends AnyEstimateRecord>(
-  estimate: T
+  estimate: T,
 ): Omit<T, EstimateJoinOnlyKey> {
   const sanitized: Record<string, unknown> = { ...estimate };
 
@@ -21,4 +20,3 @@ export function sanitizeEstimateForQueue<T extends AnyEstimateRecord>(
 
   return sanitized as Omit<T, EstimateJoinOnlyKey>;
 }
-

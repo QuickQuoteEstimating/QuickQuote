@@ -89,9 +89,21 @@ export function useTheme(): Theme {
 export function cardShadow(
   depth: number = 12,
   mode?: ThemeMode,
-): { shadowColor: string; shadowOpacity: number; shadowRadius: number; shadowOffset: { width: number; height: number }; elevation: number } {
+): {
+  shadowColor: string;
+  shadowOpacity: number;
+  shadowRadius: number;
+  shadowOffset: { width: number; height: number };
+  elevation: number;
+} {
   if (Platform.OS === "web") {
-    return { shadowColor: "transparent", shadowOpacity: 0, shadowRadius: 0, shadowOffset: { width: 0, height: 0 }, elevation: 0 };
+    return {
+      shadowColor: "transparent",
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      shadowOffset: { width: 0, height: 0 },
+      elevation: 0,
+    };
   }
 
   const resolvedMode: ThemeMode =

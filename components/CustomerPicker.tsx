@@ -34,14 +34,14 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
     try {
       const db = await openDB();
       const rows = await db.getAllAsync<Customer>(
-        "SELECT id, name, phone, email, address, notes FROM customers WHERE deleted_at IS NULL ORDER BY name ASC"
+        "SELECT id, name, phone, email, address, notes FROM customers WHERE deleted_at IS NULL ORDER BY name ASC",
       );
       setCustomers(rows);
     } catch (error) {
       console.error("Failed to load customers", error);
       Alert.alert(
         "Unable to load customers",
-        "Please try again later or contact support if the issue persists."
+        "Please try again later or contact support if the issue persists.",
       );
     } finally {
       setLoading(false);
@@ -77,18 +77,11 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
       const addressMatch = normalize(customer.address).includes(query);
       const notesMatch = normalize(customer.notes).includes(query);
 
-      return Boolean(
-        nameMatch || phoneMatch || emailMatch || addressMatch || notesMatch
-      );
+      return Boolean(nameMatch || phoneMatch || emailMatch || addressMatch || notesMatch);
     });
 
-    if (
-      selectedCustomer &&
-      !matches.some((customer) => customer.id === selectedCustomer)
-    ) {
-      const selected = customers.find(
-        (customer) => customer.id === selectedCustomer,
-      );
+    if (selectedCustomer && !matches.some((customer) => customer.id === selectedCustomer)) {
+      const selected = customers.find((customer) => customer.id === selectedCustomer);
       if (selected) {
         return [selected, ...matches];
       }
@@ -148,8 +141,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
       <View style={styles.header}>
         <Text style={styles.title}>Select Customer</Text>
         <Text style={styles.caption}>
-          Search existing contacts or create a new profile without leaving the
-          estimate.
+          Search existing contacts or create a new profile without leaving the estimate.
         </Text>
       </View>
       <Input
@@ -170,11 +162,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
         >
           <Picker.Item label="-- Select --" value="" />
           {filteredCustomers.length === 0 ? (
-            <Picker.Item
-              label="No matching customers"
-              value=""
-              enabled={false}
-            />
+            <Picker.Item label="No matching customers" value="" enabled={false} />
           ) : null}
           {filteredCustomers.map((c: Customer) => (
             <Picker.Item key={c.id} label={getDisplayName(c)} value={c.id} />
@@ -182,11 +170,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
           <Picker.Item label="➕ Add New Customer" value="new" />
         </Picker>
       </View>
-      <Button
-        label="Add New Customer"
-        variant="secondary"
-        onPress={() => setAddingNew(true)}
-      />
+      <Button label="Add New Customer" variant="secondary" onPress={() => setAddingNew(true)} />
     </Card>
   );
 }

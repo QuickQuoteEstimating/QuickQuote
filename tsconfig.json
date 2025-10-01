@@ -1,9 +1,7 @@
 {
   "compilerOptions": {
     "strict": true,
-    "types": [
-      "jest"
-    ]
+    "types": ["jest"]
   },
   "include": [
     "app",

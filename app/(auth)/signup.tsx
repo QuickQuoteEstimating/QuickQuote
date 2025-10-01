@@ -65,7 +65,7 @@ export default function SignupScreen() {
 
       Alert.alert(
         "Check your inbox",
-        "We sent a confirmation email. Confirm your address and then sign in."
+        "We sent a confirmation email. Confirm your address and then sign in.",
       );
       router.replace("/(auth)/login");
     } catch (error: any) {

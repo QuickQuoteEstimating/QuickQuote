@@ -26,12 +26,18 @@ jest.mock("../supabase", () => {
     error: null,
   });
 
-  const insertBehavior: jest.Mock<ReturnType<typeof defaultInsert>, Parameters<typeof defaultInsert>> =
-    jest.fn(defaultInsert);
-  const updateBehavior: jest.Mock<ReturnType<typeof defaultUpdate>, Parameters<typeof defaultUpdate>> =
-    jest.fn(defaultUpdate);
-  const deleteBehavior: jest.Mock<ReturnType<typeof defaultDelete>, Parameters<typeof defaultDelete>> =
-    jest.fn(defaultDelete);
+  const insertBehavior: jest.Mock<
+    ReturnType<typeof defaultInsert>,
+    Parameters<typeof defaultInsert>
+  > = jest.fn(defaultInsert);
+  const updateBehavior: jest.Mock<
+    ReturnType<typeof defaultUpdate>,
+    Parameters<typeof defaultUpdate>
+  > = jest.fn(defaultUpdate);
+  const deleteBehavior: jest.Mock<
+    ReturnType<typeof defaultDelete>,
+    Parameters<typeof defaultDelete>
+  > = jest.fn(defaultDelete);
 
   const fromMock = jest.fn((table: string) => ({
     insert: async (payload: any) => {

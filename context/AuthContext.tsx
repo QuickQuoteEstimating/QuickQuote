@@ -71,7 +71,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       async (event, newSession) => {
         setSession(newSession);
 
-        const signedOutLike = event === "SIGNED_OUT" || (!newSession && !!bootstrappedUserRef.current);
+        const signedOutLike =
+          event === "SIGNED_OUT" || (!newSession && !!bootstrappedUserRef.current);
         if (signedOutLike) {
           bootstrappedUserRef.current = null;
           try {
@@ -80,7 +81,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             console.error("Failed to clear local data on sign out", error);
           }
         }
-      }
+      },
     );
 
     init();
@@ -123,7 +124,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (!silent) {
             Alert.alert(
               "Sync Error",
-              "We couldn't refresh your data. Pull down to refresh after reconnecting."
+              "We couldn't refresh your data. Pull down to refresh after reconnecting.",
             );
           }
           throw error;
@@ -138,7 +139,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       bootstrapInFlightRef.current = bootstrapPromise;
       return bootstrapPromise;
     },
-    []
+    [],
   );
 
   const retryBootstrap = useCallback(async () => {
@@ -227,7 +228,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       signOutLoading,
       needsBootstrapRetry,
       retryBootstrap,
-    ]
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,4 +1,4 @@
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { supabase } from "./supabase";
 import { openDB } from "./sqlite";
 import {
@@ -97,8 +97,7 @@ export async function bootstrapUserData(userId: string) {
 
   await ensurePhotoDirectory();
   const expectedLocalPaths = new Set<string>();
-  const { data: sessionData, error: sessionError } =
-    await supabase.auth.getSession();
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) {
     console.warn("Failed to resolve Supabase session during bootstrap", sessionError);
   }
@@ -120,7 +119,7 @@ export async function bootstrapUserData(userId: string) {
         customer.version ?? 1,
         customer.updated_at ?? new Date().toISOString(),
         customer.deleted_at,
-      ]
+      ],
     );
   }
 
@@ -139,7 +138,7 @@ export async function bootstrapUserData(userId: string) {
         estimate.version ?? 1,
         estimate.updated_at ?? new Date().toISOString(),
         estimate.deleted_at,
-      ]
+      ],
     );
   }
 
@@ -157,7 +156,7 @@ export async function bootstrapUserData(userId: string) {
         item.version ?? 1,
         item.updated_at ?? new Date().toISOString(),
         item.deleted_at,
-      ]
+      ],
     );
   }
 
@@ -176,7 +175,7 @@ export async function bootstrapUserData(userId: string) {
               const downloaded = await downloadPhotoBinary(
                 photo.uri,
                 derivedPath,
-                bootstrapAccessToken
+                bootstrapAccessToken,
               );
               if (downloaded) {
                 localUri = derivedPath;
@@ -203,12 +202,12 @@ export async function bootstrapUserData(userId: string) {
         photo.version ?? 1,
         photo.updated_at ?? new Date().toISOString(),
         photo.deleted_at,
-      ]
+      ],
     );
   }
 
   const localPhotoRows = await db.getAllAsync<{ local_uri: string | null }>(
-    "SELECT local_uri FROM photos WHERE local_uri IS NOT NULL"
+    "SELECT local_uri FROM photos WHERE local_uri IS NOT NULL",
   );
   for (const { local_uri } of localPhotoRows) {
     if (local_uri) {

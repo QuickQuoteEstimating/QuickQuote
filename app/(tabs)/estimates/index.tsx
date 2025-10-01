@@ -101,12 +101,8 @@ export default function EstimatesScreen() {
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
-    null,
-  );
-  const [customerEstimates, setCustomerEstimates] = useState<
-    EstimateListItem[]
-  >([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [customerEstimates, setCustomerEstimates] = useState<EstimateListItem[]>([]);
   const [loadingEstimates, setLoadingEstimates] = useState(false);
 
   const loadCustomers = useCallback(async () => {
@@ -208,9 +204,7 @@ export default function EstimatesScreen() {
       const addressMatch = normalize(customer.address).includes(query);
       const notesMatch = normalize(customer.notes).includes(query);
 
-      return Boolean(
-        nameMatch || phoneMatch || emailMatch || addressMatch || notesMatch,
-      );
+      return Boolean(nameMatch || phoneMatch || emailMatch || addressMatch || notesMatch);
     });
   }, [customers, searchQuery]);
 
@@ -218,9 +212,7 @@ export default function EstimatesScreen() {
     if (!selectedCustomerId) {
       return null;
     }
-    return (
-      customers.find((customer) => customer.id === selectedCustomerId) || null
-    );
+    return customers.find((customer) => customer.id === selectedCustomerId) || null;
   }, [customers, selectedCustomerId]);
 
   const header = useMemo(
@@ -229,8 +221,8 @@ export default function EstimatesScreen() {
         <View style={styles.headerTitles}>
           <Text style={styles.headerTitle}>Estimates</Text>
           <Text style={styles.headerSubtitle}>
-            Manage client proposals, keep tabs on project totals, and send
-            polished quotes from the field.
+            Manage client proposals, keep tabs on project totals, and send polished quotes from the
+            field.
           </Text>
         </View>
       </View>
@@ -251,8 +243,7 @@ export default function EstimatesScreen() {
           <View>
             <Text style={styles.sectionLabel}>Find a customer</Text>
             <Text style={styles.sectionCaption}>
-              Search by name, email, phone number, or job site address to pull
-              up client history.
+              Search by name, email, phone number, or job site address to pull up client history.
             </Text>
           </View>
           <Input
@@ -274,9 +265,7 @@ export default function EstimatesScreen() {
             </View>
           ) : null}
           {searchQuery.trim().length === 0 ? (
-            <Text style={styles.helperText}>
-              Start typing to see matching customers.
-            </Text>
+            <Text style={styles.helperText}>Start typing to see matching customers.</Text>
           ) : null}
           {searchQuery.trim().length > 0 && !loadingCustomers ? (
             <View style={styles.resultsList}>
@@ -284,15 +273,11 @@ export default function EstimatesScreen() {
                 <Text style={styles.helperText}>No matching customers yet.</Text>
               ) : (
                 filteredCustomers.map((customer) => (
-                  <Pressable
-                    key={customer.id}
-                    onPress={() => setSelectedCustomerId(customer.id)}
-                  >
+                  <Pressable key={customer.id} onPress={() => setSelectedCustomerId(customer.id)}>
                     <View
                       style={[
                         styles.resultItem,
-                        selectedCustomerId === customer.id &&
-                          styles.resultItemSelected,
+                        selectedCustomerId === customer.id && styles.resultItemSelected,
                       ]}
                     >
                       <Text style={styles.resultName}>
@@ -349,9 +334,7 @@ export default function EstimatesScreen() {
                 {selectedCustomer.notes ? (
                   <View style={styles.profileRow}>
                     <Text style={styles.profileLabel}>Notes</Text>
-                    <Text style={styles.profileValue}>
-                      {selectedCustomer.notes}
-                    </Text>
+                    <Text style={styles.profileValue}>{selectedCustomer.notes}</Text>
                   </View>
                 ) : null}
               </View>
@@ -372,14 +355,8 @@ export default function EstimatesScreen() {
 
             {!loadingEstimates && customerEstimates.length === 0 ? (
               <View style={styles.emptyState}>
-                <Feather
-                  name="file-text"
-                  size={24}
-                  color={theme.mutedText}
-                />
-                <Text style={styles.helperText}>
-                  No estimates created for this customer yet.
-                </Text>
+                <Feather name="file-text" size={24} color={theme.mutedText} />
+                <Text style={styles.helperText}>No estimates created for this customer yet.</Text>
               </View>
             ) : null}
 
@@ -401,18 +378,14 @@ export default function EstimatesScreen() {
                       onPress={() => router.push(`/(tabs)/estimates/${estimate.id}`)}
                       style={[
                         styles.estimateItem,
-                        index < customerEstimates.length - 1
-                          ? styles.estimateDivider
-                          : null,
+                        index < customerEstimates.length - 1 ? styles.estimateDivider : null,
                       ]}
                       badge={
                         <View style={styles.estimateTrailing}>
                           <Text style={styles.estimateAmount}>
                             {formatCurrency(estimate.total)}
                           </Text>
-                          <Badge style={[styles.statusBadge, badgeStyle]}>
-                            {status}
-                          </Badge>
+                          <Badge style={[styles.statusBadge, badgeStyle]}>{status}</Badge>
                         </View>
                       }
                     />
@@ -424,10 +397,7 @@ export default function EstimatesScreen() {
         ) : null}
       </ScrollView>
       <View style={styles.footer}>
-        <Button
-          label="Create Estimate"
-          onPress={() => router.push("/(tabs)/estimates/new")}
-        />
+        <Button label="Create Estimate" onPress={() => router.push("/(tabs)/estimates/new")} />
       </View>
 
       <FAB

@@ -14,10 +14,7 @@ export function Card({ children, style, elevated = true }: PropsWithChildren<Car
   return <View style={[styles.container, style]}>{children}</View>;
 }
 
-function createStyles(
-  theme: ReturnType<typeof useTheme>["theme"],
-  elevated: boolean,
-) {
+function createStyles(theme: ReturnType<typeof useTheme>["theme"], elevated: boolean) {
   const shadow: ViewStyle = elevated
     ? {
         shadowColor: theme.colors.overlay,

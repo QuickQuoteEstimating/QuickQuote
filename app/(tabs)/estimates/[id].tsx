@@ -26,15 +26,8 @@ import {
 } from "../../../components/EstimateItemForm";
 import { useAuth } from "../../../context/AuthContext";
 import { useSettings } from "../../../context/SettingsContext";
-import {
-  useItemEditor,
-  type ItemEditorConfig,
-} from "../../../context/ItemEditorContext";
-import {
-  logEstimateDelivery,
-  openDB,
-  queueChange,
-} from "../../../lib/sqlite";
+import { useItemEditor, type ItemEditorConfig } from "../../../context/ItemEditorContext";
+import { logEstimateDelivery, openDB, queueChange } from "../../../lib/sqlite";
 import { sanitizeEstimateForQueue } from "../../../lib/estimates";
 import { runSync } from "../../../lib/sync";
 import {
@@ -114,9 +107,7 @@ type EstimateFormDraftState = {
 
 const estimateDraftStore = new Map<string, EstimateFormDraftState>();
 
-function getEstimateFormDraft(
-  estimateId: string,
-): EstimateFormDraftState | null {
+function getEstimateFormDraft(estimateId: string): EstimateFormDraftState | null {
   const draft = estimateDraftStore.get(estimateId);
   if (!draft) {
     return null;
@@ -128,10 +119,7 @@ function getEstimateFormDraft(
   };
 }
 
-function setEstimateFormDraft(
-  estimateId: string,
-  draft: EstimateFormDraftState,
-) {
+function setEstimateFormDraft(estimateId: string, draft: EstimateFormDraftState) {
   estimateDraftStore.set(estimateId, {
     ...draft,
     items: draft.items.map((item) => ({ ...item })),
@@ -204,31 +192,25 @@ export default function EditEstimateScreen() {
   const preserveDraftRef = useRef(false);
 
   const [estimate, setEstimate] = useState<EstimateListItem | null>(null);
-  const [customerId, setCustomerId] = useState<string | null>(
-    draftRef.current?.customerId ?? null,
-  );
-  const [estimateDate, setEstimateDate] = useState(
-    draftRef.current?.estimateDate ?? "",
-  );
+  const [customerId, setCustomerId] = useState<string | null>(draftRef.current?.customerId ?? null);
+  const [estimateDate, setEstimateDate] = useState(draftRef.current?.estimateDate ?? "");
   const [notes, setNotes] = useState(draftRef.current?.notes ?? "");
   const [status, setStatus] = useState(draftRef.current?.status ?? "draft");
   const [items, setItems] = useState<EstimateItemRecord[]>(
     () => draftRef.current?.items.map((item) => ({ ...item })) ?? [],
   );
   const [savedItems, setSavedItems] = useState<ItemCatalogRecord[]>([]);
-  const [laborHoursText, setLaborHoursText] = useState(
-    draftRef.current?.laborHoursText ?? "0",
-  );
+  const [laborHoursText, setLaborHoursText] = useState(draftRef.current?.laborHoursText ?? "0");
   const [hourlyRateText, setHourlyRateText] = useState(
     draftRef.current?.hourlyRateText ?? settings.hourlyRate.toFixed(2),
   );
-  const [taxRateText, setTaxRateText] = useState(() =>
-    draftRef.current?.taxRateText ?? formatPercentageInput(settings.taxRate),
+  const [taxRateText, setTaxRateText] = useState(
+    () => draftRef.current?.taxRateText ?? formatPercentageInput(settings.taxRate),
   );
   const [photos, setPhotos] = useState<PhotoRecord[]>([]);
-  const [photoDrafts, setPhotoDrafts] = useState<Record<string, string>>(
-    () => ({ ...(draftRef.current?.photoDrafts ?? {}) }),
-  );
+  const [photoDrafts, setPhotoDrafts] = useState<Record<string, string>>(() => ({
+    ...(draftRef.current?.photoDrafts ?? {}),
+  }));
   const [addingPhoto, setAddingPhoto] = useState(false);
   const [photoSavingId, setPhotoSavingId] = useState<string | null>(null);
   const [photoDeletingId, setPhotoDeletingId] = useState<string | null>(null);
@@ -237,12 +219,8 @@ export default function EditEstimateScreen() {
   const [saving, setSaving] = useState(false);
   const [pdfWorking, setPdfWorking] = useState(false);
   const [smsSending, setSmsSending] = useState(false);
-  const [sendSuccessMessage, setSendSuccessMessage] = useState<string | null>(
-    null,
-  );
-  const [customerContact, setCustomerContact] = useState<CustomerRecord | null>(
-    null
-  );
+  const [sendSuccessMessage, setSendSuccessMessage] = useState<string | null>(null);
+  const [customerContact, setCustomerContact] = useState<CustomerRecord | null>(null);
 
   const statusLabel = useMemo(() => {
     const option = STATUS_OPTIONS.find((option) => option.value === status);
@@ -256,14 +234,10 @@ export default function EditEstimateScreen() {
     return "—";
   }, [estimate?.id]);
   const previewCustomerName = useMemo(() => {
-    return (
-      customerContact?.name ?? estimate?.customer_name ?? "Client not assigned"
-    );
+    return customerContact?.name ?? estimate?.customer_name ?? "Client not assigned";
   }, [customerContact?.name, estimate?.customer_name]);
   const previewDate = useMemo(() => {
-    return estimateDate
-      ? new Date(estimateDate).toLocaleDateString()
-      : "Date not set";
+    return estimateDate ? new Date(estimateDate).toLocaleDateString() : "Date not set";
   }, [estimateDate]);
   const previewLineItems = useMemo(() => {
     const count = items.length;
@@ -350,7 +324,7 @@ export default function EditEstimateScreen() {
         laborRate: hourlyRate,
         taxRate,
       }),
-    [hourlyRate, items, laborHours, taxRate]
+    [hourlyRate, items, laborHours, taxRate],
   );
 
   const savedItemTemplates = useMemo<EstimateItemTemplate[]>(
@@ -361,7 +335,7 @@ export default function EditEstimateScreen() {
         unit_price: item.unit_price,
         default_quantity: item.default_quantity,
       })),
-    [savedItems]
+    [savedItems],
   );
 
   useEffect(() => {
@@ -376,11 +350,7 @@ export default function EditEstimateScreen() {
         for (const row of rows) {
           const dbValue = row.description ?? "";
           const existing = current[row.id];
-          if (
-            existing === undefined ||
-            existing === dbValue ||
-            photoSavingId === row.id
-          ) {
+          if (existing === undefined || existing === dbValue || photoSavingId === row.id) {
             next[row.id] = dbValue;
           } else {
             next[row.id] = existing;
@@ -389,7 +359,7 @@ export default function EditEstimateScreen() {
         return next;
       });
     },
-    [photoSavingId]
+    [photoSavingId],
   );
 
   useEffect(() => {
@@ -405,7 +375,7 @@ export default function EditEstimateScreen() {
         const db = await openDB();
         const rows = await db.getAllAsync<CustomerRecord>(
           `SELECT id, name, email, phone, address, notes FROM customers WHERE id = ? LIMIT 1`,
-          [customerId]
+          [customerId],
         );
 
         if (cancelled) {
@@ -446,7 +416,7 @@ export default function EditEstimateScreen() {
        FROM photos
        WHERE estimate_id = ?
        ORDER BY datetime(updated_at) ASC`,
-      [estimateId]
+      [estimateId],
     );
 
     const activePhotos = rows.filter((row) => !row.deleted_at);
@@ -458,9 +428,7 @@ export default function EditEstimateScreen() {
       return null;
     }
 
-    const isoDate = estimateDate
-      ? new Date(estimateDate).toISOString()
-      : estimate.date;
+    const isoDate = estimateDate ? new Date(estimateDate).toISOString() : estimate.date;
 
     const trimmedNotes = notes.trim();
 
@@ -476,12 +444,10 @@ export default function EditEstimateScreen() {
         taxTotal: totals.taxTotal,
         subtotal: totals.subtotal,
         customer: {
-          name:
-            customerContact?.name ?? estimate.customer_name ?? "Customer",
+          name: customerContact?.name ?? estimate.customer_name ?? "Customer",
           email: customerContact?.email ?? estimate.customer_email ?? null,
           phone: customerContact?.phone ?? estimate.customer_phone ?? null,
-          address:
-            customerContact?.address ?? estimate.customer_address ?? null,
+          address: customerContact?.address ?? estimate.customer_address ?? null,
         },
       },
       items: items.map((item) => ({
@@ -494,8 +460,7 @@ export default function EditEstimateScreen() {
       photos: photos.map((photo) => ({
         id: photo.id,
         description: photo.description,
-        localUri:
-          photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri),
+        localUri: photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri),
         remoteUri: photo.uri,
       })),
       termsAndConditions: settings.termsAndConditions,
@@ -569,8 +534,7 @@ export default function EditEstimateScreen() {
 
       const normalizedTotal = Math.round(nextTotals.grandTotal * 100) / 100;
       const compare = (incoming: number | null | undefined, next: number) => {
-        const currentValue =
-          typeof incoming === "number" ? Math.round(incoming * 100) / 100 : 0;
+        const currentValue = typeof incoming === "number" ? Math.round(incoming * 100) / 100 : 0;
         return Math.abs(currentValue - next) >= 0.005;
       };
 
@@ -608,7 +572,7 @@ export default function EditEstimateScreen() {
             nextVersion,
             now,
             current.id,
-          ]
+          ],
         );
 
         const updatedEstimate: EstimateListItem = {
@@ -628,22 +592,15 @@ export default function EditEstimateScreen() {
         estimateRef.current = updatedEstimate;
         setEstimate(updatedEstimate);
 
-        await queueChange(
-          "estimates",
-          "update",
-          sanitizeEstimateForQueue(updatedEstimate)
-        );
+        await queueChange("estimates", "update", sanitizeEstimateForQueue(updatedEstimate));
         return true;
       } catch (error) {
         console.error("Failed to update estimate totals", error);
-        Alert.alert(
-          "Error",
-          "Unable to update the estimate totals. Please try again."
-        );
+        Alert.alert("Error", "Unable to update the estimate totals. Please try again.");
         return false;
       }
     },
-    []
+    [],
   );
 
   const makeItemSubmitHandler = useCallback(
@@ -676,15 +633,13 @@ export default function EditEstimateScreen() {
                   next[existingIndex] = record;
                   return next;
                 }
-                return [...prev, record].sort((a, b) =>
-                  a.description.localeCompare(b.description)
-                );
+                return [...prev, record].sort((a, b) => a.description.localeCompare(b.description));
               });
             } catch (error) {
               console.error("Failed to update item catalog", error);
               Alert.alert(
                 "Saved items",
-                "We couldn't update your saved items library. The estimate item was still updated."
+                "We couldn't update your saved items library. The estimate item was still updated.",
               );
             }
           }
@@ -718,15 +673,13 @@ export default function EditEstimateScreen() {
                 nextVersion,
                 now,
                 updatedItem.id,
-              ]
+              ],
             );
 
             await queueChange("estimate_items", "update", updatedItem);
 
             setItems((prev) => {
-              nextItems = prev.map((item) =>
-                item.id === updatedItem.id ? updatedItem : item
-              );
+              nextItems = prev.map((item) => (item.id === updatedItem.id ? updatedItem : item));
               return nextItems;
             });
           } else {
@@ -757,7 +710,7 @@ export default function EditEstimateScreen() {
                 newItem.version,
                 newItem.updated_at,
                 newItem.deleted_at,
-              ]
+              ],
             );
 
             await queueChange("estimate_items", "insert", newItem);
@@ -781,88 +734,81 @@ export default function EditEstimateScreen() {
           Alert.alert("Error", "Unable to save the item. Please try again.");
         }
       },
-    [hourlyRate, laborHours, persistEstimateTotals, taxRate, userId]
+    [hourlyRate, laborHours, persistEstimateTotals, taxRate, userId],
   );
 
   const handleDeleteItem = useCallback(
     (item: EstimateItemRecord) => {
-      Alert.alert(
-        "Delete Item",
-        "Are you sure you want to delete this item?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: () => {
-              const previousItems = items;
-              const previousTotals = calculateEstimateTotals({
-                materialLineItems: previousItems,
-                laborHours,
-                laborRate: hourlyRate,
-                taxRate,
-              });
-              const nextItems = items.filter((existing) => existing.id !== item.id);
-              const nextTotals = calculateEstimateTotals({
-                materialLineItems: nextItems,
-                laborHours,
-                laborRate: hourlyRate,
-                taxRate,
-              });
+      Alert.alert("Delete Item", "Are you sure you want to delete this item?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            const previousItems = items;
+            const previousTotals = calculateEstimateTotals({
+              materialLineItems: previousItems,
+              laborHours,
+              laborRate: hourlyRate,
+              taxRate,
+            });
+            const nextItems = items.filter((existing) => existing.id !== item.id);
+            const nextTotals = calculateEstimateTotals({
+              materialLineItems: nextItems,
+              laborHours,
+              laborRate: hourlyRate,
+              taxRate,
+            });
 
-              setItems(nextItems);
+            setItems(nextItems);
 
-              (async () => {
-                const db = await openDB();
-                const now = new Date().toISOString();
-                const nextVersion = (item.version ?? 1) + 1;
+            (async () => {
+              const db = await openDB();
+              const now = new Date().toISOString();
+              const nextVersion = (item.version ?? 1) + 1;
 
-                try {
-                  await db.runAsync(
-                    `UPDATE estimate_items
+              try {
+                await db.runAsync(
+                  `UPDATE estimate_items
                      SET deleted_at = ?, updated_at = ?, version = ?
                      WHERE id = ?`,
-                    [now, now, nextVersion, item.id]
-                  );
+                  [now, now, nextVersion, item.id],
+                );
 
-                  const deletedItem: EstimateItemRecord = {
-                    ...item,
-                    deleted_at: now,
-                    updated_at: now,
-                    version: nextVersion,
-                  };
+                const deletedItem: EstimateItemRecord = {
+                  ...item,
+                  deleted_at: now,
+                  updated_at: now,
+                  version: nextVersion,
+                };
 
-                  await queueChange("estimate_items", "update", deletedItem);
-                  await persistEstimateTotals(nextTotals);
-                  void runSync().catch((error) => {
-                    console.error("Failed to sync item deletion", error);
-                  });
-                } catch (error) {
-                  console.error("Failed to delete estimate item", error);
-                  Alert.alert(
-                    "Error",
-                    "Unable to delete the item. Please try again."
-                  );
-                  setItems(previousItems);
-                  try {
-                    await persistEstimateTotals(previousTotals);
-                    await db.runAsync(
-                      `UPDATE estimate_items
+                await queueChange("estimate_items", "update", deletedItem);
+                await persistEstimateTotals(nextTotals);
+                void runSync().catch((error) => {
+                  console.error("Failed to sync item deletion", error);
+                });
+              } catch (error) {
+                console.error("Failed to delete estimate item", error);
+                Alert.alert("Error", "Unable to delete the item. Please try again.");
+                setItems(previousItems);
+                try {
+                  await persistEstimateTotals(previousTotals);
+                  await db.runAsync(
+                    `UPDATE estimate_items
                        SET deleted_at = NULL, updated_at = ?, version = ?
                        WHERE id = ?`,
-                      [item.updated_at, item.version ?? 1, item.id]
-                    );
-                  } catch (recoveryError) {
-                    console.error("Failed to revert local item deletion", recoveryError);
-                  }
+                    [item.updated_at, item.version ?? 1, item.id],
+                  );
+                } catch (recoveryError) {
+                  console.error("Failed to revert local item deletion", recoveryError);
                 }
-              })();
-            },
+              }
+            })();
           },
-        ]
-      );
+        },
+      ]);
     },
-    [hourlyRate, items, laborHours, persistEstimateTotals, taxRate]
+    [hourlyRate, items, laborHours, persistEstimateTotals, taxRate],
   );
 
   const renderItem = useCallback(
@@ -873,9 +819,7 @@ export default function EditEstimateScreen() {
           <Text style={styles.itemMeta}>
             Qty: {item.quantity} @ {formatCurrency(item.unit_price)}
           </Text>
-          <Text style={styles.itemMeta}>
-            Line Total: {formatCurrency(item.total)}
-          </Text>
+          <Text style={styles.itemMeta}>Line Total: {formatCurrency(item.total)}</Text>
         </View>
         <View style={styles.inlineButtons}>
           <View style={styles.buttonFlex}>
@@ -908,7 +852,7 @@ export default function EditEstimateScreen() {
         </View>
       </View>
     ),
-    [handleDeleteItem, makeItemSubmitHandler, openItemEditorScreen, savedItemTemplates]
+    [handleDeleteItem, makeItemSubmitHandler, openItemEditorScreen, savedItemTemplates],
   );
 
   const handlePhotoDraftChange = useCallback((photoId: string, value: string) => {
@@ -929,7 +873,7 @@ export default function EditEstimateScreen() {
       if (permission.status !== "granted") {
         Alert.alert(
           "Permission required",
-          "Photo library access is required to attach photos to this estimate."
+          "Photo library access is required to attach photos to this estimate.",
         );
         return;
       }
@@ -977,7 +921,7 @@ export default function EditEstimateScreen() {
           newPhoto.version,
           newPhoto.updated_at,
           newPhoto.deleted_at,
-        ]
+        ],
       );
 
       await queueChange("photos", "insert", toPhotoPayload(newPhoto));
@@ -1011,7 +955,7 @@ export default function EditEstimateScreen() {
           `UPDATE photos
            SET description = ?, version = ?, updated_at = ?, deleted_at = NULL
            WHERE id = ?`,
-          [normalized, nextVersion, now, photo.id]
+          [normalized, nextVersion, now, photo.id],
         );
 
         const updated: PhotoRecord = {
@@ -1028,83 +972,71 @@ export default function EditEstimateScreen() {
         await refreshPhotosFromDb();
       } catch (error) {
         console.error("Failed to update photo description", error);
-        Alert.alert(
-          "Error",
-          "Unable to update the photo description. Please try again."
-        );
+        Alert.alert("Error", "Unable to update the photo description. Please try again.");
       } finally {
         setPhotoSavingId(null);
       }
     },
-    [photoDrafts, refreshPhotosFromDb]
+    [photoDrafts, refreshPhotosFromDb],
   );
 
   const handleDeletePhoto = useCallback(
     (photo: PhotoRecord) => {
-      Alert.alert(
-        "Remove Photo",
-        "Are you sure you want to remove this photo?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Remove",
-            style: "destructive",
-            onPress: () => {
-              setPhotoDeletingId(photo.id);
-              const previousPhotos = photos;
-              const nextPhotos = photos.filter((existing) => existing.id !== photo.id);
-              applyPhotoState(nextPhotos);
+      Alert.alert("Remove Photo", "Are you sure you want to remove this photo?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            setPhotoDeletingId(photo.id);
+            const previousPhotos = photos;
+            const nextPhotos = photos.filter((existing) => existing.id !== photo.id);
+            applyPhotoState(nextPhotos);
 
-              (async () => {
-                const db = await openDB();
-                const now = new Date().toISOString();
-                const nextVersion = (photo.version ?? 1) + 1;
+            (async () => {
+              const db = await openDB();
+              const now = new Date().toISOString();
+              const nextVersion = (photo.version ?? 1) + 1;
 
+              try {
+                await db.runAsync(
+                  `UPDATE photos
+                     SET deleted_at = ?, updated_at = ?, version = ?, local_uri = NULL
+                     WHERE id = ?`,
+                  [now, now, nextVersion, photo.id],
+                );
+
+                await deleteLocalPhoto(photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri));
+
+                await queueChange("photos", "delete", { id: photo.id });
+
+                void runSync().catch((error) => {
+                  console.error("Failed to sync photo deletion", error);
+                });
+                await refreshPhotosFromDb();
+              } catch (error) {
+                console.error("Failed to delete photo", error);
+                Alert.alert("Error", "Unable to delete the photo. Please try again.");
+                applyPhotoState(previousPhotos);
                 try {
                   await db.runAsync(
                     `UPDATE photos
-                     SET deleted_at = ?, updated_at = ?, version = ?, local_uri = NULL
-                     WHERE id = ?`,
-                    [now, now, nextVersion, photo.id]
-                  );
-
-                  await deleteLocalPhoto(
-                    photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri)
-                  );
-
-                  await queueChange("photos", "delete", { id: photo.id });
-
-                  void runSync().catch((error) => {
-                    console.error("Failed to sync photo deletion", error);
-                  });
-                  await refreshPhotosFromDb();
-                } catch (error) {
-                  console.error("Failed to delete photo", error);
-                  Alert.alert(
-                    "Error",
-                    "Unable to delete the photo. Please try again."
-                  );
-                  applyPhotoState(previousPhotos);
-                  try {
-                    await db.runAsync(
-                      `UPDATE photos
                        SET deleted_at = NULL, updated_at = ?, version = ?
                        WHERE id = ?`,
-                      [photo.updated_at, photo.version ?? 1, photo.id]
-                    );
-                  } catch (recoveryError) {
-                    console.error("Failed to revert local photo deletion", recoveryError);
-                  }
-                } finally {
-                  setPhotoDeletingId(null);
+                    [photo.updated_at, photo.version ?? 1, photo.id],
+                  );
+                } catch (recoveryError) {
+                  console.error("Failed to revert local photo deletion", recoveryError);
                 }
-              })();
-            },
+              } finally {
+                setPhotoDeletingId(null);
+              }
+            })();
           },
-        ]
-      );
+        },
+      ]);
     },
-    [applyPhotoState, photos, refreshPhotosFromDb]
+    [applyPhotoState, photos, refreshPhotosFromDb],
   );
 
   const handleRetryPhotoSync = useCallback(async () => {
@@ -1136,11 +1068,7 @@ export default function EditEstimateScreen() {
         releasePdfRef.current = null;
       }
       const result = await renderEstimatePdf(pdfOptions);
-      if (
-        Platform.OS === "web" &&
-        typeof URL !== "undefined" &&
-        result.uri.startsWith("blob:")
-      ) {
+      if (Platform.OS === "web" && typeof URL !== "undefined" && result.uri.startsWith("blob:")) {
         releasePdfRef.current = () => {
           try {
             URL.revokeObjectURL(result.uri);
@@ -1168,18 +1096,12 @@ export default function EditEstimateScreen() {
 
       if (Platform.OS === "web") {
         if (typeof window === "undefined") {
-          Alert.alert(
-            "Unavailable",
-            "Preview is not supported in this environment."
-          );
+          Alert.alert("Unavailable", "Preview is not supported in this environment.");
           return;
         }
         const previewWindow = window.open("", "_blank");
         if (!previewWindow) {
-          Alert.alert(
-            "Popup blocked",
-            "Allow popups to preview the estimate."
-          );
+          Alert.alert("Popup blocked", "Allow popups to preview the estimate.");
           return;
         }
         previewWindow.document.write(pdf.html);
@@ -1219,7 +1141,7 @@ export default function EditEstimateScreen() {
           `UPDATE estimates
            SET status = ?, version = ?, updated_at = ?
            WHERE id = ?`,
-          ["sent", nextVersion, now, current.id]
+          ["sent", nextVersion, now, current.id],
         );
 
         const updated: EstimateListItem = {
@@ -1238,21 +1160,17 @@ export default function EditEstimateScreen() {
             : "Estimate sent to your client via text message.",
         );
 
-        await queueChange(
-          "estimates",
-          "update",
-          sanitizeEstimateForQueue(updated)
-        );
+        await queueChange("estimates", "update", sanitizeEstimateForQueue(updated));
         await runSync();
       } catch (error) {
         console.error("Failed to update estimate status", error);
         Alert.alert(
           "Status",
-          `Your estimate was ${channel === "email" ? "emailed" : "texted"}, but we couldn't update the status automatically. Please review it manually.`
+          `Your estimate was ${channel === "email" ? "emailed" : "texted"}, but we couldn't update the status automatically. Please review it manually.`,
         );
       }
     },
-    [setEstimate, setSendSuccessMessage, setStatus, status]
+    [setEstimate, setSendSuccessMessage, setStatus, status],
   );
 
   const handleShareEmail = useCallback(async () => {
@@ -1263,7 +1181,7 @@ export default function EditEstimateScreen() {
     if (!customerContact?.email) {
       Alert.alert(
         "Missing email",
-        "Add an email address for this customer to share the estimate via email."
+        "Add an email address for this customer to share the estimate via email.",
       );
       return;
     }
@@ -1276,9 +1194,7 @@ export default function EditEstimateScreen() {
         return;
       }
       const emailAddress = customerContact.email;
-      const subject = encodeURIComponent(
-        `Estimate ${estimate.id} from QuickQuote`
-      );
+      const subject = encodeURIComponent(`Estimate ${estimate.id} from QuickQuote`);
       const bodyLines = [
         `Hi ${customerContact.name || "there"},`,
         "",
@@ -1290,19 +1206,14 @@ export default function EditEstimateScreen() {
       ];
       const bodyPlain = bodyLines.join("\n");
       const body = encodeURIComponent(bodyPlain);
-      const mailto = `mailto:${encodeURIComponent(
-        emailAddress
-      )}?subject=${subject}&body=${body}`;
+      const mailto = `mailto:${encodeURIComponent(emailAddress)}?subject=${subject}&body=${body}`;
 
       let canOpen = true;
       if (Platform.OS !== "web") {
         canOpen = await Linking.canOpenURL(mailto);
       }
       if (!canOpen) {
-        Alert.alert(
-          "Unavailable",
-          "No email client is configured on this device."
-        );
+        Alert.alert("Unavailable", "No email client is configured on this device.");
         return;
       }
 
@@ -1321,10 +1232,7 @@ export default function EditEstimateScreen() {
         estimateId: estimate.id,
         channel: "email",
         recipient: emailAddress,
-        messagePreview:
-          bodyPlain.length > 240
-            ? `${bodyPlain.slice(0, 237)}...`
-            : bodyPlain,
+        messagePreview: bodyPlain.length > 240 ? `${bodyPlain.slice(0, 237)}...` : bodyPlain,
         metadata: { pdfUri: pdf.uri, mailto },
       });
       await markEstimateSent("email");
@@ -1351,7 +1259,7 @@ export default function EditEstimateScreen() {
     if (!customerContact?.phone) {
       Alert.alert(
         "Missing phone",
-        "Add a mobile number for this customer to share the estimate via SMS."
+        "Add a mobile number for this customer to share the estimate via SMS.",
       );
       return;
     }
@@ -1369,7 +1277,7 @@ export default function EditEstimateScreen() {
         return;
       }
       const message = `Estimate ${estimate.id} total ${formatCurrency(
-        totals.grandTotal
+        totals.grandTotal,
       )}. PDF: ${pdf.uri}`;
 
       let smsResponse;
@@ -1387,7 +1295,7 @@ export default function EditEstimateScreen() {
                   },
                 ],
               }
-            : undefined
+            : undefined,
         );
       } catch (error) {
         console.warn("Failed to send SMS with attachment", error);
@@ -1398,8 +1306,7 @@ export default function EditEstimateScreen() {
         estimateId: estimate.id,
         channel: "sms",
         recipient: customerContact.phone,
-        messagePreview:
-          message.length > 240 ? `${message.slice(0, 237)}...` : message,
+        messagePreview: message.length > 240 ? `${message.slice(0, 237)}...` : message,
         metadata: {
           pdfUri: pdf.uri,
           smsResult: smsResponse?.result ?? null,
@@ -1473,7 +1380,7 @@ export default function EditEstimateScreen() {
            LEFT JOIN customers c ON c.id = e.customer_id
            WHERE e.id = ?
            LIMIT 1`,
-          [estimateId]
+          [estimateId],
         );
 
         const record = rows[0];
@@ -1493,9 +1400,7 @@ export default function EditEstimateScreen() {
         const draft = draftRef.current;
         if (!draft) {
           setCustomerId(record.customer_id);
-          setEstimateDate(
-            record.date ? new Date(record.date).toISOString().split("T")[0] : ""
-          );
+          setEstimateDate(record.date ? new Date(record.date).toISOString().split("T")[0] : "");
           setNotes(record.notes ?? "");
           setStatus(record.status ?? "draft");
         }
@@ -1513,9 +1418,7 @@ export default function EditEstimateScreen() {
             : Math.max(0, Math.round(settings.taxRate * 100) / 100);
         if (!draft) {
           setLaborHoursText(
-            laborHoursValue % 1 === 0
-              ? laborHoursValue.toFixed(0)
-              : laborHoursValue.toString()
+            laborHoursValue % 1 === 0 ? laborHoursValue.toFixed(0) : laborHoursValue.toString(),
           );
           setHourlyRateText(laborRateValue.toFixed(2));
           setTaxRateText(formatPercentageInput(taxRateValue));
@@ -1534,7 +1437,7 @@ export default function EditEstimateScreen() {
            FROM estimate_items
            WHERE estimate_id = ? AND (deleted_at IS NULL OR deleted_at = '')
            ORDER BY datetime(updated_at) ASC`,
-          [estimateId]
+          [estimateId],
         );
 
         const activeItems = itemRows.filter((item) => !item.deleted_at);
@@ -1548,7 +1451,7 @@ export default function EditEstimateScreen() {
            FROM photos
            WHERE estimate_id = ?
            ORDER BY datetime(updated_at) ASC`,
-          [estimateId]
+          [estimateId],
         );
 
         const activePhotos = photoRows.filter((photo) => !photo.deleted_at);
@@ -1653,7 +1556,7 @@ export default function EditEstimateScreen() {
           nextVersion,
           now,
           estimate.id,
-        ]
+        ],
       );
 
       let customerName = estimate.customer_name;
@@ -1666,10 +1569,9 @@ export default function EditEstimateScreen() {
           email: string | null;
           phone: string | null;
           address: string | null;
-        }>(
-          `SELECT name, email, phone, address, notes FROM customers WHERE id = ? LIMIT 1`,
-          [customerId]
-        );
+        }>(`SELECT name, email, phone, address, notes FROM customers WHERE id = ? LIMIT 1`, [
+          customerId,
+        ]);
         const customerRecord = customerRows[0];
         customerName = customerRecord?.name ?? customerName ?? null;
         customerEmail = customerRecord?.email ?? null;
@@ -1700,11 +1602,7 @@ export default function EditEstimateScreen() {
         deleted_at: null,
       };
 
-      await queueChange(
-        "estimates",
-        "update",
-        sanitizeEstimateForQueue(updatedEstimate)
-      );
+      await queueChange("estimates", "update", sanitizeEstimateForQueue(updatedEstimate));
       await runSync();
 
       estimateRef.current = updatedEstimate;
@@ -1833,328 +1731,305 @@ export default function EditEstimateScreen() {
           <Text style={styles.sectionSubtitle}>
             Update pricing, attach photos, and send a polished quote in seconds.
           </Text>
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Customer</Text>
-          <CustomerPicker
-            selectedCustomer={customerId}
-            onSelect={(id) => setCustomerId(id)}
-          />
-        </View>
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Date</Text>
-          <TextInput
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={palette.mutedText}
-            value={estimateDate}
-            onChangeText={setEstimateDate}
-            style={styles.input}
-          />
-        </View>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Photos</Text>
-        <Text style={styles.sectionSubtitle}>
-          Give your crew context with job site reference shots.
-        </Text>
-        {photos.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No photos attached yet.</Text>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Customer</Text>
+            <CustomerPicker selectedCustomer={customerId} onSelect={(id) => setCustomerId(id)} />
           </View>
-        ) : (
-          photos.map((photo) => {
-            const draft = photoDrafts[photo.id] ?? "";
-            const isSaving = photoSavingId === photo.id;
-            const isDeleting = photoDeletingId === photo.id;
-
-            return (
-              <View key={photo.id} style={styles.photoCard}>
-                {photo.local_uri ? (
-                  <Image
-                    source={{ uri: photo.local_uri }}
-                    style={styles.photoImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.photoPlaceholder}>
-                    <Text style={styles.photoPlaceholderText}>
-                      Photo unavailable offline. Use sync to restore the local
-                      copy.
-                    </Text>
-                  </View>
-                )}
-                <TextInput
-                  placeholder="Add a description"
-                  placeholderTextColor={palette.mutedText}
-                  value={draft}
-                  onChangeText={(text) => handlePhotoDraftChange(photo.id, text)}
-                  multiline
-                  numberOfLines={3}
-                  style={styles.textArea}
-                />
-                <View style={styles.inlineButtons}>
-                  <View style={styles.buttonFlex}>
-                    <RNButton
-                      title="Save"
-                      color={palette.accent}
-                      onPress={() => handleSavePhotoDescription(photo)}
-                      disabled={isSaving}
-                    />
-                  </View>
-                  <View style={styles.buttonFlex}>
-                    <RNButton
-                      title="Remove"
-                      color={palette.danger}
-                      onPress={() => handleDeletePhoto(photo)}
-                      disabled={isDeleting}
-                    />
-                  </View>
-                </View>
-              </View>
-            );
-          })
-        )}
-        {photos.length > 0 ? (
-          <RNButton
-            title={photoSyncing ? "Syncing photos..." : "Sync photos"}
-            onPress={handleRetryPhotoSync}
-            disabled={photoSyncing}
-            color={palette.accent}
-          />
-        ) : null}
-        <RNButton
-          title={addingPhoto ? "Adding photo..." : "Add Photo"}
-          onPress={handleAddPhoto}
-          disabled={addingPhoto}
-          color={palette.accent}
-        />
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Estimate items</Text>
-        <Text style={styles.sectionSubtitle}>
-          Track the work you&apos;re quoting. Saved items help you move fast.
-        </Text>
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          scrollEnabled={false}
-          ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
-          ListEmptyComponent={
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>No items added yet.</Text>
-            </View>
-          }
-        />
-        <RNButton
-          title="Add line item"
-          color={palette.accent}
-          onPress={() =>
-            openItemEditorScreen({
-              title: "Add line item",
-              submitLabel: "Add line item",
-              templates: () => savedItemTemplates,
-              initialTemplateId: null,
-              onSubmit: makeItemSubmitHandler(null),
-            })
-          }
-        />
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Labor &amp; tax</Text>
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Project hours</Text>
-          <TextInput
-            placeholder="0"
-            placeholderTextColor={palette.mutedText}
-            value={laborHoursText}
-            onChangeText={setLaborHoursText}
-            keyboardType="decimal-pad"
-            style={styles.input}
-          />
-        </View>
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Hourly rate</Text>
-          <View style={styles.inputRow}>
-            <Text style={styles.prefixSymbol}>$</Text>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Date</Text>
             <TextInput
-              placeholder="0.00"
+              placeholder="YYYY-MM-DD"
               placeholderTextColor={palette.mutedText}
-              value={hourlyRateText}
-              onChangeText={setHourlyRateText}
-              keyboardType="decimal-pad"
-              style={[styles.input, styles.inputGrow]}
+              value={estimateDate}
+              onChangeText={setEstimateDate}
+              style={styles.input}
             />
           </View>
-          <Text style={styles.helpText}>
-            Labor total (not shown to customers): {formatCurrency(totals.laborTotal)}
-          </Text>
         </View>
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Tax rate</Text>
-          <View style={styles.inputRow}>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Photos</Text>
+          <Text style={styles.sectionSubtitle}>
+            Give your crew context with job site reference shots.
+          </Text>
+          {photos.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>No photos attached yet.</Text>
+            </View>
+          ) : (
+            photos.map((photo) => {
+              const draft = photoDrafts[photo.id] ?? "";
+              const isSaving = photoSavingId === photo.id;
+              const isDeleting = photoDeletingId === photo.id;
+
+              return (
+                <View key={photo.id} style={styles.photoCard}>
+                  {photo.local_uri ? (
+                    <Image
+                      source={{ uri: photo.local_uri }}
+                      style={styles.photoImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.photoPlaceholder}>
+                      <Text style={styles.photoPlaceholderText}>
+                        Photo unavailable offline. Use sync to restore the local copy.
+                      </Text>
+                    </View>
+                  )}
+                  <TextInput
+                    placeholder="Add a description"
+                    placeholderTextColor={palette.mutedText}
+                    value={draft}
+                    onChangeText={(text) => handlePhotoDraftChange(photo.id, text)}
+                    multiline
+                    numberOfLines={3}
+                    style={styles.textArea}
+                  />
+                  <View style={styles.inlineButtons}>
+                    <View style={styles.buttonFlex}>
+                      <RNButton
+                        title="Save"
+                        color={palette.accent}
+                        onPress={() => handleSavePhotoDescription(photo)}
+                        disabled={isSaving}
+                      />
+                    </View>
+                    <View style={styles.buttonFlex}>
+                      <RNButton
+                        title="Remove"
+                        color={palette.danger}
+                        onPress={() => handleDeletePhoto(photo)}
+                        disabled={isDeleting}
+                      />
+                    </View>
+                  </View>
+                </View>
+              );
+            })
+          )}
+          {photos.length > 0 ? (
+            <RNButton
+              title={photoSyncing ? "Syncing photos..." : "Sync photos"}
+              onPress={handleRetryPhotoSync}
+              disabled={photoSyncing}
+              color={palette.accent}
+            />
+          ) : null}
+          <RNButton
+            title={addingPhoto ? "Adding photo..." : "Add Photo"}
+            onPress={handleAddPhoto}
+            disabled={addingPhoto}
+            color={palette.accent}
+          />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Estimate items</Text>
+          <Text style={styles.sectionSubtitle}>
+            Track the work you&apos;re quoting. Saved items help you move fast.
+          </Text>
+          <FlatList
+            data={items}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            scrollEnabled={false}
+            ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
+            ListEmptyComponent={
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No items added yet.</Text>
+              </View>
+            }
+          />
+          <RNButton
+            title="Add line item"
+            color={palette.accent}
+            onPress={() =>
+              openItemEditorScreen({
+                title: "Add line item",
+                submitLabel: "Add line item",
+                templates: () => savedItemTemplates,
+                initialTemplateId: null,
+                onSubmit: makeItemSubmitHandler(null),
+              })
+            }
+          />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Labor &amp; tax</Text>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Project hours</Text>
             <TextInput
               placeholder="0"
               placeholderTextColor={palette.mutedText}
-              value={taxRateText}
-              onChangeText={setTaxRateText}
+              value={laborHoursText}
+              onChangeText={setLaborHoursText}
               keyboardType="decimal-pad"
-              style={[styles.input, styles.inputGrow]}
+              style={styles.input}
             />
-            <Text style={styles.suffixSymbol}>%</Text>
+          </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Hourly rate</Text>
+            <View style={styles.inputRow}>
+              <Text style={styles.prefixSymbol}>$</Text>
+              <TextInput
+                placeholder="0.00"
+                placeholderTextColor={palette.mutedText}
+                value={hourlyRateText}
+                onChangeText={setHourlyRateText}
+                keyboardType="decimal-pad"
+                style={[styles.input, styles.inputGrow]}
+              />
+            </View>
+            <Text style={styles.helpText}>
+              Labor total (not shown to customers): {formatCurrency(totals.laborTotal)}
+            </Text>
+          </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Tax rate</Text>
+            <View style={styles.inputRow}>
+              <TextInput
+                placeholder="0"
+                placeholderTextColor={palette.mutedText}
+                value={taxRateText}
+                onChangeText={setTaxRateText}
+                keyboardType="decimal-pad"
+                style={[styles.input, styles.inputGrow]}
+              />
+              <Text style={styles.suffixSymbol}>%</Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Estimate summary</Text>
-        <View style={styles.totalsCard}>
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Materials</Text>
-            <Text style={styles.totalsValue}>
-              {formatCurrency(totals.materialTotal)}
-            </Text>
-          </View>
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Labor</Text>
-            <Text style={styles.totalsValue}>
-              {formatCurrency(totals.laborTotal)}
-            </Text>
-          </View>
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Tax</Text>
-            <Text style={styles.totalsValue}>
-              {formatCurrency(totals.taxTotal)}
-            </Text>
-          </View>
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsGrand}>Project total</Text>
-            <Text style={styles.totalsGrand}>
-              {formatCurrency(totals.grandTotal)}
-            </Text>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Estimate summary</Text>
+          <View style={styles.totalsCard}>
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>Materials</Text>
+              <Text style={styles.totalsValue}>{formatCurrency(totals.materialTotal)}</Text>
+            </View>
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>Labor</Text>
+              <Text style={styles.totalsValue}>{formatCurrency(totals.laborTotal)}</Text>
+            </View>
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>Tax</Text>
+              <Text style={styles.totalsValue}>{formatCurrency(totals.taxTotal)}</Text>
+            </View>
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsGrand}>Project total</Text>
+              <Text style={styles.totalsGrand}>{formatCurrency(totals.grandTotal)}</Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Status &amp; notes</Text>
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Status</Text>
-          <View style={styles.pickerShell}>
-            <Picker selectedValue={status} onValueChange={(value) => setStatus(value)}>
-              {STATUS_OPTIONS.map((option) => (
-                <Picker.Item
-                  key={option.value}
-                  label={option.label}
-                  value={option.value}
-                />
-              ))}
-            </Picker>
-          </View>
-        </View>
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Internal notes</Text>
-          <TextInput
-            placeholder="Add private notes for your team"
-            placeholderTextColor={palette.mutedText}
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={4}
-            style={styles.textArea}
-          />
-        </View>
-      </View>
-      <View style={previewStyles.previewSection}>
-        <Text style={previewStyles.previewTitle}>Send to client preview</Text>
-        <Text style={previewStyles.previewSubtitle}>
-          Double-check the essentials before sharing the full PDF with your client.
-        </Text>
-        {sendSuccessMessage ? (
-          <View style={previewStyles.successBanner}>
-            <Text style={previewStyles.successText}>{sendSuccessMessage}</Text>
-          </View>
-        ) : null}
-        <Card style={previewStyles.previewCard}>
-          <View style={previewStyles.previewHeader}>
-            <View style={previewStyles.brandBlock}>
-              <Text style={previewStyles.brandName}>QuickQuote</Text>
-              <Text style={previewStyles.brandTagline}>Estimate summary</Text>
-            </View>
-            <View style={previewStyles.metaBlock}>
-              <Text style={previewStyles.metaLabel}>Estimate #</Text>
-              <Text style={previewStyles.metaValue}>{previewEstimateNumber}</Text>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Status &amp; notes</Text>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Status</Text>
+            <View style={styles.pickerShell}>
+              <Picker selectedValue={status} onValueChange={(value) => setStatus(value)}>
+                {STATUS_OPTIONS.map((option) => (
+                  <Picker.Item key={option.value} label={option.label} value={option.value} />
+                ))}
+              </Picker>
             </View>
           </View>
-          <Badge tone={statusBadgeTone} style={previewStyles.statusBadge}>
-            {statusLabel}
-          </Badge>
-          <View style={previewStyles.summaryDivider} />
-          <View style={previewStyles.summaryGrid}>
-            <View style={previewStyles.summaryRow}>
-              <Text style={previewStyles.summaryLabel}>Client</Text>
-              <Text style={previewStyles.summaryValue}>{previewCustomerName}</Text>
-            </View>
-            <View style={previewStyles.summaryRow}>
-              <Text style={previewStyles.summaryLabel}>Line items</Text>
-              <Text style={previewStyles.summaryValue}>{previewLineItems}</Text>
-            </View>
-            <View style={previewStyles.summaryRow}>
-              <Text style={previewStyles.summaryLabel}>Estimate date</Text>
-              <Text style={previewStyles.summaryValue}>{previewDate}</Text>
-            </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Internal notes</Text>
+            <TextInput
+              placeholder="Add private notes for your team"
+              placeholderTextColor={palette.mutedText}
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              numberOfLines={4}
+              style={styles.textArea}
+            />
           </View>
-          <View style={previewStyles.totalBlock}>
-            <Text style={previewStyles.totalLabel}>Total amount</Text>
-            <Text style={previewStyles.totalValue}>
-              {formatCurrency(totals.grandTotal)}
-            </Text>
+        </View>
+        <View style={previewStyles.previewSection}>
+          <Text style={previewStyles.previewTitle}>Send to client preview</Text>
+          <Text style={previewStyles.previewSubtitle}>
+            Double-check the essentials before sharing the full PDF with your client.
+          </Text>
+          {sendSuccessMessage ? (
+            <View style={previewStyles.successBanner}>
+              <Text style={previewStyles.successText}>{sendSuccessMessage}</Text>
+            </View>
+          ) : null}
+          <Card style={previewStyles.previewCard}>
+            <View style={previewStyles.previewHeader}>
+              <View style={previewStyles.brandBlock}>
+                <Text style={previewStyles.brandName}>QuickQuote</Text>
+                <Text style={previewStyles.brandTagline}>Estimate summary</Text>
+              </View>
+              <View style={previewStyles.metaBlock}>
+                <Text style={previewStyles.metaLabel}>Estimate #</Text>
+                <Text style={previewStyles.metaValue}>{previewEstimateNumber}</Text>
+              </View>
+            </View>
+            <Badge tone={statusBadgeTone} style={previewStyles.statusBadge}>
+              {statusLabel}
+            </Badge>
+            <View style={previewStyles.summaryDivider} />
+            <View style={previewStyles.summaryGrid}>
+              <View style={previewStyles.summaryRow}>
+                <Text style={previewStyles.summaryLabel}>Client</Text>
+                <Text style={previewStyles.summaryValue}>{previewCustomerName}</Text>
+              </View>
+              <View style={previewStyles.summaryRow}>
+                <Text style={previewStyles.summaryLabel}>Line items</Text>
+                <Text style={previewStyles.summaryValue}>{previewLineItems}</Text>
+              </View>
+              <View style={previewStyles.summaryRow}>
+                <Text style={previewStyles.summaryLabel}>Estimate date</Text>
+                <Text style={previewStyles.summaryValue}>{previewDate}</Text>
+              </View>
+            </View>
+            <View style={previewStyles.totalBlock}>
+              <Text style={previewStyles.totalLabel}>Total amount</Text>
+              <Text style={previewStyles.totalValue}>{formatCurrency(totals.grandTotal)}</Text>
+            </View>
+          </Card>
+          <Text style={previewStyles.previewHint}>
+            A polished PDF and this summary will be included when you send the estimate.
+          </Text>
+          <View style={previewStyles.previewActions}>
+            <Button
+              label="Save & Preview PDF"
+              variant="secondary"
+              onPress={handleSaveAndPreview}
+              disabled={pdfWorking || smsSending || saving}
+              loading={pdfWorking}
+            />
+            <Button
+              label="Share via Email"
+              variant="ghost"
+              onPress={handleShareEmail}
+              disabled={pdfWorking || smsSending}
+            />
+            <Button
+              label="Share via SMS"
+              variant="ghost"
+              onPress={handleShareSms}
+              disabled={smsSending || pdfWorking}
+            />
           </View>
-        </Card>
-        <Text style={previewStyles.previewHint}>
-          A polished PDF and this summary will be included when you send the estimate.
-        </Text>
-        <View style={previewStyles.previewActions}>
-          <Button
-            label="Save & Preview PDF"
-            variant="secondary"
-            onPress={handleSaveAndPreview}
-            disabled={pdfWorking || smsSending || saving}
-            loading={pdfWorking}
-          />
-          <Button
-            label="Share via Email"
-            variant="ghost"
-            onPress={handleShareEmail}
-            disabled={pdfWorking || smsSending}
-          />
-          <Button
-            label="Share via SMS"
-            variant="ghost"
-            onPress={handleShareSms}
-            disabled={smsSending || pdfWorking}
-          />
         </View>
-      </View>
-      <View style={styles.footerButtons}>
-        <View style={styles.buttonFlex}>
-          <Button
-            label="Cancel"
-            variant="secondary"
-            onPress={handleCancel}
-            disabled={saving}
-          />
+        <View style={styles.footerButtons}>
+          <View style={styles.buttonFlex}>
+            <Button label="Cancel" variant="secondary" onPress={handleCancel} disabled={saving} />
+          </View>
+          <View style={styles.buttonFlex}>
+            <Button
+              label={saving ? "Saving…" : "Save Draft"}
+              onPress={handleSaveDraft}
+              disabled={saving}
+            />
+          </View>
         </View>
-        <View style={styles.buttonFlex}>
-          <Button
-            label={saving ? "Saving…" : "Save Draft"}
-            onPress={handleSaveDraft}
-            disabled={saving}
-          />
-        </View>
-      </View>
       </ScrollView>
       <View style={previewStyles.bottomBar}>
         <Button

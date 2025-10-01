@@ -1,12 +1,6 @@
 import { Link, router } from "expo-router";
 import { useMemo, useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  View,
-} from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";

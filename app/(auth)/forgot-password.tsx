@@ -30,10 +30,7 @@ export default function ForgotPasswordScreen() {
         throw error;
       }
 
-      Alert.alert(
-        "Email sent",
-        "Check your inbox for a password reset link."
-      );
+      Alert.alert("Email sent", "Check your inbox for a password reset link.");
     } catch (error: any) {
       console.error("Password reset request failed", error);
       Alert.alert("Reset failed", error.message ?? "Please try again.");

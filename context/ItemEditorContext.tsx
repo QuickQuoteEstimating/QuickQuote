@@ -6,10 +6,7 @@ import React, {
   useState,
   type PropsWithChildren,
 } from "react";
-import type {
-  EstimateItemFormSubmit,
-  EstimateItemTemplate,
-} from "../components/EstimateItemForm";
+import type { EstimateItemFormSubmit, EstimateItemTemplate } from "../components/EstimateItemForm";
 
 export type ItemEditorConfig = {
   title: string;
@@ -31,9 +28,7 @@ export type ItemEditorContextValue = {
   closeEditor: () => void;
 };
 
-const ItemEditorContext = createContext<ItemEditorContextValue | undefined>(
-  undefined,
-);
+const ItemEditorContext = createContext<ItemEditorContextValue | undefined>(undefined);
 
 export function ItemEditorProvider({ children }: PropsWithChildren) {
   const [config, setConfig] = useState<ItemEditorConfig | null>(null);
@@ -51,11 +46,7 @@ export function ItemEditorProvider({ children }: PropsWithChildren) {
     [closeEditor, config, openEditor],
   );
 
-  return (
-    <ItemEditorContext.Provider value={value}>
-      {children}
-    </ItemEditorContext.Provider>
-  );
+  return <ItemEditorContext.Provider value={value}>{children}</ItemEditorContext.Provider>;
 }
 
 export function useItemEditor(): ItemEditorContextValue {

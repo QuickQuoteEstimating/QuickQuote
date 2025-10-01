@@ -1,12 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigation, useRouter } from "expo-router";
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import EstimateItemForm from "../../../components/EstimateItemForm";
 import { useItemEditor } from "../../../context/ItemEditorContext";
 import { Card } from "../../../components/ui";
@@ -110,10 +104,7 @@ export default function EstimateItemEditorScreen() {
     );
   }
 
-  const templates =
-    typeof config.templates === "function"
-      ? config.templates()
-      : config.templates;
+  const templates = typeof config.templates === "function" ? config.templates() : config.templates;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>

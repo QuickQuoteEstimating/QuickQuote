@@ -1,10 +1,9 @@
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { supabase } from "./supabase";
 import { openDB } from "./sqlite";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
-const PHOTO_BUCKET =
-  process.env.EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "estimate-photos";
+const PHOTO_BUCKET = process.env.EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "estimate-photos";
 const PHOTO_DIRECTORY = FileSystem.documentDirectory
   ? `${FileSystem.documentDirectory}photos`
   : null;
@@ -80,7 +79,7 @@ async function getAccessToken(): Promise<string | null> {
 export function createPhotoStoragePath(
   estimateId: string,
   photoId: string,
-  sourceUri?: string
+  sourceUri?: string,
 ): string {
   const extension = getExtension(sourceUri ?? "");
   return `${estimateId}/${photoId}.${extension}`;
@@ -98,7 +97,7 @@ export function deriveLocalPhotoUri(photoId: string, remoteUri: string): string 
 export async function persistLocalPhotoCopy(
   photoId: string,
   remoteUri: string,
-  sourceUri: string
+  sourceUri: string,
 ): Promise<string> {
   const ensured = await ensureDirectoryExists();
   const localUri = deriveLocalPhotoUri(photoId, remoteUri);
@@ -112,9 +111,7 @@ export async function persistLocalPhotoCopy(
   return localUri;
 }
 
-export async function deleteLocalPhoto(
-  localUri?: string | null
-): Promise<void> {
+export async function deleteLocalPhoto(localUri?: string | null): Promise<void> {
   if (localUri) {
     await FileSystem.deleteAsync(localUri, { idempotent: true });
   }
@@ -123,7 +120,7 @@ export async function deleteLocalPhoto(
 export async function uploadPhotoBinary(
   localUri: string,
   remoteUri: string,
-  accessToken?: string | null
+  accessToken?: string | null,
 ): Promise<void> {
   const token = accessToken ?? (await getAccessToken());
   if (!token) {
@@ -148,16 +145,14 @@ export async function uploadPhotoBinary(
   });
 
   if (result.status >= 400) {
-    throw new Error(
-      `Failed to upload photo ${remoteUri}: ${result.status} ${result.body}`
-    );
+    throw new Error(`Failed to upload photo ${remoteUri}: ${result.status} ${result.body}`);
   }
 }
 
 export async function downloadPhotoBinary(
   remoteUri: string,
   localUri: string,
-  accessToken?: string | null
+  accessToken?: string | null,
 ): Promise<boolean> {
   const token = accessToken ?? (await getAccessToken());
   if (!token) {
@@ -216,7 +211,7 @@ export async function syncPhotoBinaries(): Promise<void> {
   try {
     const db = await openDB();
     const rows = await db.getAllAsync<PhotoRow>(
-      `SELECT id, estimate_id, uri, local_uri, description, version, updated_at, deleted_at FROM photos`
+      `SELECT id, estimate_id, uri, local_uri, description, version, updated_at, deleted_at FROM photos`,
     );
 
     if (!rows.length) {
@@ -244,9 +239,7 @@ export async function syncPhotoBinaries(): Promise<void> {
       if (row.deleted_at) {
         await deleteLocalPhoto(row.local_uri ?? expectedLocalUri);
         if (row.local_uri) {
-          await db.runAsync(`UPDATE photos SET local_uri = NULL WHERE id = ?`, [
-            row.id,
-          ]);
+          await db.runAsync(`UPDATE photos SET local_uri = NULL WHERE id = ?`, [row.id]);
         }
 
         if (isOnline) {
@@ -263,25 +256,15 @@ export async function syncPhotoBinaries(): Promise<void> {
       const localUri = row.local_uri ?? expectedLocalUri;
 
       if (row.local_uri !== localUri) {
-        await db.runAsync(`UPDATE photos SET local_uri = ? WHERE id = ?`, [
-          localUri,
-          row.id,
-        ]);
+        await db.runAsync(`UPDATE photos SET local_uri = ? WHERE id = ?`, [localUri, row.id]);
       }
 
       const info = await FileSystem.getInfoAsync(localUri);
       if (!info.exists && isOnline) {
         try {
-          const downloaded = await downloadPhotoBinary(
-            remoteUri,
-            localUri,
-            accessToken
-          );
+          const downloaded = await downloadPhotoBinary(remoteUri, localUri, accessToken);
           if (downloaded) {
-            await db.runAsync(`UPDATE photos SET local_uri = ? WHERE id = ?`, [
-              localUri,
-              row.id,
-            ]);
+            await db.runAsync(`UPDATE photos SET local_uri = ? WHERE id = ?`, [localUri, row.id]);
           }
         } catch (error) {
           console.warn(`Failed to download photo ${row.id}`, error);
