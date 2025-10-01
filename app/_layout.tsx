@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from "../context/AuthContext";
 import { SettingsProvider } from "../context/SettingsContext";
 import { initLocalDB } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
+import { ThemeProvider } from "../theme";
 
 function RootNavigator() {
   const { isLoading, needsBootstrapRetry, retryBootstrap } = useAuth();
@@ -107,13 +108,15 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <SettingsProvider>
-        <AuthProvider>
-          <RootNavigator />
-        </AuthProvider>
-      </SettingsProvider>
-    </SafeAreaProvider>
+    <ThemeProvider>
+      <SafeAreaProvider>
+        <SettingsProvider>
+          <AuthProvider>
+            <RootNavigator />
+          </AuthProvider>
+        </SettingsProvider>
+      </SafeAreaProvider>
+    </ThemeProvider>
   );
 }
 
