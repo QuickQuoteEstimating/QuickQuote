@@ -10,6 +10,14 @@ jest.mock("expo-router", () => {
   };
 });
 
+jest.mock("../lib/theme", () => {
+  const actual = jest.requireActual("../lib/theme");
+  return {
+    ...actual,
+    useTheme: () => actual.lightTheme,
+  };
+});
+
 import Home from "../app/(tabs)/home";
 
 describe("Home screen", () => {

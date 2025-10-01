@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { openDB } from "../../lib/sqlite";
 import { BrandLogo } from "../../components/BrandLogo";
-import { palette } from "../../lib/theme";
+import { useTheme, type Theme } from "../../lib/theme";
 
 type DashboardMetrics = {
   jobsSold: number;
@@ -38,187 +38,183 @@ type SummaryRow = {
   pipeline_total: number | null;
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: palette.background,
-  },
-  content: {
-    paddingHorizontal: 24,
-    paddingBottom: 32,
-    gap: 24,
-    backgroundColor: palette.background,
-  },
-  heroCard: {
-
-    backgroundColor: palette.surface,
-
-    borderRadius: 28,
-    padding: 24,
-    shadowColor: "rgba(30, 58, 138, 0.45)",
-    shadowOpacity: 0.35,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
-  },
-  heroCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 20,
-    marginBottom: 20,
-  },
-  heroHeaderText: {
-    flex: 1,
-  },
-  heroTitle: {
-    color: "#FFFFFF",
-    fontSize: 28,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  heroSubtitle: {
-    color: "rgba(248, 250, 252, 0.82)",
-    marginTop: 8,
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  heroStatRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    marginTop: 28,
-  },
-  heroStatLabel: {
-    color: "rgba(226, 232, 240, 0.88)",
-    fontSize: 13,
-    textTransform: "uppercase",
-    fontWeight: "600",
-    letterSpacing: 1,
-  },
-  heroStatValue: {
-    color: "#FFFFFF",
-    fontSize: 40,
-    fontWeight: "700",
-  },
-  heroBadges: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 22,
-  },
-  heroBadge: {
-
-    backgroundColor: palette.accentMuted,
-
-    backgroundColor: "rgba(15, 23, 42, 0.22)",
-
-    borderRadius: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  heroBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: palette.surface,
-    letterSpacing: 0.2,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
-  },
-  metricCard: {
-    flexGrow: 1,
-    minWidth: "48%",
-    backgroundColor: palette.surface,
-    borderRadius: 22,
-    padding: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    shadowColor: "rgba(15, 23, 42, 0.35)",
-    shadowOpacity: 0.28,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 18 },
-    elevation: 6,
-  },
-  metricLabel: {
-    fontSize: 12,
-    color: palette.secondaryText,
-    textTransform: "uppercase",
-    fontWeight: "600",
-    letterSpacing: 0.8,
-  },
-  metricValue: {
-    marginTop: 12,
-    fontSize: 24,
-    fontWeight: "700",
-    color: palette.primaryText,
-  },
-  metricHint: {
-    marginTop: 6,
-    fontSize: 14,
-    color: palette.mutedText,
-    lineHeight: 20,
-  },
-  listCard: {
-    backgroundColor: palette.surface,
-    borderRadius: 22,
-    padding: 20,
-    gap: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    shadowColor: "rgba(15, 23, 42, 0.35)",
-    shadowOpacity: 0.28,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 18 },
-    elevation: 6,
-  },
-  listItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  listItemLeft: {
-    gap: 4,
-  },
-  listItemName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  listItemMeta: {
-    fontSize: 13,
-    color: palette.secondaryText,
-  },
-  listItemValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  topJobCard: {
-    backgroundColor: palette.surface,
-    borderRadius: 22,
-    padding: 20,
-    gap: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    shadowColor: "rgba(15, 23, 42, 0.35)",
-    shadowOpacity: 0.28,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 18 },
-    elevation: 6,
-  },
-  muted: {
-    color: palette.mutedText,
-    fontSize: 13,
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    content: {
+      paddingHorizontal: 24,
+      paddingBottom: 32,
+      gap: 24,
+      backgroundColor: theme.background,
+    },
+    heroCard: {
+      backgroundColor: theme.accent,
+      borderRadius: 28,
+      padding: 24,
+      shadowColor: "rgba(30, 58, 138, 0.45)",
+      shadowOpacity: 0.35,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 6,
+    },
+    heroCardHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 20,
+      marginBottom: 20,
+    },
+    heroHeaderText: {
+      flex: 1,
+    },
+    heroTitle: {
+      color: theme.surface,
+      fontSize: 28,
+      fontWeight: "700",
+      letterSpacing: 0.2,
+    },
+    heroSubtitle: {
+      color: "rgba(248, 250, 252, 0.82)",
+      marginTop: 8,
+      fontSize: 16,
+      lineHeight: 24,
+    },
+    heroStatRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-end",
+      marginTop: 28,
+    },
+    heroStatLabel: {
+      color: "rgba(226, 232, 240, 0.88)",
+      fontSize: 13,
+      textTransform: "uppercase",
+      fontWeight: "600",
+      letterSpacing: 1,
+    },
+    heroStatValue: {
+      color: theme.surface,
+      fontSize: 40,
+      fontWeight: "700",
+    },
+    heroBadges: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 12,
+      marginTop: 22,
+    },
+    heroBadge: {
+      backgroundColor: "rgba(15, 23, 42, 0.22)",
+      borderRadius: 16,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+    },
+    heroBadgeText: {
+      color: theme.surface,
+      fontSize: 14,
+      fontWeight: "500",
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: theme.primaryText,
+      letterSpacing: 0.2,
+    },
+    grid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 16,
+    },
+    metricCard: {
+      flexGrow: 1,
+      minWidth: "48%",
+      backgroundColor: theme.surface,
+      borderRadius: 22,
+      padding: 20,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+      shadowColor: "rgba(15, 23, 42, 0.35)",
+      shadowOpacity: 0.28,
+      shadowRadius: 22,
+      shadowOffset: { width: 0, height: 18 },
+      elevation: 6,
+    },
+    metricLabel: {
+      fontSize: 12,
+      color: theme.secondaryText,
+      textTransform: "uppercase",
+      fontWeight: "600",
+      letterSpacing: 0.8,
+    },
+    metricValue: {
+      marginTop: 12,
+      fontSize: 24,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    metricHint: {
+      marginTop: 6,
+      fontSize: 14,
+      color: theme.mutedText,
+      lineHeight: 20,
+    },
+    listCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 22,
+      padding: 20,
+      gap: 18,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+      shadowColor: "rgba(15, 23, 42, 0.35)",
+      shadowOpacity: 0.28,
+      shadowRadius: 22,
+      shadowOffset: { width: 0, height: 18 },
+      elevation: 6,
+    },
+    listItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    listItemLeft: {
+      gap: 4,
+    },
+    listItemName: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.primaryText,
+    },
+    listItemMeta: {
+      fontSize: 13,
+      color: theme.secondaryText,
+    },
+    listItemValue: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.primaryText,
+    },
+    topJobCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 22,
+      padding: 20,
+      gap: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+      shadowColor: "rgba(15, 23, 42, 0.35)",
+      shadowOpacity: 0.28,
+      shadowRadius: 22,
+      shadowOffset: { width: 0, height: 18 },
+      elevation: 6,
+    },
+    muted: {
+      color: theme.mutedText,
+      fontSize: 13,
+    },
+  });
+}
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -256,6 +252,8 @@ function formatStatus(value: string) {
 
 export default function Home() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -429,7 +427,7 @@ export default function Home() {
             setRefreshing(true);
             refreshMetrics();
           }}
-          tintColor={palette.accent}
+          tintColor={theme.accent}
         />
       }
     >
@@ -447,7 +445,7 @@ export default function Home() {
             <Text style={styles.heroStatValue}>{heroStatValue}</Text>
           </View>
           {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={theme.surface} />
           ) : (
             <View>
               <Text style={styles.heroStatLabel}>Close rate</Text>

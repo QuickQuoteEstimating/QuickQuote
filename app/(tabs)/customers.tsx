@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -179,6 +179,7 @@ export default function Customers() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<CustomerRecord | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const previousCustomersRef = useRef<CustomerRecord[] | null>(null);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -299,6 +300,17 @@ export default function Customers() {
             style: "destructive",
             onPress: () => {
               (async () => {
+                previousCustomersRef.current = customers;
+                setCustomers((current) =>
+                  current.filter((existing) => existing.id !== customer.id),
+                );
+                setEditingCustomer((current) =>
+                  current?.id === customer.id ? null : current,
+                );
+                setSelectedCustomerId((current) =>
+                  current === customer.id ? null : current,
+                );
+
                 try {
                   const db = await openDB();
                   const deletedAt = new Date().toISOString();
@@ -323,13 +335,6 @@ export default function Customers() {
                     console.error("Failed to sync customer deletion", error);
                   });
 
-                  setEditingCustomer((current) =>
-                    current?.id === customer.id ? null : current,
-                  );
-                  setSelectedCustomerId((current) =>
-                    current === customer.id ? null : current,
-                  );
-
                   await reloadCustomers();
                 } catch (error) {
                   console.error("Failed to delete customer", error);
@@ -337,7 +342,12 @@ export default function Customers() {
                     "Error",
                     "Unable to delete customer. Please try again.",
                   );
+                  if (previousCustomersRef.current) {
+                    setCustomers(previousCustomersRef.current);
+                  }
                   await reloadCustomers();
+                } finally {
+                  previousCustomersRef.current = null;
                 }
               })();
             },
@@ -345,8 +355,26 @@ export default function Customers() {
         ],
       );
     },
-    [reloadCustomers],
+    [customers, reloadCustomers],
   );
+
+  useEffect(() => {
+    if (search.trim().length === 0) {
+      return;
+    }
+
+    if (filteredCustomers.length === 0) {
+      setSelectedCustomerId(null);
+      return;
+    }
+
+    setSelectedCustomerId((current) => {
+      if (current && filteredCustomers.some((customer) => customer.id === current)) {
+        return current;
+      }
+      return filteredCustomers[0]?.id ?? null;
+    });
+  }, [filteredCustomers, search]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
