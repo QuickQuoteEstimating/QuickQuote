@@ -53,7 +53,9 @@ interface SettingsContextValue {
   setHapticIntensity: (value: HapticIntensity) => void;
   setNotificationsEnabled: (value: boolean) => void;
   setAutoSyncEnabled: (value: boolean) => void;
-  setCompanyProfile: (updater: Partial<CompanyProfile> | ((prev: CompanyProfile) => CompanyProfile)) => void;
+  setCompanyProfile: (
+    updater: Partial<CompanyProfile> | ((prev: CompanyProfile) => CompanyProfile),
+  ) => void;
   setTermsAndConditions: (value: string) => void;
   setPaymentDetails: (value: string) => void;
   triggerHaptic: (style?: Haptics.ImpactFeedbackStyle) => void;
@@ -198,70 +200,72 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         };
       });
     },
-    []
+    [],
   );
 
   const setThemePreference = useCallback(
     (preference: ThemePreference) => {
       updateSettings({ themePreference: preference });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const setMaterialMarkup = useCallback(
     (value: number) => {
       updateSettings({ materialMarkup: Number.isFinite(value) ? Math.max(0, value) : 0 });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const setLaborMarkup = useCallback(
     (value: number) => {
       updateSettings({ laborMarkup: Number.isFinite(value) ? Math.max(0, value) : 0 });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const setHourlyRate = useCallback(
     (value: number) => {
       updateSettings({ hourlyRate: Number.isFinite(value) ? Math.max(0, value) : 0 });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const setTaxRate = useCallback(
     (value: number) => {
       updateSettings({ taxRate: Number.isFinite(value) ? Math.max(0, value) : 0 });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const setHapticsEnabled = useCallback(
     (value: boolean) => {
       updateSettings({ hapticsEnabled: value });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const setHapticIntensity = useCallback(
     (value: HapticIntensity) => {
-      updateSettings({ hapticIntensity: Math.min(2, Math.max(0, Math.round(value))) as HapticIntensity });
+      updateSettings({
+        hapticIntensity: Math.min(2, Math.max(0, Math.round(value))) as HapticIntensity,
+      });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const setNotificationsEnabled = useCallback(
     (value: boolean) => {
       updateSettings({ notificationsEnabled: value });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const setAutoSyncEnabled = useCallback(
     (value: boolean) => {
       updateSettings({ autoSyncEnabled: value });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const setCompanyProfile = useCallback(
@@ -274,23 +278,29 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      updateSettings({ companyProfile: updater });
+      updateSettings((prev) => ({
+        ...prev,
+        companyProfile: {
+          ...prev.companyProfile,
+          ...updater,
+        },
+      }));
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const setTermsAndConditions = useCallback(
     (value: string) => {
       updateSettings({ termsAndConditions: value });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const setPaymentDetails = useCallback(
     (value: string) => {
       updateSettings({ paymentDetails: value });
     },
-    [updateSettings]
+    [updateSettings],
   );
 
   const triggerHaptic = useCallback(
@@ -315,7 +325,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         console.warn("Unable to trigger haptic feedback", error);
       });
     },
-    [settings.hapticsEnabled, settings.hapticIntensity]
+    [settings.hapticsEnabled, settings.hapticIntensity],
   );
 
   const resetToDefaults = useCallback(() => {
@@ -363,7 +373,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       settings,
       triggerHaptic,
       resetToDefaults,
-    ]
+    ],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

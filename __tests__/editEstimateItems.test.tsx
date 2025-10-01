@@ -236,7 +236,7 @@ describe("EditEstimateScreen - item editing", () => {
           "insert",
           expect.objectContaining({ description: "Service Call" }),
         ]),
-      ])
+      ]),
     );
   });
 });

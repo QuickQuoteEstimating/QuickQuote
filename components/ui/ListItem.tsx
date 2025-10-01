@@ -1,13 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import {
-  Pressable,
-  StyleProp,
-  StyleSheet,
-  Text,
-  TextStyle,
-  View,
-  ViewStyle,
-} from "react-native";
+import { Pressable, StyleProp, StyleSheet, Text, TextStyle, View, ViewStyle } from "react-native";
 import { useTheme } from "../../theme";
 
 export interface ListItemProps {
@@ -40,17 +32,11 @@ export function ListItem({
       <Pressable
         accessibilityRole="button"
         onPress={onPress}
-        style={({ pressed }) => [
-          styles.container,
-          pressed ? styles.pressed : null,
-          style,
-        ]}
+        style={({ pressed }) => [styles.container, pressed ? styles.pressed : null, style]}
       >
         <View style={styles.textColumn}>
           <Text style={[styles.title, titleStyle]}>{title}</Text>
-          {subtitle ? (
-            <Text style={[styles.subtitle, subtitleStyle]}>{subtitle}</Text>
-          ) : null}
+          {subtitle ? <Text style={[styles.subtitle, subtitleStyle]}>{subtitle}</Text> : null}
         </View>
         <View style={styles.rightColumn}>
           {badge ? (
@@ -70,11 +56,7 @@ export function ListItem({
         {subtitle ? <Text style={[styles.subtitle, subtitleStyle]}>{subtitle}</Text> : null}
       </View>
       <View style={styles.rightColumn}>
-        {badge ? (
-          badge
-        ) : amount ? (
-          <Text style={[styles.amount, amountStyle]}>{amount}</Text>
-        ) : null}
+        {badge ? badge : amount ? <Text style={[styles.amount, amountStyle]}>{amount}</Text> : null}
       </View>
     </View>
   );

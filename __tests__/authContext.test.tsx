@@ -58,17 +58,19 @@ beforeEach(() => {
   mockAppStateAddEventListener.mockReset();
   mockAlert.mockReset();
   mockAlert.mockImplementation(jest.fn());
-  mockAppStateAddEventListener.mockImplementation((_, listener: (state: AppStateStatus) => void) => {
-    appStateListeners.push(listener);
-    return {
-      remove: () => {
-        const index = appStateListeners.indexOf(listener);
-        if (index !== -1) {
-          appStateListeners.splice(index, 1);
-        }
-      },
-    };
-  });
+  mockAppStateAddEventListener.mockImplementation(
+    (_, listener: (state: AppStateStatus) => void) => {
+      appStateListeners.push(listener);
+      return {
+        remove: () => {
+          const index = appStateListeners.indexOf(listener);
+          if (index !== -1) {
+            appStateListeners.splice(index, 1);
+          }
+        },
+      };
+    },
+  );
 });
 
 afterEach(() => {
@@ -95,7 +97,7 @@ describe("AuthProvider bootstrap retry logic", () => {
     render(
       <AuthProvider>
         <Capture onValue={handleValue} />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => expect(mockBootstrapUserData).toHaveBeenCalledTimes(1));
@@ -123,7 +125,7 @@ describe("AuthProvider bootstrap retry logic", () => {
     render(
       <AuthProvider>
         <Capture onValue={handleValue} />
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     await waitFor(() => expect(mockBootstrapUserData).toHaveBeenCalledTimes(1));

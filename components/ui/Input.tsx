@@ -1,11 +1,4 @@
-import {
-  ForwardedRef,
-  ReactNode,
-  forwardRef,
-  useCallback,
-  useMemo,
-  useState,
-} from "react";
+import { ForwardedRef, ReactNode, forwardRef, useCallback, useMemo, useState } from "react";
 import {
   Platform,
   StyleProp,
@@ -76,13 +69,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   return (
     <View style={[styles.container, containerStyle]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View
-        style={[
-          styles.fieldShell,
-          multiline ? styles.multilineShell : null,
-          fieldState,
-        ]}
-      >
+      <View style={[styles.fieldShell, multiline ? styles.multilineShell : null, fieldState]}>
         {leftElement ? <View style={styles.adornment}>{leftElement}</View> : null}
         <TextInput
           ref={ref}

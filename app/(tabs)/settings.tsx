@@ -12,14 +12,14 @@ import {
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { useAuth } from "../../context/AuthContext";
-import { useSettings } from "../../context/SettingsContext";
+import { type ThemePreference, useSettings } from "../../context/SettingsContext";
 import LogoPicker from "../../components/LogoPicker";
 
 const THEME_OPTIONS = [
   { label: "Light", value: "light" },
   { label: "Dark", value: "dark" },
   { label: "System", value: "system" },
-];
+] as const satisfies Array<{ label: string; value: ThemePreference }>;
 
 const HAPTIC_LABELS = ["Subtle", "Balanced", "Bold"];
 
@@ -45,11 +45,13 @@ export default function Settings() {
     resetToDefaults,
   } = useSettings();
 
-  const [materialMarkupInput, setMaterialMarkupInput] = useState(settings.materialMarkup.toString());
+  const [materialMarkupInput, setMaterialMarkupInput] = useState(
+    settings.materialMarkup.toString(),
+  );
   const [laborMarkupInput, setLaborMarkupInput] = useState(settings.laborMarkup.toString());
   const [hourlyRateInput, setHourlyRateInput] = useState(settings.hourlyRate.toFixed(2));
   const [taxRateInput, setTaxRateInput] = useState(() =>
-    settings.taxRate % 1 === 0 ? settings.taxRate.toFixed(0) : settings.taxRate.toString()
+    settings.taxRate % 1 === 0 ? settings.taxRate.toFixed(0) : settings.taxRate.toString(),
   );
 
   useEffect(() => {
@@ -65,7 +67,9 @@ export default function Settings() {
   }, [settings.hourlyRate]);
 
   useEffect(() => {
-    setTaxRateInput(settings.taxRate % 1 === 0 ? settings.taxRate.toFixed(0) : settings.taxRate.toString());
+    setTaxRateInput(
+      settings.taxRate % 1 === 0 ? settings.taxRate.toFixed(0) : settings.taxRate.toString(),
+    );
   }, [settings.taxRate]);
 
   const colors = useMemo(() => {
@@ -109,192 +113,211 @@ export default function Settings() {
     Alert.alert("Preferences saved", "Your settings have been saved.");
   };
 
+  const themedStyles = useMemo(
+    () =>
+      StyleSheet.create({
+        loadingContainer: {
+          backgroundColor: colors.background,
+        },
+        loadingText: {
+          color: colors.secondaryText,
+        },
+        container: {
+          flex: 1,
+          backgroundColor: colors.background,
+        },
+        content: {
+          padding: 24,
+          gap: 20,
+        },
+        section: {
+          backgroundColor: colors.card,
+          borderRadius: 18,
+          padding: 20,
+          gap: 16,
+          shadowColor: colors.isDark ? "#000" : "#0f172a",
+          shadowOpacity: colors.isDark ? 0.4 : 0.08,
+          shadowOffset: { width: 0, height: 6 },
+          shadowRadius: 18,
+          elevation: 4,
+        },
+        sectionHeader: {
+          fontSize: 18,
+          fontWeight: "700",
+          color: colors.primaryText,
+        },
+        sectionDescription: {
+          fontSize: 14,
+          color: colors.secondaryText,
+          lineHeight: 20,
+        },
+        divider: {
+          height: StyleSheet.hairlineWidth,
+          backgroundColor: colors.border,
+          marginVertical: 4,
+        },
+        row: {
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+        },
+        rowLabel: {
+          fontSize: 16,
+          color: colors.primaryText,
+          fontWeight: "500",
+        },
+        rowCaption: {
+          fontSize: 13,
+          color: colors.secondaryText,
+          marginTop: 6,
+          lineHeight: 18,
+        },
+        themeOptions: {
+          flexDirection: "row",
+          gap: 8,
+          flexWrap: "wrap",
+        },
+        themeChip: {
+          paddingVertical: 8,
+          paddingHorizontal: 14,
+          borderRadius: 999,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.isDark ? "rgba(148, 163, 184, 0.08)" : "#f8fafc",
+        },
+        themeChipActive: {
+          borderColor: colors.accent,
+          backgroundColor: colors.isDark ? "rgba(37, 99, 235, 0.2)" : "rgba(37, 99, 235, 0.08)",
+        },
+        themeChipText: {
+          color: colors.primaryText,
+          fontWeight: "600",
+        },
+        textFieldContainer: {
+          flex: 1,
+        },
+        textField: {
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 12,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          fontSize: 16,
+          color: colors.primaryText,
+          backgroundColor: colors.isDark ? "rgba(15, 23, 42, 0.7)" : "#f8fafc",
+        },
+        textArea: {
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 12,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          fontSize: 16,
+          color: colors.primaryText,
+          backgroundColor: colors.isDark ? "rgba(15, 23, 42, 0.7)" : "#f8fafc",
+          minHeight: 90,
+          textAlignVertical: "top",
+        },
+        fieldLabel: {
+          fontSize: 15,
+          fontWeight: "600",
+          color: colors.primaryText,
+          marginBottom: 6,
+        },
+        helperText: {
+          fontSize: 13,
+          color: colors.secondaryText,
+          lineHeight: 18,
+          marginTop: 6,
+        },
+        logoSection: {
+          gap: 16,
+        },
+        percentSuffix: {
+          fontSize: 16,
+          fontWeight: "600",
+          color: colors.secondaryText,
+          marginLeft: 8,
+        },
+        currencyPrefix: {
+          fontSize: 16,
+          fontWeight: "600",
+          color: colors.secondaryText,
+          marginRight: 8,
+        },
+        sliderLabelRow: {
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 6,
+        },
+        sliderLabel: {
+          fontSize: 13,
+          color: colors.secondaryText,
+        },
+        sliderLabelActive: {
+          color: colors.primaryText,
+          fontWeight: "600",
+        },
+        rowLabelLarge: {
+          fontSize: 17,
+        },
+        destructiveButton: {
+          backgroundColor: colors.destructive,
+          borderRadius: 14,
+          paddingVertical: 14,
+          alignItems: "center",
+        },
+        destructiveText: {
+          color: "#fff",
+          fontSize: 16,
+          fontWeight: "600",
+        },
+        buttonDisabled: {
+          opacity: 0.6,
+        },
+        footerActions: {
+          gap: 16,
+        },
+        saveButton: {
+          borderRadius: 14,
+          paddingVertical: 14,
+          alignItems: "center",
+          backgroundColor: colors.accent,
+        },
+        saveText: {
+          color: "#fff",
+          fontSize: 16,
+          fontWeight: "600",
+        },
+        resetButton: {
+          borderRadius: 14,
+          paddingVertical: 14,
+          alignItems: "center",
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.isDark ? "rgba(148, 163, 184, 0.08)" : "#fff",
+        },
+        resetText: {
+          color: colors.primaryText,
+          fontSize: 16,
+          fontWeight: "600",
+        },
+      }),
+    [colors],
+  );
+
   if (!isHydrated) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+      <View style={[styles.loadingContainer, themedStyles.loadingContainer]}>
         <ActivityIndicator size="large" />
-        <Text style={[styles.loadingText, { color: colors.secondaryText }]}>Loading your preferences…</Text>
+        <Text style={[styles.loadingText, themedStyles.loadingText]}>
+          Loading your preferences…
+        </Text>
       </View>
     );
   }
-
-  const themedStyles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    content: {
-      padding: 24,
-      gap: 20,
-    },
-    section: {
-      backgroundColor: colors.card,
-      borderRadius: 18,
-      padding: 20,
-      gap: 16,
-      shadowColor: colors.isDark ? "#000" : "#0f172a",
-      shadowOpacity: colors.isDark ? 0.4 : 0.08,
-      shadowOffset: { width: 0, height: 6 },
-      shadowRadius: 18,
-      elevation: 4,
-    },
-    sectionHeader: {
-      fontSize: 18,
-      fontWeight: "700",
-      color: colors.primaryText,
-    },
-    sectionDescription: {
-      fontSize: 14,
-      color: colors.secondaryText,
-      lineHeight: 20,
-    },
-    divider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-      marginVertical: 4,
-    },
-    row: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 16,
-    },
-    rowLabel: {
-      fontSize: 16,
-      color: colors.primaryText,
-      fontWeight: "500",
-    },
-    rowCaption: {
-      fontSize: 13,
-      color: colors.secondaryText,
-      marginTop: 6,
-      lineHeight: 18,
-    },
-    themeOptions: {
-      flexDirection: "row",
-      gap: 8,
-      flexWrap: "wrap",
-    },
-    themeChip: {
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.isDark ? "rgba(148, 163, 184, 0.08)" : "#f8fafc",
-    },
-    themeChipActive: {
-      borderColor: colors.accent,
-      backgroundColor: colors.isDark ? "rgba(37, 99, 235, 0.2)" : "rgba(37, 99, 235, 0.08)",
-    },
-    themeChipText: {
-      color: colors.primaryText,
-      fontWeight: "600",
-    },
-    textFieldContainer: {
-      flex: 1,
-    },
-    textField: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 16,
-      color: colors.primaryText,
-      backgroundColor: colors.isDark ? "rgba(15, 23, 42, 0.7)" : "#f8fafc",
-    },
-    textArea: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 16,
-      color: colors.primaryText,
-      backgroundColor: colors.isDark ? "rgba(15, 23, 42, 0.7)" : "#f8fafc",
-      minHeight: 90,
-      textAlignVertical: "top",
-    },
-    fieldLabel: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: colors.primaryText,
-      marginBottom: 6,
-    },
-    helperText: {
-      fontSize: 13,
-      color: colors.secondaryText,
-      lineHeight: 18,
-      marginTop: 6,
-    },
-    logoSection: {
-      gap: 16,
-    },
-    percentSuffix: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: colors.secondaryText,
-      marginLeft: 8,
-    },
-    currencyPrefix: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: colors.secondaryText,
-      marginRight: 8,
-    },
-    sliderLabelRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginTop: 6,
-    },
-    sliderLabel: {
-      fontSize: 13,
-      color: colors.secondaryText,
-    },
-    destructiveButton: {
-      backgroundColor: colors.destructive,
-      borderRadius: 14,
-      paddingVertical: 14,
-      alignItems: "center",
-    },
-    destructiveText: {
-      color: "#fff",
-      fontSize: 16,
-      fontWeight: "600",
-    },
-    buttonDisabled: {
-      opacity: 0.6,
-    },
-    footerActions: {
-      gap: 16,
-    },
-    saveButton: {
-      borderRadius: 14,
-      paddingVertical: 14,
-      alignItems: "center",
-      backgroundColor: colors.accent,
-    },
-    saveText: {
-      color: "#fff",
-      fontSize: 16,
-      fontWeight: "600",
-    },
-    resetButton: {
-      borderRadius: 14,
-      paddingVertical: 14,
-      alignItems: "center",
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.isDark ? "rgba(148, 163, 184, 0.08)" : "#fff",
-    },
-    resetText: {
-      color: colors.primaryText,
-      fontSize: 16,
-      fontWeight: "600",
-    },
-  });
 
   const handleSignOut = () => {
     triggerHaptic();
@@ -313,7 +336,7 @@ export default function Settings() {
             value={settings.companyProfile.logoUri}
             onChange={(uri) => setCompanyProfile({ logoUri: uri })}
           />
-          <View style={{ gap: 16 }}>
+          <View style={styles.fieldGroup}>
             <View>
               <Text style={themedStyles.fieldLabel}>Company name</Text>
               <TextInput
@@ -385,9 +408,11 @@ export default function Settings() {
               placeholder="List each term on a new line"
               placeholderTextColor={colors.secondaryText}
               multiline
-              style={[themedStyles.textArea, { minHeight: 120 }]}
+              style={[themedStyles.textArea, styles.textAreaTall]}
             />
-            <Text style={themedStyles.helperText}>Each new line becomes a bullet point on the PDF.</Text>
+            <Text style={themedStyles.helperText}>
+              Each new line becomes a bullet point on the PDF.
+            </Text>
           </View>
           <View>
             <Text style={themedStyles.fieldLabel}>Payment details</Text>
@@ -397,7 +422,7 @@ export default function Settings() {
               placeholder="Add payment instructions"
               placeholderTextColor={colors.secondaryText}
               multiline
-              style={[themedStyles.textArea, { minHeight: 120 }]}
+              style={[themedStyles.textArea, styles.textAreaTall]}
             />
             <Text style={themedStyles.helperText}>Use blank lines to start a new paragraph.</Text>
           </View>
@@ -432,8 +457,8 @@ export default function Settings() {
         <View style={themedStyles.section}>
           <Text style={themedStyles.sectionHeader}>Markup defaults</Text>
           <Text style={themedStyles.sectionDescription}>
-            Adjust the default markup percentages for new estimates. You can still override these on a per-estimate
-            basis.
+            Adjust the default markup percentages for new estimates. You can still override these on
+            a per-estimate basis.
           </Text>
           <View>
             <Text style={themedStyles.rowLabel}>Material markup</Text>
@@ -477,7 +502,8 @@ export default function Settings() {
         <View style={themedStyles.section}>
           <Text style={themedStyles.sectionHeader}>Tax defaults</Text>
           <Text style={themedStyles.sectionDescription}>
-            Set the default sales tax rate that will be applied to new estimates. You can still adjust it per project.
+            Set the default sales tax rate that will be applied to new estimates. You can still
+            adjust it per project.
           </Text>
           <View>
             <Text style={themedStyles.rowLabel}>Tax rate</Text>
@@ -502,14 +528,14 @@ export default function Settings() {
         <View style={themedStyles.section}>
           <Text style={themedStyles.sectionHeader}>Labor defaults</Text>
           <Text style={themedStyles.sectionDescription}>
-            Set the standard hourly rate used when calculating project labor totals. You can adjust this on individual
-            estimates when needed.
+            Set the standard hourly rate used when calculating project labor totals. You can adjust
+            this on individual estimates when needed.
           </Text>
           <View>
             <Text style={themedStyles.rowLabel}>Hourly rate</Text>
             <View style={styles.inputRow}>
               <Text style={themedStyles.currencyPrefix}>$</Text>
-              <View style={[themedStyles.textFieldContainer, { flex: 0, flexGrow: 1 }]}>
+              <View style={[themedStyles.textFieldContainer, styles.currencyInputWrapper]}>
                 <TextInput
                   value={hourlyRateInput}
                   onChangeText={setHourlyRateInput}
@@ -528,12 +554,15 @@ export default function Settings() {
         <View style={themedStyles.section}>
           <Text style={themedStyles.sectionHeader}>Haptics</Text>
           <Text style={themedStyles.sectionDescription}>
-            Feel a tactile tap when you interact with buttons and toggles. Tune the intensity to what feels best.
+            Feel a tactile tap when you interact with buttons and toggles. Tune the intensity to
+            what feels best.
           </Text>
           <View style={themedStyles.row}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.flex1}>
               <Text style={themedStyles.rowLabel}>Enable haptic feedback</Text>
-              <Text style={themedStyles.rowCaption}>Disabling this turns off vibration for buttons throughout the app.</Text>
+              <Text style={themedStyles.rowCaption}>
+                Disabling this turns off vibration for buttons throughout the app.
+              </Text>
             </View>
             <Switch
               value={settings.hapticsEnabled}
@@ -559,7 +588,9 @@ export default function Settings() {
             />
             <View style={themedStyles.sliderLabelRow}>
               <Text style={themedStyles.sliderLabel}>Subtle</Text>
-              <Text style={[themedStyles.sliderLabel, { color: colors.primaryText, fontWeight: "600" }]}>{hapticLabel}</Text>
+              <Text style={[themedStyles.sliderLabel, themedStyles.sliderLabelActive]}>
+                {hapticLabel}
+              </Text>
               <Text style={themedStyles.sliderLabel}>Bold</Text>
             </View>
           </View>
@@ -568,9 +599,11 @@ export default function Settings() {
         <View style={themedStyles.section}>
           <Text style={themedStyles.sectionHeader}>General</Text>
           <View style={themedStyles.row}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.flex1}>
               <Text style={themedStyles.rowLabel}>Email notifications</Text>
-              <Text style={themedStyles.rowCaption}>Get a daily digest of new estimates and approvals.</Text>
+              <Text style={themedStyles.rowCaption}>
+                Get a daily digest of new estimates and approvals.
+              </Text>
             </View>
             <Switch
               value={settings.notificationsEnabled}
@@ -583,9 +616,11 @@ export default function Settings() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={themedStyles.row}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.flex1}>
               <Text style={themedStyles.rowLabel}>Auto-sync data</Text>
-              <Text style={themedStyles.rowCaption}>Automatically sync estimates when QuickQuote opens.</Text>
+              <Text style={themedStyles.rowCaption}>
+                Automatically sync estimates when QuickQuote opens.
+              </Text>
             </View>
             <Switch
               value={settings.autoSyncEnabled}
@@ -601,7 +636,9 @@ export default function Settings() {
         <View style={themedStyles.section}>
           <Text style={themedStyles.sectionHeader}>Account</Text>
           <Text style={themedStyles.sectionDescription}>You are signed in as</Text>
-          <Text style={[themedStyles.rowLabel, { fontSize: 17 }]}>{user?.email ?? "Unknown"}</Text>
+          <Text style={[themedStyles.rowLabel, themedStyles.rowLabelLarge]}>
+            {user?.email ?? "Unknown"}
+          </Text>
           <View style={themedStyles.footerActions}>
             <Pressable
               onPress={handleSavePreferences}
@@ -623,13 +660,18 @@ export default function Settings() {
               <Text style={themedStyles.resetText}>Reset preferences</Text>
             </Pressable>
             <Pressable
-              style={[themedStyles.destructiveButton, signOutLoading && themedStyles.buttonDisabled]}
+              style={[
+                themedStyles.destructiveButton,
+                signOutLoading && themedStyles.buttonDisabled,
+              ]}
               onPress={handleSignOut}
               disabled={signOutLoading}
               accessibilityRole="button"
               accessibilityLabel="Sign out of QuickQuote"
             >
-              <Text style={themedStyles.destructiveText}>{signOutLoading ? "Signing out…" : "Sign out"}</Text>
+              <Text style={themedStyles.destructiveText}>
+                {signOutLoading ? "Signing out…" : "Sign out"}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -653,8 +695,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  fieldGroup: {
+    gap: 16,
+  },
   fieldSpacer: {
     height: 12,
+  },
+  textAreaTall: {
+    minHeight: 120,
+  },
+  currencyInputWrapper: {
+    flex: 0,
+    flexGrow: 1,
+  },
+  flex1: {
+    flex: 1,
   },
   rowSeparator: {
     height: StyleSheet.hairlineWidth,

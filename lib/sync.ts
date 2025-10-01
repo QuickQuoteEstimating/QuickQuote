@@ -14,10 +14,7 @@ async function processChange(change: Change) {
     if (change.op === "insert") {
       result = await supabase.from(change.table_name).insert(payload);
     } else if (change.op === "update") {
-      result = await supabase
-        .from(change.table_name)
-        .update(payload)
-        .eq("id", payload.id);
+      result = await supabase.from(change.table_name).update(payload).eq("id", payload.id);
     } else if (change.op === "delete") {
       result = await supabase.from(change.table_name).delete().eq("id", payload.id);
     } else {
@@ -26,7 +23,10 @@ async function processChange(change: Change) {
     }
 
     if (result.error) {
-      console.error(`❌ Supabase error for ${change.op} on ${change.table_name}:`, result.error.message);
+      console.error(
+        `❌ Supabase error for ${change.op} on ${change.table_name}:`,
+        result.error.message,
+      );
       return; // stop here so we don’t clear the change
     }
 
@@ -49,7 +49,7 @@ export async function runSync() {
   for (const change of changes) {
     if (
       ["customers", "estimates", "estimate_items", "photos", "item_catalog"].includes(
-        change.table_name
+        change.table_name,
       )
     ) {
       await processChange(change);

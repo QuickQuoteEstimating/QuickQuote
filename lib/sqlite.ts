@@ -61,9 +61,7 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  const customerColumns = await db.getAllAsync<{ name: string }>(
-    "PRAGMA table_info(customers)"
-  );
+  const customerColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(customers)");
   if (!customerColumns.some((column) => column.name === "notes")) {
     await db.execAsync("ALTER TABLE customers ADD COLUMN notes TEXT");
   }
@@ -92,48 +90,30 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  const estimateColumns = await db.getAllAsync<{ name: string }>(
-    "PRAGMA table_info(estimates)"
-  );
+  const estimateColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(estimates)");
   if (!estimateColumns.some((column) => column.name === "status")) {
-    await db.execAsync(
-      "ALTER TABLE estimates ADD COLUMN status TEXT DEFAULT 'draft'"
-    );
+    await db.execAsync("ALTER TABLE estimates ADD COLUMN status TEXT DEFAULT 'draft'");
   }
   if (!estimateColumns.some((column) => column.name === "material_total")) {
-    await db.execAsync(
-      "ALTER TABLE estimates ADD COLUMN material_total REAL DEFAULT 0"
-    );
+    await db.execAsync("ALTER TABLE estimates ADD COLUMN material_total REAL DEFAULT 0");
   }
   if (!estimateColumns.some((column) => column.name === "labor_hours")) {
-    await db.execAsync(
-      "ALTER TABLE estimates ADD COLUMN labor_hours REAL DEFAULT 0"
-    );
+    await db.execAsync("ALTER TABLE estimates ADD COLUMN labor_hours REAL DEFAULT 0");
   }
   if (!estimateColumns.some((column) => column.name === "labor_rate")) {
-    await db.execAsync(
-      "ALTER TABLE estimates ADD COLUMN labor_rate REAL DEFAULT 0"
-    );
+    await db.execAsync("ALTER TABLE estimates ADD COLUMN labor_rate REAL DEFAULT 0");
   }
   if (!estimateColumns.some((column) => column.name === "labor_total")) {
-    await db.execAsync(
-      "ALTER TABLE estimates ADD COLUMN labor_total REAL DEFAULT 0"
-    );
+    await db.execAsync("ALTER TABLE estimates ADD COLUMN labor_total REAL DEFAULT 0");
   }
   if (!estimateColumns.some((column) => column.name === "subtotal")) {
-    await db.execAsync(
-      "ALTER TABLE estimates ADD COLUMN subtotal REAL DEFAULT 0"
-    );
+    await db.execAsync("ALTER TABLE estimates ADD COLUMN subtotal REAL DEFAULT 0");
   }
   if (!estimateColumns.some((column) => column.name === "tax_rate")) {
-    await db.execAsync(
-      "ALTER TABLE estimates ADD COLUMN tax_rate REAL DEFAULT 0"
-    );
+    await db.execAsync("ALTER TABLE estimates ADD COLUMN tax_rate REAL DEFAULT 0");
   }
   if (!estimateColumns.some((column) => column.name === "tax_total")) {
-    await db.execAsync(
-      "ALTER TABLE estimates ADD COLUMN tax_total REAL DEFAULT 0"
-    );
+    await db.execAsync("ALTER TABLE estimates ADD COLUMN tax_total REAL DEFAULT 0");
   }
 
   // Estimate Items
@@ -154,12 +134,10 @@ export async function initLocalDB(): Promise<void> {
   `);
 
   const estimateItemColumns = await db.getAllAsync<{ name: string }>(
-    "PRAGMA table_info(estimate_items)"
+    "PRAGMA table_info(estimate_items)",
   );
   if (!estimateItemColumns.some((column) => column.name === "catalog_item_id")) {
-    await db.execAsync(
-      "ALTER TABLE estimate_items ADD COLUMN catalog_item_id TEXT"
-    );
+    await db.execAsync("ALTER TABLE estimate_items ADD COLUMN catalog_item_id TEXT");
   }
 
   // Photos
@@ -191,9 +169,7 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  const photoColumns = await db.getAllAsync<{ name: string }>(
-    "PRAGMA table_info(photos)"
-  );
+  const photoColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(photos)");
   if (!photoColumns.some((column) => column.name === "local_uri")) {
     await db.execAsync("ALTER TABLE photos ADD COLUMN local_uri TEXT");
   }
@@ -219,21 +195,21 @@ export async function initLocalDB(): Promise<void> {
 export async function queueChange(
   table: Change["table_name"],
   op: Change["op"],
-  payload: any
+  payload: any,
 ): Promise<void> {
   const db = await openDB();
   const now = new Date().toISOString();
   await db.runAsync(
     `INSERT INTO sync_queue (table_name, op, payload, created_at)
      VALUES (?, ?, ?, ?)`,
-    [table, op, JSON.stringify(payload), now]
+    [table, op, JSON.stringify(payload), now],
   );
 }
 
 export async function getQueuedChanges(): Promise<Change[]> {
   const db = await openDB();
   const rows = await db.getAllAsync<Change>(
-    "SELECT id, table_name, op, payload, created_at FROM sync_queue ORDER BY created_at ASC"
+    "SELECT id, table_name, op, payload, created_at FROM sync_queue ORDER BY created_at ASC",
   );
   return rows;
 }
@@ -266,6 +242,6 @@ export async function logEstimateDelivery(params: {
       params.messagePreview ?? null,
       metadata,
       now,
-    ]
+    ],
   );
 }

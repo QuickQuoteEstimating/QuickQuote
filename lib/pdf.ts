@@ -1,10 +1,9 @@
 import { Platform } from "react-native";
 import * as Print from "expo-print";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
-const PHOTO_BUCKET =
-  process.env.EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "estimate-photos";
+const PHOTO_BUCKET = process.env.EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "estimate-photos";
 
 export type EstimatePdfItem = {
   id: string;
@@ -138,7 +137,7 @@ async function resolvePhotoSource(photo: EstimatePdfPhoto): Promise<string | nul
 
 function renderNotes(notes: string | null | undefined): string {
   if (!notes) {
-    return "<p style=\"color:#666;\">No additional notes.</p>";
+    return '<p style="color:#666;">No additional notes.</p>';
   }
 
   const normalized = escapeHtml(notes)
@@ -177,9 +176,7 @@ function renderPaymentDetails(details: string | null | undefined): string {
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph.length > 0)
     .map((paragraph) => {
-      const content = escapeHtml(paragraph)
-        .split(/\r?\n/)
-        .join("<br />");
+      const content = escapeHtml(paragraph).split(/\r?\n/).join("<br />");
       return `<p>${content}</p>`;
     })
     .join("");
@@ -188,16 +185,8 @@ function renderPaymentDetails(details: string | null | undefined): string {
 }
 
 async function createHtml(options: EstimatePdfOptions): Promise<string> {
-  const {
-    estimate,
-    items,
-    photos = [],
-    termsAndConditions,
-    paymentDetails,
-  } = options;
-  const issueDate = estimate.date
-    ? new Date(estimate.date).toLocaleDateString()
-    : "Not provided";
+  const { estimate, items, photos = [], termsAndConditions, paymentDetails } = options;
+  const issueDate = estimate.date ? new Date(estimate.date).toLocaleDateString() : "Not provided";
   const statusLabel = estimate.status ? estimate.status : "Draft";
   const total = typeof estimate.total === "number" ? estimate.total : 0;
   const coerceCurrency = (value: number | null | undefined) =>
@@ -206,10 +195,7 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
   const taxTotal = coerceCurrency(estimate.taxTotal);
   const subtotal = coerceCurrency(estimate.subtotal);
   const materialTotal = (() => {
-    if (
-      typeof estimate.materialTotal === "number" &&
-      Number.isFinite(estimate.materialTotal)
-    ) {
+    if (typeof estimate.materialTotal === "number" && Number.isFinite(estimate.materialTotal)) {
       return estimate.materialTotal;
     }
     const base = subtotal > 0 ? subtotal : total - taxTotal;
@@ -224,7 +210,7 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
       id: photo.id,
       description: photo.description ?? null,
       source: await resolvePhotoSource(photo),
-    }))
+    })),
   );
 
   const rows = items
@@ -332,16 +318,16 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
               </div>
               <div class=\"estimate-meta\">
                 <div class=\"meta-row\"><span>Estimate #</span><strong>${escapeHtml(
-                  estimate.id
+                  estimate.id,
                 )}</strong></div>
                 <div class=\"meta-row\"><span>Date</span><strong>${escapeHtml(
-                  issueDate
+                  issueDate,
                 )}</strong></div>
                 <div class=\"meta-row\"><span>Total</span><strong>${formatCurrency(
-                  total
+                  total,
                 )}</strong></div>
                 <div class=\"meta-row\"><span>Tax</span><strong>${formatCurrency(
-                  taxTotal
+                  taxTotal,
                 )}</strong></div>
               </div>
             </header>
@@ -350,9 +336,7 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
               <div class=\"info-card\">
                 <div class=\"card-title\">Customer</div>
                 <div class=\"card-body\">
-                  <div><strong>${escapeHtml(
-                    customer.name ?? "No name on file"
-                  )}</strong></div>
+                  <div><strong>${escapeHtml(customer.name ?? "No name on file")}</strong></div>
                   ${customerAddress}
                   <div>Email: ${escapeHtml(customer.email ?? "N/A")}</div>
                   <div>Phone: ${escapeHtml(customer.phone ?? "N/A")}</div>
@@ -363,7 +347,7 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
                 <div class=\"card-body\">
                   ${customerAddress}
                   <div class=\"muted\">Service contact: ${escapeHtml(
-                    customer.name ?? "Not provided"
+                    customer.name ?? "Not provided",
                   )}</div>
                 </div>
               </div>
@@ -462,9 +446,7 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
   `;
 }
 
-export async function renderEstimatePdf(
-  options: EstimatePdfOptions
-): Promise<EstimatePdfResult> {
+export async function renderEstimatePdf(options: EstimatePdfOptions): Promise<EstimatePdfResult> {
   if (Platform.OS === "web") {
     const html = await createHtml(options);
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -489,7 +471,7 @@ export async function renderEstimatePdf(
   const targetDir = `${directory}estimates`;
   try {
     await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
-  } catch (error) {
+  } catch {
     // Directory may already exist
   }
 

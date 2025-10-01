@@ -20,7 +20,7 @@ export async function listItemCatalog(userId: string): Promise<ItemCatalogRecord
        FROM item_catalog
        WHERE deleted_at IS NULL AND user_id = ?
        ORDER BY description COLLATE NOCASE ASC`,
-    [userId]
+    [userId],
   );
   return rows;
 }
@@ -51,7 +51,7 @@ export async function upsertItemCatalog(input: UpsertItemCatalogInput): Promise<
       `SELECT id, user_id, description, default_quantity, unit_price, notes, version, updated_at, deleted_at
          FROM item_catalog
          WHERE id = ? LIMIT 1`,
-      [input.id]
+      [input.id],
     );
     const existing = rows[0];
     const nextVersion = (existing?.version ?? 1) + 1;
@@ -79,7 +79,7 @@ export async function upsertItemCatalog(input: UpsertItemCatalogInput): Promise<
         record.version,
         record.updated_at,
         record.id,
-      ]
+      ],
     );
 
     await queueChange("item_catalog", "update", record);
@@ -110,7 +110,7 @@ export async function upsertItemCatalog(input: UpsertItemCatalogInput): Promise<
       record.notes,
       record.version,
       record.updated_at,
-    ]
+    ],
   );
 
   await queueChange("item_catalog", "insert", record);
@@ -122,7 +122,7 @@ export async function softDeleteItemCatalog(id: string): Promise<void> {
   const now = new Date().toISOString();
   const rows = await db.getAllAsync<ItemCatalogRecord>(
     `SELECT id, version FROM item_catalog WHERE id = ? LIMIT 1`,
-    [id]
+    [id],
   );
   const existing = rows[0];
   if (!existing) {
@@ -140,7 +140,7 @@ export async function softDeleteItemCatalog(id: string): Promise<void> {
     `UPDATE item_catalog
        SET deleted_at = ?, updated_at = ?, version = ?
        WHERE id = ?`,
-    [record.deleted_at, record.updated_at, record.version, record.id]
+    [record.deleted_at, record.updated_at, record.version, record.id],
   );
 
   await queueChange("item_catalog", "update", record);

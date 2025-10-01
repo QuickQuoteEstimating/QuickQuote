@@ -12,16 +12,11 @@ export interface FABProps {
   style?: StyleProp<ViewStyle>;
 }
 
-export function FAB({
-  icon,
-  onPress,
-  accessibilityLabel,
-  palette = "auto",
-  style,
-}: FABProps) {
+export function FAB({ icon, onPress, accessibilityLabel, palette = "auto", style }: FABProps) {
   const { theme, mode } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const resolvedPalette = palette === "auto" ? (mode === "dark" ? "highlight" : "primary") : palette;
+  const resolvedPalette =
+    palette === "auto" ? (mode === "dark" ? "highlight" : "primary") : palette;
 
   return (
     <Pressable

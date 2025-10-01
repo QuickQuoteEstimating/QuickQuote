@@ -36,7 +36,7 @@ export function calculateEstimateTotals({
   taxRate,
 }: EstimateTotalsInput): EstimateTotals {
   const materialTotal = roundCurrency(
-    materialLineItems.reduce((acc, item) => acc + coerceNumber(item.total), 0)
+    materialLineItems.reduce((acc, item) => acc + coerceNumber(item.total), 0),
   );
 
   const safeLaborHours = Math.max(0, coerceNumber(laborHours));

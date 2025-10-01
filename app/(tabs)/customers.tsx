@@ -152,18 +152,8 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
         multiline
       />
       <View style={styles.actions}>
-        <Button
-          label="Cancel"
-          variant="secondary"
-          onPress={onCancel}
-          disabled={saving}
-        />
-        <Button
-          label="Save Changes"
-          onPress={saveChanges}
-          loading={saving}
-          disabled={saving}
-        />
+        <Button label="Cancel" variant="secondary" onPress={onCancel} disabled={saving} />
+        <Button label="Save Changes" onPress={saveChanges} loading={saving} disabled={saving} />
       </View>
     </Card>
   );
@@ -290,70 +280,57 @@ export default function Customers() {
 
   const handleDelete = useCallback(
     (customer: CustomerRecord) => {
-      Alert.alert(
-        "Delete Customer",
-        `Are you sure you want to delete ${customer.name}?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: () => {
-              (async () => {
-                previousCustomersRef.current = customers;
-                setCustomers((current) =>
-                  current.filter((existing) => existing.id !== customer.id),
-                );
-                setEditingCustomer((current) =>
-                  current?.id === customer.id ? null : current,
-                );
-                setSelectedCustomerId((current) =>
-                  current === customer.id ? null : current,
-                );
+      Alert.alert("Delete Customer", `Are you sure you want to delete ${customer.name}?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            (async () => {
+              previousCustomersRef.current = customers;
+              setCustomers((current) => current.filter((existing) => existing.id !== customer.id));
+              setEditingCustomer((current) => (current?.id === customer.id ? null : current));
+              setSelectedCustomerId((current) => (current === customer.id ? null : current));
 
-                try {
-                  const db = await openDB();
-                  const deletedAt = new Date().toISOString();
-                  const nextVersion = (customer.version ?? 1) + 1;
+              try {
+                const db = await openDB();
+                const deletedAt = new Date().toISOString();
+                const nextVersion = (customer.version ?? 1) + 1;
 
-                  await db.runAsync(
-                    `UPDATE customers
+                await db.runAsync(
+                  `UPDATE customers
                      SET deleted_at = ?, updated_at = ?, version = ?
                      WHERE id = ?`,
-                    [deletedAt, deletedAt, nextVersion, customer.id],
-                  );
+                  [deletedAt, deletedAt, nextVersion, customer.id],
+                );
 
-                  const deletedCustomer: CustomerRecord = {
-                    ...customer,
-                    deleted_at: deletedAt,
-                    updated_at: deletedAt,
-                    version: nextVersion,
-                  };
+                const deletedCustomer: CustomerRecord = {
+                  ...customer,
+                  deleted_at: deletedAt,
+                  updated_at: deletedAt,
+                  version: nextVersion,
+                };
 
-                  await queueChange("customers", "update", deletedCustomer);
-                  await runSync().catch((error) => {
-                    console.error("Failed to sync customer deletion", error);
-                  });
+                await queueChange("customers", "update", deletedCustomer);
+                await runSync().catch((error) => {
+                  console.error("Failed to sync customer deletion", error);
+                });
 
-                  await reloadCustomers();
-                } catch (error) {
-                  console.error("Failed to delete customer", error);
-                  Alert.alert(
-                    "Error",
-                    "Unable to delete customer. Please try again.",
-                  );
-                  if (previousCustomersRef.current) {
-                    setCustomers(previousCustomersRef.current);
-                  }
-                  await reloadCustomers();
-                } finally {
-                  previousCustomersRef.current = null;
+                await reloadCustomers();
+              } catch (error) {
+                console.error("Failed to delete customer", error);
+                Alert.alert("Error", "Unable to delete customer. Please try again.");
+                if (previousCustomersRef.current) {
+                  setCustomers(previousCustomersRef.current);
                 }
-              })();
-            },
+                await reloadCustomers();
+              } finally {
+                previousCustomersRef.current = null;
+              }
+            })();
           },
-        ],
-      );
+        },
+      ]);
     },
     [customers, reloadCustomers],
   );
@@ -401,8 +378,7 @@ export default function Customers() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionLabel}>Customer directory</Text>
             <Text style={styles.sectionCaption}>
-              Search by name, email, phone, address, or notes to jump to the right
-              client fast.
+              Search by name, email, phone, address, or notes to jump to the right client fast.
             </Text>
           </View>
           <Input
@@ -470,9 +446,7 @@ export default function Customers() {
             onSaved={(updated) => {
               setEditingCustomer(null);
               setCustomers((prev) =>
-                prev.map((existing) =>
-                  existing.id === updated.id ? updated : existing,
-                ),
+                prev.map((existing) => (existing.id === updated.id ? updated : existing)),
               );
               setSelectedCustomerId(updated.id);
               void reloadCustomers();
@@ -499,9 +473,7 @@ export default function Customers() {
         {selectedCustomer ? (
           <Card style={styles.detailCard}>
             <View style={styles.detailHeader}>
-              <Text style={styles.customerName}>
-                {getDisplayName(selectedCustomer)}
-              </Text>
+              <Text style={styles.customerName}>{getDisplayName(selectedCustomer)}</Text>
               <Text style={styles.customerSubtitle}>Primary contact details</Text>
             </View>
             {selectedCustomer.email ? (

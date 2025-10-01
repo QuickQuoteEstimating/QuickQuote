@@ -184,11 +184,7 @@ export default function EstimateItemForm({
             >
               <Picker.Item label="Select a saved item" value="" />
               {templates.map((template) => (
-                <Picker.Item
-                  key={template.id}
-                  label={template.description}
-                  value={template.id}
-                />
+                <Picker.Item key={template.id} label={template.description} value={template.id} />
               ))}
             </Picker>
           </View>
@@ -246,12 +242,7 @@ export default function EstimateItemForm({
 
       <View style={styles.actionRow}>
         <View style={styles.actionFlex}>
-          <Button
-            label="Cancel"
-            variant="secondary"
-            onPress={onCancel}
-            disabled={submitting}
-          />
+          <Button label="Cancel" variant="secondary" onPress={onCancel} disabled={submitting} />
         </View>
         <View style={styles.actionFlex}>
           <Button

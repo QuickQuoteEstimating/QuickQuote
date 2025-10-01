@@ -70,14 +70,8 @@ export default function NewEstimateScreen() {
         const db = await openDB();
         const estimateId = uuidv4();
         const now = new Date().toISOString();
-        const defaultLaborRate = Math.max(
-          0,
-          Math.round((settings.hourlyRate ?? 0) * 100) / 100,
-        );
-        const defaultTaxRate = Math.max(
-          0,
-          Math.round((settings.taxRate ?? 0) * 100) / 100,
-        );
+        const defaultLaborRate = Math.max(0, Math.round((settings.hourlyRate ?? 0) * 100) / 100);
+        const defaultTaxRate = Math.max(0, Math.round((settings.taxRate ?? 0) * 100) / 100);
 
         const newEstimate = {
           id: estimateId,
@@ -124,22 +118,11 @@ export default function NewEstimateScreen() {
           ],
         );
 
-        await queueChange(
-          "estimates",
-          "insert",
-          sanitizeEstimateForQueue(newEstimate),
-        );
+        await queueChange("estimates", "insert", sanitizeEstimateForQueue(newEstimate));
 
-        try {
-          const maybeSync = runSync();
-          if (maybeSync && typeof (maybeSync as PromiseLike<unknown>).catch === "function") {
-            void (maybeSync as PromiseLike<unknown>).catch((syncError) => {
-              console.warn("Failed to sync new estimate immediately", syncError);
-            });
-          }
-        } catch (syncError) {
+        void runSync().catch((syncError: unknown) => {
           console.warn("Failed to sync new estimate immediately", syncError);
-        }
+        });
 
         if (cancelled) {
           return;
@@ -156,10 +139,7 @@ export default function NewEstimateScreen() {
         }
         setError("We couldn't start a new estimate. Please try again.");
         setCreating(false);
-        Alert.alert(
-          "Estimate",
-          "We couldn't start a new estimate. Please try again.",
-        );
+        Alert.alert("Estimate", "We couldn't start a new estimate. Please try again.");
       }
     };
 
@@ -177,8 +157,7 @@ export default function NewEstimateScreen() {
         <View style={styles.messageContainer}>
           <Text style={styles.title}>Setting up your estimate</Text>
           <Text style={styles.message}>
-            Hang tight— we&apos;re preparing a fresh estimate workspace with all
-            the tools you need.
+            Hang tight— we&apos;re preparing a fresh estimate workspace with all the tools you need.
           </Text>
         </View>
       </SafeAreaView>
@@ -192,11 +171,7 @@ export default function NewEstimateScreen() {
         <Text style={styles.message}>
           {error ?? "Something went wrong while creating the estimate."}
         </Text>
-        <Button
-          label="Close"
-          onPress={() => navigation.back()}
-          style={styles.button}
-        />
+        <Button label="Close" onPress={() => navigation.back()} style={styles.button} />
       </View>
     </SafeAreaView>
   );

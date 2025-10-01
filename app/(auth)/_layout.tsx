@@ -1,5 +1,5 @@
 import { Redirect, Stack } from "expo-router";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 
 export default function AuthLayout() {
@@ -7,7 +7,7 @@ export default function AuthLayout() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" />
       </View>
     );
@@ -19,3 +19,11 @@ export default function AuthLayout() {
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
+  },
+});

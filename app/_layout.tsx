@@ -45,7 +45,7 @@ function RootNavigator() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" />
       </View>
     );
@@ -57,8 +57,7 @@ function RootNavigator() {
         <View style={styles.retryBanner}>
           <Text style={styles.retryBannerTitle}>We couldn't sync your data.</Text>
           <Text style={styles.retryBannerMessage}>
-            Check your connection and try again so we can finish downloading the latest
-            information.
+            Check your connection and try again so we can finish downloading the latest information.
           </Text>
           <TouchableOpacity
             accessibilityRole="button"
@@ -121,6 +120,11 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
+  },
   rootContainer: {
     flex: 1,
   },
