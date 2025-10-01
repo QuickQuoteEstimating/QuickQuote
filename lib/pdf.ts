@@ -2,6 +2,10 @@ import { Platform } from "react-native";
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system";
 
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
+const PHOTO_BUCKET =
+  process.env.EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "estimate-photos";
+
 export type EstimatePdfItem = {
   id: string;
   description: string;
@@ -41,6 +45,8 @@ export type EstimatePdfOptions = {
   estimate: EstimatePdfEstimate;
   items: EstimatePdfItem[];
   photos?: EstimatePdfPhoto[];
+  termsAndConditions?: string | null;
+  paymentDetails?: string | null;
 };
 
 export type EstimatePdfResult = {
@@ -57,6 +63,23 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+function encodeStoragePath(path: string): string {
+  return path
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
+function buildPublicPhotoUrl(path: string | null | undefined): string | null {
+  if (!path || !SUPABASE_URL) {
+    return null;
+  }
+
+  const normalized = path.replace(/^\/+/, "");
+  const encoded = encodeStoragePath(normalized);
+  return `${SUPABASE_URL}/storage/v1/object/public/${PHOTO_BUCKET}/${encoded}`;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -71,13 +94,24 @@ async function resolvePhotoSource(photo: EstimatePdfPhoto): Promise<string | nul
 
   if (!candidate) {
     const remote = photo.remoteUri;
-    if (remote && /^https?:\/\//.test(remote)) {
-      return remote;
+    if (remote) {
+      if (/^https?:\/\//i.test(remote)) {
+        return remote;
+      }
+
+      const derived = buildPublicPhotoUrl(remote);
+      if (derived) {
+        return derived;
+      }
     }
     return null;
   }
 
   try {
+    if (/^https?:\/\//i.test(candidate)) {
+      return candidate;
+    }
+
     const info = await FileSystem.getInfoAsync(candidate);
     if (!info.exists) {
       return null;
@@ -114,8 +148,53 @@ function renderNotes(notes: string | null | undefined): string {
   return normalized;
 }
 
+function renderTerms(terms: string | null | undefined): string {
+  if (!terms || !terms.trim()) {
+    return '<p class="muted">No terms provided.</p>';
+  }
+
+  const items = terms
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => `<li>${escapeHtml(line)}</li>`) // convert to list items
+    .join("");
+
+  if (!items) {
+    return '<p class="muted">No terms provided.</p>';
+  }
+
+  return `<ul class=\"list\">${items}</ul>`;
+}
+
+function renderPaymentDetails(details: string | null | undefined): string {
+  if (!details || !details.trim()) {
+    return '<p class="muted">No payment details provided.</p>';
+  }
+
+  const paragraphs = details
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph.length > 0)
+    .map((paragraph) => {
+      const content = escapeHtml(paragraph)
+        .split(/\r?\n/)
+        .join("<br />");
+      return `<p>${content}</p>`;
+    })
+    .join("");
+
+  return paragraphs || '<p class="muted">No payment details provided.</p>';
+}
+
 async function createHtml(options: EstimatePdfOptions): Promise<string> {
-  const { estimate, items, photos = [] } = options;
+  const {
+    estimate,
+    items,
+    photos = [],
+    termsAndConditions,
+    paymentDetails,
+  } = options;
   const issueDate = estimate.date
     ? new Date(estimate.date).toLocaleDateString()
     : "Not provided";
@@ -184,6 +263,9 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
         .map((line) => `<div>${escapeHtml(line)}</div>`)
         .join("")
     : "<div>Address not provided</div>";
+
+  const termsHtml = renderTerms(termsAndConditions ?? null);
+  const paymentHtml = renderPaymentDetails(paymentDetails ?? null);
 
   return `
     <html>
@@ -350,21 +432,11 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
             <div class=\"static-notes\">
               <section class=\"section\">
                 <div class=\"section-title\">Terms &amp; Conditions</div>
-                <div class=\"section-body\">
-                  <ul class=\"list\">
-                    <li>Estimates are valid for 30 days unless otherwise noted.</li>
-                    <li>Work will be scheduled upon approval and receipt of the required deposit.</li>
-                    <li>Any additional work not listed will require a separate change order.</li>
-                    <li>Manufacturer warranties apply to supplied products. Labor is warranted for one year.</li>
-                  </ul>
-                </div>
+                <div class=\"section-body\">${termsHtml}</div>
               </section>
               <section class=\"section\">
                 <div class=\"section-title\">Payment Details</div>
-                <div class=\"section-body\">
-                  <p>A deposit may be required prior to scheduling. Final balance is due upon completion.</p>
-                  <p>Please make payments to <strong>QuickQuote Services</strong>. We accept major credit cards and checks.</p>
-                </div>
+                <div class=\"section-body\">${paymentHtml}</div>
               </section>
               <section class=\"section\">
                 <div class=\"section-title\">Acceptance</div>

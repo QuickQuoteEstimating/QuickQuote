@@ -38,6 +38,8 @@ export default function Settings() {
     setNotificationsEnabled,
     setAutoSyncEnabled,
     setCompanyProfile,
+    setTermsAndConditions,
+    setPaymentDetails,
     triggerHaptic,
     resetToDefaults,
   } = useSettings();
@@ -214,6 +216,12 @@ export default function Settings() {
       color: colors.primaryText,
       marginBottom: 6,
     },
+    helperText: {
+      fontSize: 13,
+      color: colors.secondaryText,
+      lineHeight: 18,
+      marginTop: 6,
+    },
     logoSection: {
       gap: 16,
     },
@@ -344,6 +352,37 @@ export default function Settings() {
                 style={themedStyles.textArea}
               />
             </View>
+          </View>
+        </View>
+
+        <View style={themedStyles.section}>
+          <Text style={themedStyles.sectionHeader}>Estimate fine print</Text>
+          <Text style={themedStyles.sectionDescription}>
+            Control the language that appears in the footer of every estimate PDF.
+          </Text>
+          <View>
+            <Text style={themedStyles.fieldLabel}>Terms &amp; conditions</Text>
+            <TextInput
+              value={settings.termsAndConditions}
+              onChangeText={setTermsAndConditions}
+              placeholder="List each term on a new line"
+              placeholderTextColor={colors.secondaryText}
+              multiline
+              style={[themedStyles.textArea, { minHeight: 120 }]}
+            />
+            <Text style={themedStyles.helperText}>Each new line becomes a bullet point on the PDF.</Text>
+          </View>
+          <View>
+            <Text style={themedStyles.fieldLabel}>Payment details</Text>
+            <TextInput
+              value={settings.paymentDetails}
+              onChangeText={setPaymentDetails}
+              placeholder="Add payment instructions"
+              placeholderTextColor={colors.secondaryText}
+              multiline
+              style={[themedStyles.textArea, { minHeight: 120 }]}
+            />
+            <Text style={themedStyles.helperText}>Use blank lines to start a new paragraph.</Text>
           </View>
         </View>
 

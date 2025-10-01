@@ -36,6 +36,8 @@ export interface SettingsState {
   notificationsEnabled: boolean;
   autoSyncEnabled: boolean;
   companyProfile: CompanyProfile;
+  termsAndConditions: string;
+  paymentDetails: string;
 }
 
 interface SettingsContextValue {
@@ -52,9 +54,22 @@ interface SettingsContextValue {
   setNotificationsEnabled: (value: boolean) => void;
   setAutoSyncEnabled: (value: boolean) => void;
   setCompanyProfile: (updater: Partial<CompanyProfile> | ((prev: CompanyProfile) => CompanyProfile)) => void;
+  setTermsAndConditions: (value: string) => void;
+  setPaymentDetails: (value: string) => void;
   triggerHaptic: (style?: Haptics.ImpactFeedbackStyle) => void;
   resetToDefaults: () => void;
 }
+
+const DEFAULT_TERMS_AND_CONDITIONS = [
+  "Estimates are valid for 30 days unless otherwise noted.",
+  "Work will be scheduled upon approval and receipt of the required deposit.",
+  "Any additional work not listed will require a separate change order.",
+  "Manufacturer warranties apply to supplied products. Labor is warranted for one year.",
+].join("\n");
+
+const DEFAULT_PAYMENT_DETAILS =
+  "A deposit may be required prior to scheduling. Final balance is due upon completion.\n\n" +
+  "Please make payments to QuickQuote Services. We accept major credit cards and checks.";
 
 const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
   name: "",
@@ -76,6 +91,8 @@ const DEFAULT_SETTINGS: SettingsState = {
   notificationsEnabled: true,
   autoSyncEnabled: true,
   companyProfile: DEFAULT_COMPANY_PROFILE,
+  termsAndConditions: DEFAULT_TERMS_AND_CONDITIONS,
+  paymentDetails: DEFAULT_PAYMENT_DETAILS,
 };
 
 const STORAGE_KEY = "@quickquote/settings";
@@ -262,6 +279,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     [updateSettings]
   );
 
+  const setTermsAndConditions = useCallback(
+    (value: string) => {
+      updateSettings({ termsAndConditions: value });
+    },
+    [updateSettings]
+  );
+
+  const setPaymentDetails = useCallback(
+    (value: string) => {
+      updateSettings({ paymentDetails: value });
+    },
+    [updateSettings]
+  );
+
   const triggerHaptic = useCallback(
     (style?: Haptics.ImpactFeedbackStyle) => {
       if (!settings.hapticsEnabled) {
@@ -309,6 +340,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setNotificationsEnabled,
       setAutoSyncEnabled,
       setCompanyProfile,
+      setTermsAndConditions,
+      setPaymentDetails,
       triggerHaptic,
       resetToDefaults,
     }),
@@ -317,6 +350,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       resolvedTheme,
       setAutoSyncEnabled,
       setCompanyProfile,
+      setPaymentDetails,
       setHapticIntensity,
       setHapticsEnabled,
       setLaborMarkup,
@@ -324,6 +358,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setHourlyRate,
       setTaxRate,
       setNotificationsEnabled,
+      setTermsAndConditions,
       setThemePreference,
       settings,
       triggerHaptic,

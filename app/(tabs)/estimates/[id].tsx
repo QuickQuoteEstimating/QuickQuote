@@ -439,6 +439,8 @@ export default function EditEstimateScreen() {
           photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri),
         remoteUri: photo.uri,
       })),
+      termsAndConditions: settings.termsAndConditions,
+      paymentDetails: settings.paymentDetails,
     };
   }, [
     customerContact,
@@ -453,6 +455,8 @@ export default function EditEstimateScreen() {
     totals.materialTotal,
     totals.subtotal,
     totals.taxTotal,
+    settings.paymentDetails,
+    settings.termsAndConditions,
   ]);
 
   useEffect(() => {
@@ -1220,7 +1224,10 @@ export default function EditEstimateScreen() {
         emailAddress
       )}?subject=${subject}&body=${body}`;
 
-      const canOpen = await Linking.canOpenURL(mailto);
+      let canOpen = true;
+      if (Platform.OS !== "web") {
+        canOpen = await Linking.canOpenURL(mailto);
+      }
       if (!canOpen) {
         Alert.alert(
           "Unavailable",
