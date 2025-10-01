@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   button: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#1e40af",
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   link: {
-    color: "#2563eb",
+    color: "#1e40af",
     fontSize: 14,
     fontWeight: "500",
   },
