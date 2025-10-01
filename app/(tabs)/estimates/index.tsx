@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Badge, Button, Card, Input } from "../../../components/ui";
+import { Badge, Button, Card, FAB, Input, ListItem } from "../../../components/ui";
 import { cardShadow, useTheme, type Theme } from "../../../lib/theme";
 import { openDB } from "../../../lib/sqlite";
 
@@ -89,6 +89,15 @@ function formatCurrency(value: number | null): string {
 export default function EstimatesScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const badgeToneStyles = useMemo(
+    () => ({
+      info: styles.statusBadgeInfo,
+      warning: styles.statusBadgeWarning,
+      success: styles.statusBadgeSuccess,
+      danger: styles.statusBadgeDanger,
+    }),
+    [styles],
+  );
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -224,10 +233,6 @@ export default function EstimatesScreen() {
             polished quotes from the field.
           </Text>
         </View>
-        <Button
-          label="Create Estimate"
-          onPress={() => router.push("/(tabs)/estimates/new")}
-        />
       </View>
     ),
     [styles],
@@ -378,67 +383,60 @@ export default function EstimatesScreen() {
               </View>
             ) : null}
 
-            {customerEstimates.map((estimate) => (
-              <Pressable
-                key={estimate.id}
-                onPress={() => router.push(`/(tabs)/estimates/${estimate.id}`)}
-                style={({ pressed }) => [pressed ? styles.cardPressed : null]}
-              >
-                <Card style={styles.estimateCard}>
-                  <View style={styles.estimateHeader}>
-                    <View>
-                      <Text style={styles.estimateTitle}>
-                        Estimate #{estimate.id.slice(0, 8).toUpperCase()}
-                      </Text>
-                      <Text style={styles.estimateSubtitle}>
-                        Updated {new Date(estimate.updated_at).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    <Badge tone={statusTone(estimate.status)}>
-                      {formatStatus(estimate.status)}
-                    </Badge>
-                  </View>
-                  <View style={styles.estimateMetaRow}>
-                    <View>
-                      <Text style={styles.metaLabel}>Total</Text>
-                      <Text style={styles.metaValue}>
-                        {formatCurrency(estimate.total)}
-                      </Text>
-                    </View>
-                    <View style={styles.metaRight}>
-                      {estimate.date ? (
-                        <Text style={styles.dateText}>
-                          {new Date(estimate.date).toLocaleDateString()}
-                        </Text>
-                      ) : (
-                        <Text style={styles.dateText}>Date not set</Text>
-                      )}
-                      <View style={styles.tagRow}>
-                        <Feather name="user" size={14} color={theme.secondaryText} />
-                        <Text style={styles.tagText}>
-                          {estimate.customer_name || "Unassigned"}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </Card>
-              </Pressable>
-            ))}
+            {customerEstimates.length > 0 ? (
+              <Card style={styles.estimateList} elevated={false}>
+                {customerEstimates.map((estimate, index) => {
+                  const status = formatStatus(estimate.status);
+                  const tone = statusTone(estimate.status);
+                  const badgeStyle = badgeToneStyles[tone];
+                  const subtitle = estimate.date
+                    ? new Date(estimate.date).toLocaleDateString()
+                    : "Date not set";
+
+                  return (
+                    <ListItem
+                      key={estimate.id}
+                      title={estimate.customer_name?.trim() || "Unassigned"}
+                      subtitle={subtitle}
+                      onPress={() => router.push(`/(tabs)/estimates/${estimate.id}`)}
+                      style={[
+                        styles.estimateItem,
+                        index < customerEstimates.length - 1
+                          ? styles.estimateDivider
+                          : null,
+                      ]}
+                      badge={
+                        <View style={styles.estimateTrailing}>
+                          <Text style={styles.estimateAmount}>
+                            {formatCurrency(estimate.total)}
+                          </Text>
+                          <Badge style={[styles.statusBadge, badgeStyle]}>
+                            {status}
+                          </Badge>
+                        </View>
+                      }
+                    />
+                  );
+                })}
+              </Card>
+            ) : null}
           </View>
         ) : null}
       </ScrollView>
+      <View style={styles.footer}>
+        <Button
+          label="Create Estimate"
+          onPress={() => router.push("/(tabs)/estimates/new")}
+        />
+      </View>
 
-      <Pressable
-        accessibilityRole="button"
+      <FAB
         accessibilityLabel="Create a new estimate"
+        icon={<Feather name="plus" size={24} color={theme.surface} />}
         onPress={() => router.push("/(tabs)/estimates/new")}
-        style={({ pressed }) => [
-          styles.fab,
-          pressed ? styles.fabPressed : null,
-        ]}
-      >
-        <Feather name="plus" size={28} color={theme.surface} />
-      </Pressable>
+        palette="highlight"
+        style={styles.fab}
+      />
     </SafeAreaView>
   );
 }
@@ -559,85 +557,53 @@ function createStyles(theme: Theme) {
       borderWidth: 1,
       borderColor: theme.border,
     },
-    estimateCard: {
-      gap: 16,
+    estimateList: {
+      padding: 0,
+      gap: 0,
+      overflow: "hidden",
     },
-    estimateHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 16,
+    estimateItem: {
+      borderRadius: 0,
+      backgroundColor: theme.surface,
     },
-    estimateTitle: {
-      fontSize: 18,
+    estimateDivider: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+    },
+    estimateTrailing: {
+      alignItems: "flex-end",
+      gap: 8,
+    },
+    estimateAmount: {
+      fontSize: 16,
       fontWeight: "700",
       color: theme.primaryText,
     },
-    estimateSubtitle: {
-      fontSize: 13,
-      color: theme.mutedText,
-      marginTop: 4,
+    statusBadge: {
+      alignSelf: "flex-end",
     },
-    estimateMetaRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-end",
-      gap: 16,
+    statusBadgeInfo: {
+      backgroundColor: theme.accentMuted,
     },
-    metaLabel: {
-      fontSize: 12,
-      letterSpacing: 0.6,
-      textTransform: "uppercase",
-      color: theme.mutedText,
+    statusBadgeWarning: {
+      backgroundColor: theme.highlight,
     },
-    metaValue: {
-      fontSize: 20,
-      fontWeight: "700",
-      color: theme.primaryText,
-      marginTop: 6,
+    statusBadgeSuccess: {
+      backgroundColor: theme.successSurface,
     },
-    metaRight: {
-      alignItems: "flex-end",
-      gap: 6,
+    statusBadgeDanger: {
+      backgroundColor: theme.dangerSurface,
     },
-    dateText: {
-      fontSize: 13,
-      color: theme.secondaryText,
-    },
-    tagRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 999,
-      backgroundColor:
-        theme.mode === "dark"
-          ? "rgba(123, 168, 217, 0.16)"
-          : "rgba(123, 168, 217, 0.18)",
-    },
-    tagText: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: theme.secondaryText,
-    },
-    cardPressed: {
-      opacity: 0.9,
+    footer: {
+      paddingHorizontal: 24,
+      paddingBottom: 32,
+      backgroundColor: theme.background,
     },
     fab: {
       position: "absolute",
-      bottom: 32,
+      bottom: 112,
       right: 24,
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.accent,
       ...cardShadow(20, theme.mode),
-    },
-    fabPressed: {
-      transform: [{ scale: 0.96 }],
     },
   });
 }
