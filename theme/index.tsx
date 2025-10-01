@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { Appearance, Platform } from "react-native";
 
 export type ThemeSpacing = {
   none: number;
@@ -162,4 +163,43 @@ export function ThemeProvider({ children, defaultMode = "light" }: ThemeProvider
 
 export function useTheme() {
   return useContext(ThemeContext);
+}
+
+export function cardShadow(
+  depth: number = 12,
+  mode?: ThemeMode,
+): {
+  shadowColor: string;
+  shadowOpacity: number;
+  shadowRadius: number;
+  shadowOffset: { width: number; height: number };
+  elevation: number;
+} {
+  if (Platform.OS === "web") {
+    return {
+      shadowColor: "transparent",
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      shadowOffset: { width: 0, height: 0 },
+      elevation: 0,
+    } as const;
+  }
+
+  const resolvedMode: ThemeMode =
+    mode ?? (Appearance.getColorScheme() === "dark" ? "dark" : "light");
+  const baseOpacity = depth >= 16 ? 0.28 : 0.18;
+  const shadowOpacity = resolvedMode === "dark" ? baseOpacity + 0.12 : baseOpacity;
+  const height = Math.max(4, Math.round(depth / 3));
+  const radius = Math.max(12, Math.round(depth / 2));
+
+  const shadowColor =
+    resolvedMode === "dark" ? "rgba(0, 0, 0, 0.6)" : "rgba(15, 23, 42, 0.12)";
+
+  return {
+    shadowColor,
+    shadowOpacity,
+    shadowRadius: radius,
+    shadowOffset: { width: 0, height },
+    elevation: Math.max(4, Math.round(depth / 2)),
+  } as const;
 }

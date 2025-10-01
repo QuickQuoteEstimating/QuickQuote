@@ -50,13 +50,7 @@ import {
 import { calculateEstimateTotals } from "../../../lib/estimateMath";
 import { formatPercentageInput } from "../../../lib/numberFormat";
 import { Badge, Button, Card, type BadgeTone } from "../../../components/ui";
-import {
-  cardShadow,
-  palette,
-  useTheme as useLegacyTheme,
-  type Theme as LegacyTheme,
-} from "../../../lib/theme";
-import { useTheme as useDesignTheme, type Theme as DesignTheme } from "../../../theme";
+import { cardShadow, useTheme, type Theme } from "../../../theme";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
 
@@ -177,12 +171,10 @@ export default function EditEstimateScreen() {
   const estimateId = params.id ?? "";
   const { user, session } = useAuth();
   const { settings } = useSettings();
-  const theme = useLegacyTheme();
-  const { theme: designTheme } = useDesignTheme();
-  const previewStyles = useMemo(
-    () => createPreviewStyles(theme, designTheme),
-    [theme, designTheme],
-  );
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const previewStyles = useMemo(() => createPreviewStyles(theme), [theme]);
+  const colors = theme.colors;
   const userId = user?.id ?? session?.user?.id ?? null;
   const { openEditor } = useItemEditor();
   const draftRef = useRef<EstimateFormDraftState | null>(
@@ -825,7 +817,7 @@ export default function EditEstimateScreen() {
           <View style={styles.buttonFlex}>
             <RNButton
               title="Edit"
-              color={palette.accent}
+              color={colors.primary}
               onPress={() =>
                 openItemEditorScreen({
                   title: "Edit Item",
@@ -845,14 +837,21 @@ export default function EditEstimateScreen() {
           <View style={styles.buttonFlex}>
             <RNButton
               title="Remove"
-              color={palette.danger}
+              color={colors.danger}
               onPress={() => handleDeleteItem(item)}
             />
           </View>
         </View>
       </View>
     ),
-    [handleDeleteItem, makeItemSubmitHandler, openItemEditorScreen, savedItemTemplates],
+    [
+      colors.danger,
+      colors.primary,
+      handleDeleteItem,
+      makeItemSubmitHandler,
+      openItemEditorScreen,
+      savedItemTemplates,
+    ],
   );
 
   const handlePhotoDraftChange = useCallback((photoId: string, value: string) => {
@@ -1712,7 +1711,7 @@ export default function EditEstimateScreen() {
   if (loading) {
     return (
       <View style={styles.loadingState}>
-        <ActivityIndicator color={palette.accent} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -1739,7 +1738,7 @@ export default function EditEstimateScreen() {
             <Text style={styles.fieldLabel}>Date</Text>
             <TextInput
               placeholder="YYYY-MM-DD"
-              placeholderTextColor={palette.mutedText}
+              placeholderTextColor={colors.textMuted}
               value={estimateDate}
               onChangeText={setEstimateDate}
               style={styles.input}
@@ -1779,7 +1778,7 @@ export default function EditEstimateScreen() {
                   )}
                   <TextInput
                     placeholder="Add a description"
-                    placeholderTextColor={palette.mutedText}
+                    placeholderTextColor={colors.textMuted}
                     value={draft}
                     onChangeText={(text) => handlePhotoDraftChange(photo.id, text)}
                     multiline
@@ -1790,7 +1789,7 @@ export default function EditEstimateScreen() {
                     <View style={styles.buttonFlex}>
                       <RNButton
                         title="Save"
-                        color={palette.accent}
+                        color={colors.primary}
                         onPress={() => handleSavePhotoDescription(photo)}
                         disabled={isSaving}
                       />
@@ -1798,7 +1797,7 @@ export default function EditEstimateScreen() {
                     <View style={styles.buttonFlex}>
                       <RNButton
                         title="Remove"
-                        color={palette.danger}
+                        color={colors.danger}
                         onPress={() => handleDeletePhoto(photo)}
                         disabled={isDeleting}
                       />
@@ -1813,14 +1812,14 @@ export default function EditEstimateScreen() {
               title={photoSyncing ? "Syncing photos..." : "Sync photos"}
               onPress={handleRetryPhotoSync}
               disabled={photoSyncing}
-              color={palette.accent}
+              color={colors.primary}
             />
           ) : null}
           <RNButton
             title={addingPhoto ? "Adding photo..." : "Add Photo"}
             onPress={handleAddPhoto}
             disabled={addingPhoto}
-            color={palette.accent}
+            color={colors.primary}
           />
         </View>
 
@@ -1843,7 +1842,7 @@ export default function EditEstimateScreen() {
           />
           <RNButton
             title="Add line item"
-            color={palette.accent}
+            color={colors.primary}
             onPress={() =>
               openItemEditorScreen({
                 title: "Add line item",
@@ -1862,7 +1861,7 @@ export default function EditEstimateScreen() {
             <Text style={styles.fieldLabel}>Project hours</Text>
             <TextInput
               placeholder="0"
-              placeholderTextColor={palette.mutedText}
+              placeholderTextColor={colors.textMuted}
               value={laborHoursText}
               onChangeText={setLaborHoursText}
               keyboardType="decimal-pad"
@@ -1875,7 +1874,7 @@ export default function EditEstimateScreen() {
               <Text style={styles.prefixSymbol}>$</Text>
               <TextInput
                 placeholder="0.00"
-                placeholderTextColor={palette.mutedText}
+                placeholderTextColor={colors.textMuted}
                 value={hourlyRateText}
                 onChangeText={setHourlyRateText}
                 keyboardType="decimal-pad"
@@ -1891,7 +1890,7 @@ export default function EditEstimateScreen() {
             <View style={styles.inputRow}>
               <TextInput
                 placeholder="0"
-                placeholderTextColor={palette.mutedText}
+                placeholderTextColor={colors.textMuted}
                 value={taxRateText}
                 onChangeText={setTaxRateText}
                 keyboardType="decimal-pad"
@@ -1940,7 +1939,7 @@ export default function EditEstimateScreen() {
             <Text style={styles.fieldLabel}>Internal notes</Text>
             <TextInput
               placeholder="Add private notes for your team"
-              placeholderTextColor={palette.mutedText}
+              placeholderTextColor={colors.textMuted}
               value={notes}
               onChangeText={setNotes}
               multiline
@@ -2043,7 +2042,8 @@ export default function EditEstimateScreen() {
   );
 }
 
-function createPreviewStyles(theme: LegacyTheme, designTheme: DesignTheme) {
+function createPreviewStyles(theme: Theme) {
+  const { colors } = theme;
   return StyleSheet.create({
     previewSection: {
       marginTop: 28,
@@ -2054,13 +2054,13 @@ function createPreviewStyles(theme: LegacyTheme, designTheme: DesignTheme) {
     previewTitle: {
       fontSize: 22,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: colors.primaryText,
       textAlign: "center",
     },
     previewSubtitle: {
       fontSize: 15,
       lineHeight: 22,
-      color: theme.secondaryText,
+      color: colors.textMuted,
       textAlign: "center",
       maxWidth: 520,
     },
@@ -2068,26 +2068,26 @@ function createPreviewStyles(theme: LegacyTheme, designTheme: DesignTheme) {
       alignSelf: "center",
       maxWidth: 520,
       width: "100%",
-      backgroundColor: designTheme.colors.successSoft,
-      borderColor: designTheme.colors.success,
+      backgroundColor: colors.successSoft,
+      borderColor: colors.success,
       borderWidth: StyleSheet.hairlineWidth,
       borderRadius: 18,
       paddingVertical: 12,
       paddingHorizontal: 16,
     },
     successText: {
-      color: designTheme.colors.success,
+      color: colors.success,
       fontWeight: "600",
       textAlign: "center",
     },
     previewCard: {
       width: "100%",
       maxWidth: 520,
-      backgroundColor: theme.surface,
+      backgroundColor: colors.surface,
       borderRadius: 26,
       padding: 28,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.border,
+      borderColor: colors.border,
       gap: 20,
       ...cardShadow(20, theme.mode),
     },
@@ -2103,13 +2103,13 @@ function createPreviewStyles(theme: LegacyTheme, designTheme: DesignTheme) {
     brandName: {
       fontSize: 20,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: colors.primaryText,
     },
     brandTagline: {
       fontSize: 12,
       letterSpacing: 1,
       textTransform: "uppercase",
-      color: theme.mutedText,
+      color: colors.textMuted,
     },
     metaBlock: {
       alignItems: "flex-end",
@@ -2119,19 +2119,19 @@ function createPreviewStyles(theme: LegacyTheme, designTheme: DesignTheme) {
       fontSize: 12,
       textTransform: "uppercase",
       letterSpacing: 0.8,
-      color: theme.mutedText,
+      color: colors.textMuted,
     },
     metaValue: {
       fontSize: 18,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: colors.primaryText,
     },
     statusBadge: {
       alignSelf: "flex-end",
     },
     summaryDivider: {
       height: StyleSheet.hairlineWidth,
-      backgroundColor: theme.border,
+      backgroundColor: colors.border,
     },
     summaryGrid: {
       gap: 16,
@@ -2144,19 +2144,19 @@ function createPreviewStyles(theme: LegacyTheme, designTheme: DesignTheme) {
     },
     summaryLabel: {
       fontSize: 14,
-      color: theme.secondaryText,
+      color: colors.textMuted,
     },
     summaryValue: {
       fontSize: 15,
       fontWeight: "600",
-      color: theme.primaryText,
+      color: colors.primaryText,
       textAlign: "right",
     },
     totalBlock: {
       marginTop: 8,
       paddingTop: 16,
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.border,
+      borderTopColor: colors.border,
       alignItems: "flex-end",
       gap: 4,
     },
@@ -2164,17 +2164,17 @@ function createPreviewStyles(theme: LegacyTheme, designTheme: DesignTheme) {
       fontSize: 13,
       letterSpacing: 0.6,
       textTransform: "uppercase",
-      color: theme.mutedText,
+      color: colors.textMuted,
     },
     totalValue: {
       fontSize: 30,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: colors.primaryText,
     },
     previewHint: {
       fontSize: 14,
       lineHeight: 20,
-      color: theme.secondaryText,
+      color: colors.textMuted,
       textAlign: "center",
       maxWidth: 520,
     },
@@ -2187,204 +2187,207 @@ function createPreviewStyles(theme: LegacyTheme, designTheme: DesignTheme) {
       paddingHorizontal: 20,
       paddingTop: 16,
       paddingBottom: 24,
-      backgroundColor: theme.surface,
+      backgroundColor: colors.surface,
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.border,
+      borderTopColor: colors.border,
       ...cardShadow(16, theme.mode),
     },
   });
 }
 
-const styles = StyleSheet.create({
-  loadingState: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: palette.background,
-  },
-  screenContainer: {
-    flex: 1,
-    backgroundColor: palette.background,
-  },
-  screen: {
-    flex: 1,
-    backgroundColor: palette.background,
-  },
-  content: {
-    padding: 20,
-    gap: 20,
-    paddingBottom: 220,
-  },
-  card: {
-    backgroundColor: palette.surface,
-    borderRadius: 22,
-    padding: 20,
-    gap: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    ...cardShadow(16),
-  },
-  pageTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: palette.primaryText,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: palette.primaryText,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: palette.secondaryText,
-    lineHeight: 20,
-  },
-  fieldGroup: {
-    gap: 8,
-  },
-  fieldLabel: {
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: palette.primaryText,
-    backgroundColor: palette.surfaceSubtle,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: palette.primaryText,
-    minHeight: 100,
-    textAlignVertical: "top",
-    backgroundColor: palette.surfaceSubtle,
-  },
-  inlineButtons: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  buttonFlex: {
-    flex: 1,
-  },
-  photoCard: {
-    gap: 12,
-    backgroundColor: palette.surfaceSubtle,
-    padding: 14,
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    ...cardShadow(8),
-  },
-  photoImage: {
-    width: "100%",
-    height: 180,
-    borderRadius: 12,
-  },
-  photoPlaceholder: {
-    height: 180,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#e2e8f0",
-    paddingHorizontal: 12,
-  },
-  photoPlaceholderText: {
-    textAlign: "center",
-    color: palette.secondaryText,
-  },
-  emptyCard: {
-    padding: 18,
-    borderRadius: 16,
-    alignItems: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderStyle: "dashed",
-    borderColor: palette.border,
-    backgroundColor: palette.surfaceSubtle,
-  },
-  emptyText: {
-    color: palette.mutedText,
-  },
-  itemSeparator: {
-    height: 12,
-  },
-  itemCard: {
-    backgroundColor: palette.surfaceSubtle,
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    ...cardShadow(6),
-  },
-  itemInfo: {
-    gap: 4,
-  },
-  itemTitle: {
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  itemMeta: {
-    color: palette.secondaryText,
-  },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  inputGrow: {
-    flex: 1,
-  },
-  prefixSymbol: {
-    fontWeight: "700",
-    color: palette.primaryText,
-  },
-  suffixSymbol: {
-    fontWeight: "700",
-    color: palette.primaryText,
-  },
-  helpText: {
-    fontSize: 12,
-    color: palette.secondaryText,
-  },
-  pickerShell: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: palette.surfaceSubtle,
-  },
-  totalsCard: {
-    gap: 10,
-  },
-  totalsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  totalsLabel: {
-    color: palette.secondaryText,
-  },
-  totalsValue: {
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  totalsGrand: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: palette.primaryText,
-  },
-  footerButtons: {
-    flexDirection: "row",
-    gap: 12,
-    paddingBottom: 16,
-  },
-});
+function createStyles(theme: Theme) {
+  const { colors } = theme;
+  return StyleSheet.create({
+    loadingState: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: colors.background,
+    },
+    screenContainer: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: 20,
+      gap: 20,
+      paddingBottom: 220,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 22,
+      padding: 20,
+      gap: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      ...cardShadow(16, theme.mode),
+    },
+    pageTitle: {
+      fontSize: 24,
+      fontWeight: "700",
+      color: colors.primaryText,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.primaryText,
+    },
+    sectionSubtitle: {
+      fontSize: 14,
+      color: colors.textMuted,
+      lineHeight: 20,
+    },
+    fieldGroup: {
+      gap: 8,
+    },
+    fieldLabel: {
+      fontWeight: "600",
+      color: colors.primaryText,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 16,
+      color: colors.primaryText,
+      backgroundColor: colors.surfaceMuted,
+    },
+    textArea: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: colors.primaryText,
+      minHeight: 100,
+      textAlignVertical: "top",
+      backgroundColor: colors.surfaceMuted,
+    },
+    inlineButtons: {
+      flexDirection: "row",
+      gap: 12,
+    },
+    buttonFlex: {
+      flex: 1,
+    },
+    photoCard: {
+      gap: 12,
+      backgroundColor: colors.surfaceMuted,
+      padding: 14,
+      borderRadius: 18,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      ...cardShadow(8, theme.mode),
+    },
+    photoImage: {
+      width: "100%",
+      height: 180,
+      borderRadius: 12,
+    },
+    photoPlaceholder: {
+      height: 180,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#e2e8f0",
+      paddingHorizontal: 12,
+    },
+    photoPlaceholderText: {
+      textAlign: "center",
+      color: colors.textMuted,
+    },
+    emptyCard: {
+      padding: 18,
+      borderRadius: 16,
+      alignItems: "center",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderStyle: "dashed",
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceMuted,
+    },
+    emptyText: {
+      color: colors.textMuted,
+    },
+    itemSeparator: {
+      height: 12,
+    },
+    itemCard: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: 16,
+      padding: 16,
+      gap: 8,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      ...cardShadow(6, theme.mode),
+    },
+    itemInfo: {
+      gap: 4,
+    },
+    itemTitle: {
+      fontWeight: "600",
+      color: colors.primaryText,
+    },
+    itemMeta: {
+      color: colors.textMuted,
+    },
+    inputRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    inputGrow: {
+      flex: 1,
+    },
+    prefixSymbol: {
+      fontWeight: "700",
+      color: colors.primaryText,
+    },
+    suffixSymbol: {
+      fontWeight: "700",
+      color: colors.primaryText,
+    },
+    helpText: {
+      fontSize: 12,
+      color: colors.textMuted,
+    },
+    pickerShell: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      overflow: "hidden",
+      backgroundColor: colors.surfaceMuted,
+    },
+    totalsCard: {
+      gap: 10,
+    },
+    totalsRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    totalsLabel: {
+      color: colors.textMuted,
+    },
+    totalsValue: {
+      fontWeight: "600",
+      color: colors.primaryText,
+    },
+    totalsGrand: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.primaryText,
+    },
+    footerButtons: {
+      flexDirection: "row",
+      gap: 12,
+      paddingBottom: 16,
+    },
+  });
+}
