@@ -1,0 +1,124 @@
+import { useMemo, type ReactNode } from "react";
+import {
+  Pressable,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextStyle,
+  View,
+  ViewStyle,
+} from "react-native";
+import { useTheme } from "../../theme";
+
+export interface ListItemProps {
+  title: string;
+  subtitle?: string;
+  amount?: string;
+  badge?: ReactNode;
+  onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
+  titleStyle?: StyleProp<TextStyle>;
+  subtitleStyle?: StyleProp<TextStyle>;
+  amountStyle?: StyleProp<TextStyle>;
+}
+
+export function ListItem({
+  title,
+  subtitle,
+  amount,
+  badge,
+  onPress,
+  style,
+  titleStyle,
+  subtitleStyle,
+  amountStyle,
+}: ListItemProps) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  if (onPress) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.container,
+          pressed ? styles.pressed : null,
+          style,
+        ]}
+      >
+        <View style={styles.textColumn}>
+          <Text style={[styles.title, titleStyle]}>{title}</Text>
+          {subtitle ? (
+            <Text style={[styles.subtitle, subtitleStyle]}>{subtitle}</Text>
+          ) : null}
+        </View>
+        <View style={styles.rightColumn}>
+          {badge ? (
+            badge
+          ) : amount ? (
+            <Text style={[styles.amount, amountStyle]}>{amount}</Text>
+          ) : null}
+        </View>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={[styles.container, style]}>
+      <View style={styles.textColumn}>
+        <Text style={[styles.title, titleStyle]}>{title}</Text>
+        {subtitle ? <Text style={[styles.subtitle, subtitleStyle]}>{subtitle}</Text> : null}
+      </View>
+      <View style={styles.rightColumn}>
+        {badge ? (
+          badge
+        ) : amount ? (
+          <Text style={[styles.amount, amountStyle]}>{amount}</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function createStyles(theme: ReturnType<typeof useTheme>["theme"]) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: theme.spacing.lg,
+      paddingHorizontal: theme.spacing.xl,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radii.lg,
+      gap: theme.spacing.md,
+    },
+    pressed: {
+      opacity: 0.9,
+    },
+    textColumn: {
+      flex: 1,
+      gap: theme.spacing.xs,
+    },
+    rightColumn: {
+      marginLeft: theme.spacing.md,
+      alignItems: "flex-end",
+      justifyContent: "center",
+    },
+    title: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.text,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: theme.colors.textMuted,
+    },
+    amount: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: theme.colors.primaryText,
+    },
+  });
+}
+
+export default ListItem;
