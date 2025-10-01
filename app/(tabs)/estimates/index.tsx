@@ -132,48 +132,58 @@ export default function EstimatesScreen() {
           {
             text: "Delete",
             style: "destructive",
-            onPress: async () => {
-              try {
-                const db = await openDB();
-                const deletedAt = new Date().toISOString();
-                const nextVersion = (estimate.version ?? 1) + 1;
-                await db.runAsync(
-                  `UPDATE estimates
-                   SET deleted_at = ?, updated_at = ?, version = ?
-                   WHERE id = ?`,
-                  [deletedAt, deletedAt, nextVersion, estimate.id]
-                );
+            onPress: () => {
+              let previousEstimates: EstimateListItem[] = [];
 
-                const deletedEstimate = {
-                  ...estimate,
-                  deleted_at: deletedAt,
-                  updated_at: deletedAt,
-                  version: nextVersion,
-                };
+              setEstimates((prev) => {
+                previousEstimates = prev;
+                return prev.filter((existing) => existing.id !== estimate.id);
+              });
 
-                await queueChange(
-                  "estimates",
-                  "update",
-                  sanitizeEstimateForQueue(deletedEstimate)
-                );
-                await runSync();
+              (async () => {
+                try {
+                  const db = await openDB();
+                  const deletedAt = new Date().toISOString();
+                  const nextVersion = (estimate.version ?? 1) + 1;
+                  await db.runAsync(
+                    `UPDATE estimates
+                     SET deleted_at = ?, updated_at = ?, version = ?
+                     WHERE id = ?`,
+                    [deletedAt, deletedAt, nextVersion, estimate.id]
+                  );
 
-                setEstimates((prev) =>
-                  prev.filter((existing) => existing.id !== estimate.id)
-                );
-              } catch (error) {
-                console.error("Failed to delete estimate", error);
-                Alert.alert(
-                  "Error",
-                  "Unable to delete the estimate. Please try again."
-                );
-              }
+                  const deletedEstimate = {
+                    ...estimate,
+                    deleted_at: deletedAt,
+                    updated_at: deletedAt,
+                    version: nextVersion,
+                  };
+
+                  await queueChange(
+                    "estimates",
+                    "update",
+                    sanitizeEstimateForQueue(deletedEstimate)
+                  );
+                  void runSync().catch((error) => {
+                    console.error("Failed to sync estimate deletion", error);
+                  });
+
+                  await loadEstimates();
+                } catch (error) {
+                  console.error("Failed to delete estimate", error);
+                  Alert.alert(
+                    "Error",
+                    "Unable to delete the estimate. Please try again."
+                  );
+                  setEstimates(() => [...previousEstimates]);
+                }
+              })();
             },
           },
         ]
       );
     },
-    []
+    [loadEstimates]
   );
 
   const renderEstimate = useCallback(

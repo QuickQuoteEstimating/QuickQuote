@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { openDB } from "../../lib/sqlite";
 import { BrandLogo } from "../../components/BrandLogo";
+import { palette } from "../../lib/theme";
 
 type DashboardMetrics = {
   jobsSold: number;
@@ -40,12 +41,13 @@ type SummaryRow = {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F4F6FB",
+    backgroundColor: palette.background,
   },
   content: {
     paddingHorizontal: 24,
     paddingBottom: 32,
     gap: 24,
+    backgroundColor: palette.background,
   },
   heroCard: {
     backgroundColor: "#0F172A",
@@ -117,7 +119,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#0F172A",
+    color: palette.primaryText,
     letterSpacing: 0.2,
   },
   grid: {
@@ -128,18 +130,20 @@ const styles = StyleSheet.create({
   metricCard: {
     flexGrow: 1,
     minWidth: "48%",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: palette.surface,
     borderRadius: 22,
     padding: 20,
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    shadowColor: "#040b1a",
+    shadowOpacity: 0.25,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 18 },
+    elevation: 6,
   },
   metricLabel: {
     fontSize: 12,
-    color: "#64748B",
+    color: palette.secondaryText,
     textTransform: "uppercase",
     fontWeight: "600",
     letterSpacing: 0.8,
@@ -148,24 +152,26 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 24,
     fontWeight: "700",
-    color: "#0F172A",
+    color: palette.primaryText,
   },
   metricHint: {
     marginTop: 6,
     fontSize: 14,
-    color: "#64748B",
+    color: palette.mutedText,
     lineHeight: 20,
   },
   listCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: palette.surface,
     borderRadius: 22,
     padding: 20,
     gap: 18,
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    shadowColor: "#040b1a",
+    shadowOpacity: 0.25,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 18 },
+    elevation: 6,
   },
   listItem: {
     flexDirection: "row",
@@ -178,30 +184,32 @@ const styles = StyleSheet.create({
   listItemName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#0F172A",
+    color: palette.primaryText,
   },
   listItemMeta: {
     fontSize: 13,
-    color: "#64748B",
+    color: palette.secondaryText,
   },
   listItemValue: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#0F172A",
+    color: palette.primaryText,
   },
   topJobCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: palette.surface,
     borderRadius: 22,
     padding: 20,
     gap: 10,
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: palette.border,
+    shadowColor: "#040b1a",
+    shadowOpacity: 0.25,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 18 },
+    elevation: 6,
   },
   muted: {
-    color: "#94A3B8",
+    color: palette.mutedText,
     fontSize: 13,
   },
 });
@@ -415,7 +423,7 @@ export default function Home() {
             setRefreshing(true);
             refreshMetrics();
           }}
-          tintColor="#0F172A"
+          tintColor={palette.accent}
         />
       }
     >
