@@ -1,20 +1,12 @@
 import { Link, router } from "expo-router";
-import { useEffect, useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import LogoPicker from "../../components/LogoPicker";
 import { useSettings } from "../../context/SettingsContext";
+import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
+import { useTheme, type Theme } from "../../theme";
 
 export default function SignupScreen() {
   const [email, setEmail] = useState("");
@@ -28,6 +20,8 @@ export default function SignupScreen() {
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { settings, setCompanyProfile } = useSettings();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {
     setCompanyName(settings.companyProfile.name ?? "");
@@ -88,188 +82,140 @@ export default function SignupScreen() {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <View style={styles.logoContainer}>
             <BrandLogo size={80} />
           </View>
-          <Text style={styles.title}>Create your account</Text>
+          <Title style={styles.title}>Create your account</Title>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Account details</Text>
-            <Text style={styles.sectionSubtitle}>
+            <Subtitle style={styles.sectionTitle}>Account details</Subtitle>
+            <Body style={styles.sectionSubtitle}>
               Sign in with your work email so we can keep your estimates in sync.
-            </Text>
-            <TextInput
+            </Body>
+            <Input
               autoCapitalize="none"
               autoComplete="email"
               autoCorrect={false}
               keyboardType="email-address"
-              placeholder="Email"
-              placeholderTextColor="#888"
-              style={styles.input}
+              placeholder="you@example.com"
+              label="Email"
               value={email}
               onChangeText={setEmail}
             />
-            <TextInput
+            <Input
               autoCapitalize="none"
               autoComplete="password"
-              placeholder="Password"
-              placeholderTextColor="#888"
+              placeholder="Create a password"
               secureTextEntry
-              style={styles.input}
+              label="Password"
               value={password}
               onChangeText={setPassword}
             />
-            <TextInput
+            <Input
               autoCapitalize="none"
               autoComplete="password"
-              placeholder="Confirm password"
-              placeholderTextColor="#888"
+              placeholder="Confirm your password"
               secureTextEntry
-              style={styles.input}
+              label="Confirm password"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
             />
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Company profile</Text>
-            <Text style={styles.sectionSubtitle}>
-              We’ll preload every estimate with this information. You can tweak it anytime in Settings.
-            </Text>
+            <Subtitle style={styles.sectionTitle}>Company profile</Subtitle>
+            <Body style={styles.sectionSubtitle}>
+              We’ll preload every estimate with this information. You can tweak it anytime in
+              Settings.
+            </Body>
             <LogoPicker value={logoUri} onChange={setLogoUri} />
-            <TextInput
-              placeholder="Company name"
-              placeholderTextColor="#888"
-              style={styles.input}
+            <Input
+              placeholder="Acme Landscaping"
+              label="Company name"
               value={companyName}
               onChangeText={setCompanyName}
             />
-            <TextInput
-              placeholder="Company email"
-              placeholderTextColor="#888"
+            <Input
+              placeholder="hello@acme.com"
               keyboardType="email-address"
               autoCapitalize="none"
-              style={styles.input}
+              label="Company email"
               value={companyEmail}
               onChangeText={setCompanyEmail}
             />
-            <TextInput
-              placeholder="Phone"
-              placeholderTextColor="#888"
+            <Input
+              placeholder="(555) 555-0199"
               keyboardType="phone-pad"
-              style={styles.input}
+              label="Phone"
               value={companyPhone}
               onChangeText={setCompanyPhone}
             />
-            <TextInput
-              placeholder="Website"
-              placeholderTextColor="#888"
+            <Input
+              placeholder="https://acme.com"
               autoCapitalize="none"
-              style={styles.input}
+              label="Website"
               value={companyWebsite}
               onChangeText={setCompanyWebsite}
             />
-            <TextInput
-              placeholder="Business address"
-              placeholderTextColor="#888"
-              style={[styles.input, styles.textArea]}
+            <Input
+              placeholder="123 Main St, Springfield"
+              label="Business address"
               value={companyAddress}
               onChangeText={setCompanyAddress}
               multiline
             />
           </View>
 
-          <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={handleSignup} disabled={loading}>
-            <Text style={styles.buttonText}>{loading ? "Creating account..." : "Sign up"}</Text>
-          </Pressable>
+          <Button label="Sign up" onPress={handleSignup} loading={loading} />
           <View style={styles.linksRow}>
-            <Link href="/(auth)/login" style={styles.link}>
-              Already have an account?
+            <Link href="/(auth)/login">
+              <Body style={styles.link}>Already have an account?</Body>
             </Link>
           </View>
-        </View>
+        </Card>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0f172a",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 24,
-    gap: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  scrollContent: {
-    paddingVertical: 24,
-  },
-  logoContainer: {
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#0f172a",
-    textAlign: "center",
-  },
-  section: {
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0f172a",
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: "#475569",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: "#0f172a",
-  },
-  textArea: {
-    minHeight: 90,
-    textAlignVertical: "top",
-  },
-  button: {
-    backgroundColor: "#1e40af",
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  linksRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  link: {
-    color: "#1e40af",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.xl,
+    },
+    card: {
+      gap: theme.spacing.xl,
+    },
+    scrollContent: {
+      paddingVertical: theme.spacing.xl,
+    },
+    logoContainer: {
+      alignItems: "center",
+      marginBottom: theme.spacing.xs,
+    },
+    title: {
+      textAlign: "center",
+      color: theme.colors.primaryText,
+    },
+    section: {
+      gap: theme.spacing.md,
+    },
+    sectionTitle: {
+      color: theme.colors.primaryText,
+    },
+    sectionSubtitle: {
+      color: theme.colors.textMuted,
+    },
+    linksRow: {
+      flexDirection: "row",
+      justifyContent: "center",
+    },
+    link: {
+      color: theme.colors.primary,
+      fontWeight: "600",
+    },
+  });
+}
