@@ -204,7 +204,8 @@ describe("EditEstimateScreen - item editing", () => {
     await act(async () => {});
     await findByText("Estimate items");
 
-    fireEvent.press(getByText("Add Item"));
+    const addLineItemButton = await findByText("Add line item");
+    fireEvent.press(addLineItemButton);
 
     expect(mockOpenEditor).toHaveBeenCalledTimes(1);
     const config = latestEditorConfig();

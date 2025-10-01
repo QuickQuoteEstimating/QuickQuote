@@ -56,7 +56,13 @@ import {
 } from "../../../lib/pdf";
 import { calculateEstimateTotals } from "../../../lib/estimateMath";
 import { formatPercentageInput } from "../../../lib/numberFormat";
-import { cardShadow, palette } from "../../../lib/theme";
+import {
+  Button as ThemedButton,
+  Card as ThemedCard,
+  Badge,
+  type BadgeTone,
+} from "../../../components/ui";
+import { cardShadow, palette, useTheme, type Theme } from "../../../lib/theme";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
 
@@ -163,11 +169,27 @@ const STATUS_OPTIONS = [
   { label: "Declined", value: "declined" },
 ];
 
+function getStatusTone(status: string | null): BadgeTone {
+  const normalized = status?.toLowerCase();
+  switch (normalized) {
+    case "accepted":
+      return "success";
+    case "declined":
+      return "danger";
+    case "sent":
+      return "info";
+    default:
+      return "warning";
+  }
+}
+
 export default function EditEstimateScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const estimateId = params.id ?? "";
   const { user, session } = useAuth();
   const { settings } = useSettings();
+  const theme = useTheme();
+  const previewStyles = useMemo(() => createPreviewStyles(theme), [theme]);
   const userId = user?.id ?? session?.user?.id ?? null;
   const { openEditor } = useItemEditor();
   const draftRef = useRef<EstimateFormDraftState | null>(
@@ -213,6 +235,28 @@ export default function EditEstimateScreen() {
   const [customerContact, setCustomerContact] = useState<CustomerRecord | null>(
     null
   );
+
+  const statusLabel = useMemo(() => {
+    const option = STATUS_OPTIONS.find((option) => option.value === status);
+    return option?.label ?? "Draft";
+  }, [status]);
+  const statusBadgeTone = useMemo(() => getStatusTone(status), [status]);
+  const previewEstimateNumber = useMemo(() => {
+    if (estimate?.id) {
+      return estimate.id.slice(0, 8).toUpperCase();
+    }
+    return "—";
+  }, [estimate?.id]);
+  const previewCustomerName = useMemo(() => {
+    return (
+      customerContact?.name ?? estimate?.customer_name ?? "Client not assigned"
+    );
+  }, [customerContact?.name, estimate?.customer_name]);
+  const previewDate = useMemo(() => {
+    return estimateDate
+      ? new Date(estimateDate).toLocaleDateString()
+      : "Date not set";
+  }, [estimateDate]);
   const estimateRef = useRef<EstimateListItem | null>(null);
   const lastPdfRef = useRef<EstimatePdfResult | null>(null);
   const releasePdfRef = useRef<(() => void) | null>(null);
@@ -1796,12 +1840,12 @@ export default function EditEstimateScreen() {
           }
         />
         <Button
-          title="Add Item"
+          title="Add line item"
           color={palette.accent}
           onPress={() =>
             openItemEditorScreen({
-              title: "Add Item",
-              submitLabel: "Add Item",
+              title: "Add line item",
+              submitLabel: "Add line item",
               templates: () => savedItemTemplates,
               initialTemplateId: null,
               onSubmit: makeItemSubmitHandler(null),
@@ -1916,51 +1960,152 @@ export default function EditEstimateScreen() {
         </View>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>PDF &amp; sharing</Text>
-        <Text style={styles.sectionSubtitle}>
-          Preview your branded estimate and send it straight to the customer.
+      <ThemedCard style={[styles.card, previewStyles.card]}>
+        <View style={previewStyles.headerBand}>
+          <Text style={previewStyles.headerText}>QuickQuote</Text>
+        </View>
+        <View style={previewStyles.summaryBlock}>
+          <Text style={previewStyles.summaryTitle}>
+            Estimate {previewEstimateNumber}
+          </Text>
+          <Text style={previewStyles.summarySubtitle}>{previewCustomerName}</Text>
+          <Text style={previewStyles.summaryMeta}>{previewDate}</Text>
+          <View style={previewStyles.summaryRow}>
+            <Text style={previewStyles.summaryLabel}>Project total</Text>
+            <Text style={previewStyles.summaryTotal}>
+              {formatCurrency(totals.grandTotal)}
+            </Text>
+          </View>
+        </View>
+        <Badge tone={statusBadgeTone} style={previewStyles.statusBadge}>
+          {statusLabel}
+        </Badge>
+        <Text style={previewStyles.actionHint}>
+          Preview your polished PDF and send it straight to the client.
         </Text>
-        <Button
-          title="Preview PDF"
-          color={palette.accent}
-          onPress={handlePreviewPdf}
-          disabled={pdfWorking || smsSending}
-        />
-        <Button
-          title="Share via Email"
-          color={palette.accentMuted}
-          onPress={handleShareEmail}
-          disabled={pdfWorking || smsSending}
-        />
-        <Button
-          title="Share via SMS"
-          color={palette.success}
-          onPress={handleShareSms}
-          disabled={smsSending || pdfWorking}
-        />
-      </View>
+        <View style={previewStyles.actionColumn}>
+          <ThemedButton
+            label="Preview PDF"
+            variant="secondary"
+            onPress={handlePreviewPdf}
+            disabled={pdfWorking || smsSending}
+            style={previewStyles.fullWidth}
+          />
+          <ThemedButton
+            label="Share via Email"
+            onPress={handleShareEmail}
+            disabled={pdfWorking || smsSending}
+            style={previewStyles.fullWidth}
+          />
+          <ThemedButton
+            label="Share via SMS"
+            variant="secondary"
+            onPress={handleShareSms}
+            disabled={smsSending || pdfWorking}
+            style={previewStyles.fullWidth}
+          />
+        </View>
+      </ThemedCard>
 
       <View style={styles.footerButtons}>
         <View style={styles.buttonFlex}>
-          <Button
-            title="Cancel"
+          <ThemedButton
+            label="Cancel"
+            variant="secondary"
             onPress={handleCancel}
             disabled={saving}
-            color={palette.secondaryText}
+            style={previewStyles.fullWidth}
           />
         </View>
         <View style={styles.buttonFlex}>
-          <Button
-            title="Save"
+          <ThemedButton
+            label={saving ? "Saving…" : "Save"}
             onPress={handleSave}
             disabled={saving}
-            color={palette.accent}
+            style={previewStyles.fullWidth}
           />
         </View>
       </View>
     </ScrollView>
   );
+}
+
+function createPreviewStyles(theme: Theme) {
+  return StyleSheet.create({
+    card: {
+      padding: 0,
+      gap: 0,
+      overflow: "hidden",
+      alignItems: "stretch",
+    },
+    headerBand: {
+      backgroundColor: theme.accent,
+      paddingHorizontal: 24,
+      paddingVertical: 18,
+    },
+    headerText: {
+      color: theme.surface,
+      fontSize: 16,
+      fontWeight: "700",
+      letterSpacing: 1,
+      textTransform: "uppercase",
+    },
+    summaryBlock: {
+      paddingHorizontal: 24,
+      paddingVertical: 20,
+      gap: 8,
+      backgroundColor: theme.surface,
+    },
+    summaryTitle: {
+      fontSize: 22,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    summarySubtitle: {
+      fontSize: 16,
+      color: theme.secondaryText,
+    },
+    summaryMeta: {
+      fontSize: 14,
+      color: theme.mutedText,
+    },
+    summaryRow: {
+      marginTop: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    summaryLabel: {
+      fontSize: 12,
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      color: theme.mutedText,
+    },
+    summaryTotal: {
+      fontSize: 26,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    statusBadge: {
+      alignSelf: "center",
+      marginTop: 20,
+    },
+    actionHint: {
+      paddingHorizontal: 24,
+      textAlign: "center",
+      fontSize: 14,
+      color: theme.secondaryText,
+      marginTop: 16,
+    },
+    actionColumn: {
+      padding: 24,
+      paddingTop: 12,
+      gap: 12,
+    },
+    fullWidth: {
+      alignSelf: "stretch",
+    },
+  });
 }
 
 const styles = StyleSheet.create({

@@ -1,4 +1,7 @@
 import "@testing-library/jest-native/extend-expect";
+jest.mock("@react-native-async-storage/async-storage", () =>
+  require("@react-native-async-storage/async-storage/jest/async-storage-mock"),
+);
 
 // Node's test environment does not include the WHATWG stream constructors by
 // default.  The Supabase client (via undici) expects `ReadableStream`,

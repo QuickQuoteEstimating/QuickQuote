@@ -132,7 +132,7 @@ describe("NewEstimateScreen", () => {
     fireEvent.changeText(getByPlaceholderText("$0.00"), "40");
 
     await act(async () => {
-      fireEvent.press(getByText("Save estimate"));
+      fireEvent.press(getByText("Save & Preview"));
     });
 
     await waitFor(() => {

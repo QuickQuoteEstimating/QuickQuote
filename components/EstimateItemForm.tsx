@@ -1,15 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  Alert,
-  Button,
-  Switch,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, Switch, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import { palette } from "../lib/theme";
+import { useTheme, type Theme } from "../lib/theme";
+import { Button, Input } from "./ui";
 
 export type EstimateItemFormValues = {
   description: string;
@@ -68,66 +61,6 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 16,
-  },
-  fieldGroup: {
-    gap: 6,
-  },
-  label: {
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: palette.surfaceSubtle,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    color: palette.primaryText,
-    backgroundColor: palette.surfaceSubtle,
-  },
-  totalValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  switchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  switchText: {
-    flex: 1,
-    gap: 4,
-  },
-  switchLabel: {
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  switchHint: {
-    color: palette.mutedText,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  actionFlex: {
-    flex: 1,
-  },
-});
-
 export default function EstimateItemForm({
   initialValue,
   initialTemplateId = null,
@@ -138,16 +71,18 @@ export default function EstimateItemForm({
 }: EstimateItemFormProps) {
   const [description, setDescription] = useState(initialValue?.description ?? "");
   const [quantityText, setQuantityText] = useState(
-    initialValue ? String(initialValue.quantity) : "1"
+    initialValue ? String(initialValue.quantity) : "1",
   );
   const [unitPriceText, setUnitPriceText] = useState(
-    initialValue ? String(initialValue.unit_price) : "0"
+    initialValue ? String(initialValue.unit_price) : "0",
   );
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
-    initialTemplateId ?? null
+    initialTemplateId ?? null,
   );
   const [saveToLibrary, setSaveToLibrary] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState(false);
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {
     if (!initialValue) {
@@ -234,7 +169,7 @@ export default function EstimateItemForm({
       {templates.length > 0 ? (
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>Saved items</Text>
-          <View style={styles.pickerContainer}>
+          <View style={styles.pickerShell}>
             <Picker
               selectedValue={selectedTemplateId ?? ""}
               onValueChange={(value) => {
@@ -244,6 +179,8 @@ export default function EstimateItemForm({
                 setSaveToLibrary(Boolean(normalized));
                 applyTemplate(normalized);
               }}
+              style={styles.picker}
+              dropdownIconColor={theme.accent}
             >
               <Picker.Item label="Select a saved item" value="" />
               {templates.map((template) => (
@@ -258,44 +195,38 @@ export default function EstimateItemForm({
         </View>
       ) : null}
 
-      <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Description</Text>
-        <TextInput
-          placeholder="Item description"
-          value={description}
-          onChangeText={setDescription}
-          placeholderTextColor={palette.mutedText}
-          style={styles.textInput}
-        />
+      <Input
+        label="Description"
+        placeholder="Item description"
+        value={description}
+        onChangeText={setDescription}
+        multiline
+      />
+
+      <View style={styles.row}>
+        <View style={styles.rowField}>
+          <Input
+            label="Quantity"
+            placeholder="0"
+            value={quantityText}
+            onChangeText={setQuantityText}
+            keyboardType="numeric"
+          />
+        </View>
+        <View style={styles.rowField}>
+          <Input
+            label="Unit Price"
+            placeholder="0.00"
+            value={unitPriceText}
+            onChangeText={setUnitPriceText}
+            keyboardType="decimal-pad"
+          />
+        </View>
       </View>
 
-      <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Quantity</Text>
-        <TextInput
-          placeholder="0"
-          value={quantityText}
-          onChangeText={setQuantityText}
-          keyboardType="numeric"
-          placeholderTextColor={palette.mutedText}
-          style={styles.textInput}
-        />
-      </View>
-
-      <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Unit Price</Text>
-        <TextInput
-          placeholder="0.00"
-          value={unitPriceText}
-          onChangeText={setUnitPriceText}
-          keyboardType="decimal-pad"
-          placeholderTextColor={palette.mutedText}
-          style={styles.textInput}
-        />
-      </View>
-
-      <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Line Total</Text>
-        <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
+      <View style={styles.summaryRow}>
+        <Text style={styles.summaryLabel}>Line Total</Text>
+        <Text style={styles.summaryValue}>{formatCurrency(total)}</Text>
       </View>
 
       <View style={styles.switchRow}>
@@ -308,29 +239,109 @@ export default function EstimateItemForm({
         <Switch
           value={saveToLibrary}
           onValueChange={setSaveToLibrary}
-          trackColor={{ true: palette.accentMuted, false: palette.border }}
-          thumbColor={saveToLibrary ? palette.surface : undefined}
+          trackColor={{ true: theme.accentMuted, false: theme.border }}
+          thumbColor={saveToLibrary ? theme.surface : undefined}
         />
       </View>
 
       <View style={styles.actionRow}>
         <View style={styles.actionFlex}>
           <Button
-            title="Cancel"
+            label="Cancel"
+            variant="secondary"
             onPress={onCancel}
             disabled={submitting}
-            color={palette.secondaryText}
           />
         </View>
         <View style={styles.actionFlex}>
           <Button
-            title={submitLabel}
+            label={submitLabel}
             onPress={handleSubmit}
+            loading={submitting}
             disabled={submitting}
-            color={palette.accent}
           />
         </View>
       </View>
     </View>
   );
+}
+
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      gap: 20,
+    },
+    fieldGroup: {
+      gap: 8,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.secondaryText,
+    },
+    pickerShell: {
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceSubtle,
+      overflow: "hidden",
+    },
+    picker: {
+      height: 52,
+      color: theme.primaryText,
+    },
+    row: {
+      flexDirection: "row",
+      gap: 16,
+    },
+    rowField: {
+      flex: 1,
+    },
+    summaryRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 16,
+      backgroundColor: theme.surfaceSubtle,
+    },
+    summaryLabel: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: theme.secondaryText,
+    },
+    summaryValue: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    switchRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 16,
+    },
+    switchText: {
+      flex: 1,
+      gap: 4,
+    },
+    switchLabel: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.primaryText,
+    },
+    switchHint: {
+      fontSize: 13,
+      color: theme.mutedText,
+      lineHeight: 18,
+    },
+    actionRow: {
+      flexDirection: "row",
+      gap: 12,
+    },
+    actionFlex: {
+      flex: 1,
+    },
+  });
 }

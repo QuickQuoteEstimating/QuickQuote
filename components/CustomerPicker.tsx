@@ -1,17 +1,11 @@
 // components/CustomerPicker.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  ActivityIndicator,
-  Button,
-  Alert,
-  TextInput,
-} from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { openDB } from "../lib/sqlite";
 import CustomerForm from "./CustomerForm";
-import { palette } from "../lib/theme";
+import { useTheme, type Theme } from "../lib/theme";
+import { Button, Card, Input } from "./ui";
 
 type Customer = {
   id: string;
@@ -32,6 +26,8 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
   const [loading, setLoading] = useState(true);
   const [addingNew, setAddingNew] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const loadCustomers = useCallback(async () => {
     setLoading(true);
@@ -140,48 +136,97 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
 
   if (loading) {
     return (
-      <View style={{ padding: 10 }}>
-        <ActivityIndicator />
-        <Text>Loading customers…</Text>
-      </View>
+      <Card style={styles.loadingCard}>
+        <ActivityIndicator color={theme.accent} />
+        <Text style={styles.loadingText}>Loading customers…</Text>
+      </Card>
     );
   }
 
   return (
-    <View style={{ marginVertical: 10 }}>
-      <Text style={{ marginBottom: 6, fontWeight: "600" }}>Select Customer</Text>
-      <TextInput
+    <Card style={styles.card}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Select Customer</Text>
+        <Text style={styles.caption}>
+          Search existing contacts or create a new profile without leaving the
+          estimate.
+        </Text>
+      </View>
+      <Input
+        label="Search"
+        placeholder="Name, phone, email, or address"
         value={searchQuery}
         onChangeText={setSearchQuery}
-        placeholder="Search by name, phone, email, or address"
-        placeholderTextColor={palette.mutedText}
         autoCorrect={false}
-        style={{
-          borderWidth: 1,
-          borderRadius: 12,
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-          marginBottom: 10,
-          backgroundColor: palette.surfaceSubtle,
-          borderColor: palette.border,
-          color: palette.primaryText,
-        }}
+        autoCapitalize="none"
+        returnKeyType="search"
       />
-      <Picker
-        selectedValue={selectedCustomer ?? ""}
-        onValueChange={handleSelect}
-      >
-        <Picker.Item label="-- Select --" value="" />
-        {filteredCustomers.length === 0 ? (
-          <Picker.Item label="No matching customers" value="" enabled={false} />
-        ) : null}
-        {filteredCustomers.map((c: Customer) => (
-          <Picker.Item key={c.id} label={getDisplayName(c)} value={c.id} />
-        ))}
-        <Picker.Item label="➕ Add New Customer" value="new" />
-      </Picker>
-
-      <Button title="Add New Customer" onPress={() => setAddingNew(true)} />
-    </View>
+      <View style={styles.pickerShell}>
+        <Picker
+          selectedValue={selectedCustomer ?? ""}
+          onValueChange={handleSelect}
+          style={styles.picker}
+          dropdownIconColor={theme.accent}
+        >
+          <Picker.Item label="-- Select --" value="" />
+          {filteredCustomers.length === 0 ? (
+            <Picker.Item
+              label="No matching customers"
+              value=""
+              enabled={false}
+            />
+          ) : null}
+          {filteredCustomers.map((c: Customer) => (
+            <Picker.Item key={c.id} label={getDisplayName(c)} value={c.id} />
+          ))}
+          <Picker.Item label="➕ Add New Customer" value="new" />
+        </Picker>
+      </View>
+      <Button
+        label="Add New Customer"
+        variant="secondary"
+        onPress={() => setAddingNew(true)}
+      />
+    </Card>
   );
+}
+
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    card: {
+      gap: 16,
+    },
+    header: {
+      gap: 6,
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: theme.primaryText,
+    },
+    caption: {
+      fontSize: 13,
+      lineHeight: 18,
+      color: theme.mutedText,
+    },
+    pickerShell: {
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceSubtle,
+      overflow: "hidden",
+    },
+    picker: {
+      height: 52,
+      color: theme.primaryText,
+    },
+    loadingCard: {
+      alignItems: "center",
+      gap: 12,
+    },
+    loadingText: {
+      fontSize: 14,
+      color: theme.secondaryText,
+    },
+  });
 }

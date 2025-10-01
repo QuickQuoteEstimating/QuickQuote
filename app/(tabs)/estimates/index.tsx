@@ -1,3 +1,4 @@
+import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -7,12 +8,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
-  Button,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Badge, Button, Card, Input } from "../../../components/ui";
+import { cardShadow, useTheme, type Theme } from "../../../lib/theme";
 import { openDB } from "../../../lib/sqlite";
-import { cardShadow, palette } from "../../../lib/theme";
 
 export type EstimateListItem = {
   id: string;
@@ -62,6 +63,20 @@ function formatStatus(status: string | null): string {
   return STATUS_LABELS[normalized] ?? status;
 }
 
+function statusTone(status: string | null) {
+  const normalized = status?.toLowerCase();
+  switch (normalized) {
+    case "accepted":
+      return "success" as const;
+    case "declined":
+      return "danger" as const;
+    case "sent":
+      return "info" as const;
+    default:
+      return "warning" as const;
+  }
+}
+
 function formatCurrency(value: number | null): string {
   const total = typeof value === "number" ? value : 0;
   return new Intl.NumberFormat("en-US", {
@@ -72,11 +87,13 @@ function formatCurrency(value: number | null): string {
 }
 
 export default function EstimatesScreen() {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
-    null
+    null,
   );
   const [customerEstimates, setCustomerEstimates] = useState<
     EstimateListItem[]
@@ -91,14 +108,14 @@ export default function EstimatesScreen() {
         `SELECT id, name, email, phone, address, notes
          FROM customers
          WHERE deleted_at IS NULL
-         ORDER BY name COLLATE NOCASE ASC`
+         ORDER BY name COLLATE NOCASE ASC`,
       );
       setCustomers(rows);
     } catch (error) {
       console.error("Failed to load customers", error);
       Alert.alert(
         "Unable to load customers",
-        "Please try again later or contact support if the issue persists."
+        "Please try again later or contact support if the issue persists.",
       );
     } finally {
       setLoadingCustomers(false);
@@ -132,7 +149,7 @@ export default function EstimatesScreen() {
            LEFT JOIN customers c ON c.id = e.customer_id
            WHERE e.deleted_at IS NULL AND e.customer_id = ?
            ORDER BY datetime(e.updated_at) DESC`,
-          [selectedCustomerId]
+          [selectedCustomerId],
         );
         if (!cancelled) {
           setCustomerEstimates(rows);
@@ -142,7 +159,7 @@ export default function EstimatesScreen() {
         if (!cancelled) {
           Alert.alert(
             "Unable to load estimates",
-            "Please try again later or contact support if the issue persists."
+            "Please try again later or contact support if the issue persists.",
           );
         }
       } finally {
@@ -183,7 +200,7 @@ export default function EstimatesScreen() {
       const notesMatch = normalize(customer.notes).includes(query);
 
       return Boolean(
-        nameMatch || phoneMatch || emailMatch || addressMatch || notesMatch
+        nameMatch || phoneMatch || emailMatch || addressMatch || notesMatch,
       );
     });
   }, [customers, searchQuery]);
@@ -197,304 +214,430 @@ export default function EstimatesScreen() {
     );
   }, [customers, selectedCustomerId]);
 
-  const listHeader = useMemo(
+  const header = useMemo(
     () => (
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Estimates</Text>
-        <Text style={styles.headerSubtitle}>
-          Search for a customer to review their profile and estimate history.
-        </Text>
+        <View style={styles.headerTitles}>
+          <Text style={styles.headerTitle}>Estimates</Text>
+          <Text style={styles.headerSubtitle}>
+            Manage client proposals, keep tabs on project totals, and send
+            polished quotes from the field.
+          </Text>
+        </View>
         <Button
-          title="Create Estimate"
-          color={palette.accent}
+          label="Create Estimate"
           onPress={() => router.push("/(tabs)/estimates/new")}
         />
       </View>
     ),
-    []
+    [styles],
   );
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.scrollContent}
-      keyboardShouldPersistTaps="handled"
-    >
-      {listHeader}
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        {header}
 
-      <View style={styles.searchSection}>
-        <Text style={styles.sectionTitle}>Find a customer</Text>
-        <TextInput
-          value={searchQuery}
-          onChangeText={(value) => {
-            setSearchQuery(value);
-            if (!value) {
-              setSelectedCustomerId(null);
-            }
-          }}
-          placeholder="Search by name, phone, email, or address"
-          placeholderTextColor={palette.mutedText}
-          autoCorrect={false}
-          style={styles.searchInput}
-        />
-        {loadingCustomers ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={palette.accent} />
-          </View>
-        ) : null}
-        {searchQuery.trim().length === 0 ? (
-          <Text style={styles.helperText}>
-            Start typing to find an existing customer.
-          </Text>
-        ) : null}
-        {searchQuery.trim().length > 0 && !loadingCustomers ? (
-          <View style={styles.resultsList}>
-            {filteredCustomers.length === 0 ? (
-              <Text style={styles.helperText}>No matching customers.</Text>
-            ) : (
-              filteredCustomers.map((customer) => (
-                <Pressable
-                  key={customer.id}
-                  onPress={() => setSelectedCustomerId(customer.id)}
-                  style={[
-                    styles.resultItem,
-                    selectedCustomerId === customer.id &&
-                      styles.resultItemSelected,
-                  ]}
-                >
-                  <Text style={styles.resultName}>
-                    {customer.name?.trim() || "Unnamed customer"}
-                  </Text>
-                  {customer.email ? (
-                    <Text style={styles.resultMeta}>{customer.email}</Text>
-                  ) : null}
-                  {customer.phone ? (
-                    <Text style={styles.resultMeta}>{customer.phone}</Text>
-                  ) : null}
-                  {customer.address ? (
-                    <Text style={styles.resultMeta}>{customer.address}</Text>
-                  ) : null}
-                </Pressable>
-              ))
-            )}
-          </View>
-        ) : null}
-      </View>
-
-      {selectedCustomer ? (
-        <View style={styles.customerSection}>
-          <Text style={styles.sectionTitle}>Customer profile</Text>
-          <View style={styles.card}>
-            <Text style={styles.customerName}>
-              {selectedCustomer.name?.trim() || "Unnamed customer"}
+        <Card style={styles.searchCard}>
+          <View>
+            <Text style={styles.sectionLabel}>Find a customer</Text>
+            <Text style={styles.sectionCaption}>
+              Search by name, email, phone number, or job site address to pull
+              up client history.
             </Text>
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Email</Text>
-              <Text style={styles.profileValue}>
-                {selectedCustomer.email || "Not provided"}
+          </View>
+          <Input
+            placeholder="Search customers"
+            value={searchQuery}
+            onChangeText={(value) => {
+              setSearchQuery(value);
+              if (!value) {
+                setSelectedCustomerId(null);
+              }
+            }}
+            leftElement={<Feather name="search" size={18} color={theme.mutedText} />}
+            autoCorrect={false}
+            autoCapitalize="words"
+          />
+          {loadingCustomers ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator color={theme.accent} />
+            </View>
+          ) : null}
+          {searchQuery.trim().length === 0 ? (
+            <Text style={styles.helperText}>
+              Start typing to see matching customers.
+            </Text>
+          ) : null}
+          {searchQuery.trim().length > 0 && !loadingCustomers ? (
+            <View style={styles.resultsList}>
+              {filteredCustomers.length === 0 ? (
+                <Text style={styles.helperText}>No matching customers yet.</Text>
+              ) : (
+                filteredCustomers.map((customer) => (
+                  <Pressable
+                    key={customer.id}
+                    onPress={() => setSelectedCustomerId(customer.id)}
+                  >
+                    <View
+                      style={[
+                        styles.resultItem,
+                        selectedCustomerId === customer.id &&
+                          styles.resultItemSelected,
+                      ]}
+                    >
+                      <Text style={styles.resultName}>
+                        {customer.name?.trim() || "Unnamed customer"}
+                      </Text>
+                      {customer.email ? (
+                        <Text style={styles.resultMeta}>{customer.email}</Text>
+                      ) : null}
+                      {customer.phone ? (
+                        <Text style={styles.resultMeta}>{customer.phone}</Text>
+                      ) : null}
+                      {customer.address ? (
+                        <Text style={styles.resultMeta}>{customer.address}</Text>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                ))
+              )}
+            </View>
+          ) : null}
+        </Card>
+
+        {selectedCustomer ? (
+          <View style={styles.customerSection}>
+            <View>
+              <Text style={styles.sectionLabel}>Customer profile</Text>
+              <Text style={styles.sectionCaption}>
+                Quick snapshot of client contact and service location details.
               </Text>
             </View>
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Phone</Text>
-              <Text style={styles.profileValue}>
-                {selectedCustomer.phone || "Not provided"}
+            <Card style={styles.profileCard}>
+              <Text style={styles.customerName}>
+                {selectedCustomer.name?.trim() || "Unnamed customer"}
+              </Text>
+              <View style={styles.profileGrid}>
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Email</Text>
+                  <Text style={styles.profileValue}>
+                    {selectedCustomer.email || "Not provided"}
+                  </Text>
+                </View>
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Phone</Text>
+                  <Text style={styles.profileValue}>
+                    {selectedCustomer.phone || "Not provided"}
+                  </Text>
+                </View>
+                <View style={styles.profileRow}>
+                  <Text style={styles.profileLabel}>Address</Text>
+                  <Text style={styles.profileValue}>
+                    {selectedCustomer.address || "Not provided"}
+                  </Text>
+                </View>
+                {selectedCustomer.notes ? (
+                  <View style={styles.profileRow}>
+                    <Text style={styles.profileLabel}>Notes</Text>
+                    <Text style={styles.profileValue}>
+                      {selectedCustomer.notes}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </Card>
+
+            <View>
+              <Text style={styles.sectionLabel}>Estimate history</Text>
+              <Text style={styles.sectionCaption}>
+                Review previous work orders, totals, and sent status.
               </Text>
             </View>
-            <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Address</Text>
-              <Text style={styles.profileValue}>
-                {selectedCustomer.address || "Not provided"}
-              </Text>
-            </View>
-            {selectedCustomer.notes ? (
-              <View style={styles.profileRow}>
-                <Text style={styles.profileLabel}>Notes</Text>
-                <Text style={styles.profileValue}>{selectedCustomer.notes}</Text>
+
+            {loadingEstimates ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={theme.accent} />
               </View>
             ) : null}
-          </View>
 
-          <Text style={styles.sectionTitle}>Estimate history</Text>
-          {loadingEstimates ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color={palette.accent} />
-            </View>
-          ) : null}
-          {!loadingEstimates && customerEstimates.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>
-                This customer does not have any estimates yet.
-              </Text>
-            </View>
-          ) : null}
-          {customerEstimates.map((estimate) => (
-            <View key={estimate.id} style={styles.card}>
-              <Pressable
-                onPress={() => router.push(`/(tabs)/estimates/${estimate.id}`)}
-                style={styles.cardBody}
-              >
-                <Text style={styles.cardTitle}>
-                  Estimate #{estimate.id.slice(0, 8)}
+            {!loadingEstimates && customerEstimates.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Feather
+                  name="file-text"
+                  size={24}
+                  color={theme.mutedText}
+                />
+                <Text style={styles.helperText}>
+                  No estimates created for this customer yet.
                 </Text>
-                <Text style={styles.cardMeta}>
-                  Status: {formatStatus(estimate.status)}
-                </Text>
-                <Text style={styles.cardMeta}>
-                  Total: {formatCurrency(estimate.total)}
-                </Text>
-                <Text style={styles.cardMeta}>
-                  Labor: {formatCurrency(estimate.labor_total ?? 0)}
-                </Text>
-                <Text style={styles.cardMeta}>
-                  Materials: {formatCurrency(estimate.material_total ?? 0)}
-                </Text>
-                {estimate.date ? (
-                  <Text style={styles.cardMeta}>
-                    Date: {new Date(estimate.date).toLocaleDateString()}
-                  </Text>
-                ) : null}
-              </Pressable>
-              <View style={styles.buttonRow}>
-                <View style={styles.buttonFlex}>
-                  <Button
-                    title="View"
-                    color={palette.accent}
-                    onPress={() => router.push(`/(tabs)/estimates/${estimate.id}`)}
-                  />
-                </View>
               </View>
-            </View>
-          ))}
-        </View>
-      ) : null}
-    </ScrollView>
+            ) : null}
+
+            {customerEstimates.map((estimate) => (
+              <Pressable
+                key={estimate.id}
+                onPress={() => router.push(`/(tabs)/estimates/${estimate.id}`)}
+                style={({ pressed }) => [pressed ? styles.cardPressed : null]}
+              >
+                <Card style={styles.estimateCard}>
+                  <View style={styles.estimateHeader}>
+                    <View>
+                      <Text style={styles.estimateTitle}>
+                        Estimate #{estimate.id.slice(0, 8).toUpperCase()}
+                      </Text>
+                      <Text style={styles.estimateSubtitle}>
+                        Updated {new Date(estimate.updated_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Badge tone={statusTone(estimate.status)}>
+                      {formatStatus(estimate.status)}
+                    </Badge>
+                  </View>
+                  <View style={styles.estimateMetaRow}>
+                    <View>
+                      <Text style={styles.metaLabel}>Total</Text>
+                      <Text style={styles.metaValue}>
+                        {formatCurrency(estimate.total)}
+                      </Text>
+                    </View>
+                    <View style={styles.metaRight}>
+                      {estimate.date ? (
+                        <Text style={styles.dateText}>
+                          {new Date(estimate.date).toLocaleDateString()}
+                        </Text>
+                      ) : (
+                        <Text style={styles.dateText}>Date not set</Text>
+                      )}
+                      <View style={styles.tagRow}>
+                        <Feather name="user" size={14} color={theme.secondaryText} />
+                        <Text style={styles.tagText}>
+                          {estimate.customer_name || "Unassigned"}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </Card>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+      </ScrollView>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Create a new estimate"
+        onPress={() => router.push("/(tabs)/estimates/new")}
+        style={({ pressed }) => [
+          styles.fab,
+          pressed ? styles.fabPressed : null,
+        ]}
+      >
+        <Feather name="plus" size={28} color={theme.surface} />
+      </Pressable>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: palette.background,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: palette.primaryText,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: palette.secondaryText,
-    lineHeight: 20,
-  },
-  header: {
-    gap: 12,
-    marginBottom: 12,
-  },
-  scrollContent: {
-    paddingBottom: 48,
-    gap: 24,
-  },
-  loadingRow: {
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  card: {
-    backgroundColor: palette.surface,
-    borderRadius: 18,
-    padding: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    gap: 12,
-    ...cardShadow(12),
-  },
-  cardBody: {
-    gap: 6,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  cardMeta: {
-    color: palette.secondaryText,
-  },
-  buttonRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  buttonFlex: {
-    flex: 1,
-  },
-  emptyState: {
-    paddingVertical: 24,
-    alignItems: "center",
-  },
-  emptyText: {
-    color: palette.mutedText,
-  },
-  searchSection: {
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  searchInput: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: palette.surfaceSubtle,
-    borderColor: palette.border,
-    color: palette.primaryText,
-  },
-  helperText: {
-    color: palette.secondaryText,
-  },
-  resultsList: {
-    gap: 12,
-  },
-  resultItem: {
-    padding: 16,
-    borderRadius: 14,
-    backgroundColor: palette.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    gap: 4,
-    ...cardShadow(6),
-  },
-  resultItemSelected: {
-    borderColor: palette.accent,
-  },
-  resultName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: palette.primaryText,
-  },
-  resultMeta: {
-    color: palette.secondaryText,
-  },
-  customerSection: {
-    gap: 16,
-  },
-  customerName: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: palette.primaryText,
-  },
-  profileRow: {
-    gap: 4,
-  },
-  profileLabel: {
-    fontSize: 12,
-    color: palette.mutedText,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  profileValue: {
-    color: palette.primaryText,
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    scroll: {
+      flex: 1,
+    },
+    content: {
+      padding: 24,
+      paddingBottom: 140,
+      gap: 24,
+    },
+    header: {
+      gap: 20,
+    },
+    headerTitles: {
+      gap: 8,
+    },
+    headerTitle: {
+      fontSize: 32,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    headerSubtitle: {
+      fontSize: 16,
+      lineHeight: 24,
+      color: theme.secondaryText,
+    },
+    sectionLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: theme.secondaryText,
+    },
+    sectionCaption: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: theme.mutedText,
+      marginTop: 4,
+    },
+    searchCard: {
+      gap: 16,
+    },
+    loadingRow: {
+      paddingVertical: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    helperText: {
+      fontSize: 14,
+      color: theme.mutedText,
+    },
+    resultsList: {
+      gap: 12,
+    },
+    resultItem: {
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+      gap: 4,
+      ...cardShadow(10, theme.mode),
+    },
+    resultItemSelected: {
+      borderColor: theme.accent,
+    },
+    resultName: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.primaryText,
+    },
+    resultMeta: {
+      fontSize: 14,
+      color: theme.secondaryText,
+    },
+    customerSection: {
+      gap: 24,
+    },
+    profileCard: {
+      gap: 20,
+    },
+    customerName: {
+      fontSize: 24,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    profileGrid: {
+      gap: 16,
+    },
+    profileRow: {
+      gap: 6,
+    },
+    profileLabel: {
+      fontSize: 12,
+      color: theme.mutedText,
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+    },
+    profileValue: {
+      fontSize: 16,
+      lineHeight: 22,
+      color: theme.primaryText,
+    },
+    emptyState: {
+      borderRadius: 16,
+      padding: 24,
+      alignItems: "center",
+      gap: 12,
+      backgroundColor: theme.surfaceSubtle,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    estimateCard: {
+      gap: 16,
+    },
+    estimateHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 16,
+    },
+    estimateTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+    estimateSubtitle: {
+      fontSize: 13,
+      color: theme.mutedText,
+      marginTop: 4,
+    },
+    estimateMetaRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-end",
+      gap: 16,
+    },
+    metaLabel: {
+      fontSize: 12,
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: theme.mutedText,
+    },
+    metaValue: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: theme.primaryText,
+      marginTop: 6,
+    },
+    metaRight: {
+      alignItems: "flex-end",
+      gap: 6,
+    },
+    dateText: {
+      fontSize: 13,
+      color: theme.secondaryText,
+    },
+    tagRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor:
+        theme.mode === "dark"
+          ? "rgba(123, 168, 217, 0.16)"
+          : "rgba(123, 168, 217, 0.18)",
+    },
+    tagText: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: theme.secondaryText,
+    },
+    cardPressed: {
+      opacity: 0.9,
+    },
+    fab: {
+      position: "absolute",
+      bottom: 32,
+      right: 24,
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.accent,
+      ...cardShadow(20, theme.mode),
+    },
+    fabPressed: {
+      transform: [{ scale: 0.96 }],
+    },
+  });
+}

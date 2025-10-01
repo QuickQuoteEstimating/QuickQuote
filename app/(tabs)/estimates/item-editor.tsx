@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigation, useRouter } from "expo-router";
 import {
   ActivityIndicator,
@@ -9,37 +9,35 @@ import {
 } from "react-native";
 import EstimateItemForm from "../../../components/EstimateItemForm";
 import { useItemEditor } from "../../../context/ItemEditorContext";
-import { palette, cardShadow } from "../../../lib/theme";
+import { Card } from "../../../components/ui";
+import { useTheme, type Theme } from "../../../lib/theme";
 
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: palette.surface,
-  },
-  screen: {
-    flex: 1,
-    backgroundColor: palette.background,
-  },
-  content: {
-    padding: 20,
-  },
-  card: {
-    backgroundColor: palette.surface,
-    borderRadius: 18,
-    padding: 20,
-    gap: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.border,
-    ...cardShadow(10),
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: palette.primaryText,
-  },
-});
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    loadingContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.background,
+    },
+    screen: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    content: {
+      padding: 24,
+      paddingBottom: 160,
+    },
+    card: {
+      gap: 16,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: "700",
+      color: theme.primaryText,
+    },
+  });
+}
 
 export default function EstimateItemEditorScreen() {
   const router = useRouter();
@@ -47,6 +45,8 @@ export default function EstimateItemEditorScreen() {
   const { config, closeEditor } = useItemEditor();
   const hasNavigatedAway = useRef(false);
   const hasLoadedConfigRef = useRef(false);
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {
     if (config?.title) {
@@ -105,7 +105,7 @@ export default function EstimateItemEditorScreen() {
   if (!config) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={palette.accent} />
+        <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
   }
@@ -117,7 +117,7 @@ export default function EstimateItemEditorScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.title}>{config.title}</Text>
         <EstimateItemForm
           initialValue={config.initialValue}
@@ -127,7 +127,7 @@ export default function EstimateItemEditorScreen() {
           onCancel={handleCancel}
           submitLabel={config.submitLabel}
         />
-      </View>
+      </Card>
     </ScrollView>
   );
 }
