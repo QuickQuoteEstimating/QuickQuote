@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, StyleSheet, Switch, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import { useTheme, type Theme } from "../lib/theme";
+import { useTheme, type Theme } from "../theme";
 import { Button, Input } from "./ui";
 
 export type EstimateItemFormValues = {
@@ -81,7 +81,7 @@ export default function EstimateItemForm({
   );
   const [saveToLibrary, setSaveToLibrary] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState(false);
-  const theme = useTheme();
+  const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {
@@ -180,7 +180,7 @@ export default function EstimateItemForm({
                 applyTemplate(normalized);
               }}
               style={styles.picker}
-              dropdownIconColor={theme.accent}
+              dropdownIconColor={theme.colors.primary}
             >
               <Picker.Item label="Select a saved item" value="" />
               {templates.map((template) => (
@@ -235,8 +235,8 @@ export default function EstimateItemForm({
         <Switch
           value={saveToLibrary}
           onValueChange={setSaveToLibrary}
-          trackColor={{ true: theme.accentMuted, false: theme.border }}
-          thumbColor={saveToLibrary ? theme.surface : undefined}
+          trackColor={{ true: theme.colors.primarySoft, false: theme.colors.border }}
+          thumbColor={saveToLibrary ? theme.colors.surface : undefined}
         />
       </View>
 
@@ -258,6 +258,7 @@ export default function EstimateItemForm({
 }
 
 function createStyles(theme: Theme) {
+  const { colors } = theme;
   return StyleSheet.create({
     container: {
       gap: 20,
@@ -268,18 +269,18 @@ function createStyles(theme: Theme) {
     label: {
       fontSize: 14,
       fontWeight: "600",
-      color: theme.secondaryText,
+      color: colors.textMuted,
     },
     pickerShell: {
       borderRadius: 16,
       borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.surfaceSubtle,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceMuted,
       overflow: "hidden",
     },
     picker: {
       height: 52,
-      color: theme.primaryText,
+      color: colors.primaryText,
     },
     row: {
       flexDirection: "row",
@@ -295,17 +296,17 @@ function createStyles(theme: Theme) {
       paddingVertical: 12,
       paddingHorizontal: 16,
       borderRadius: 16,
-      backgroundColor: theme.surfaceSubtle,
+      backgroundColor: colors.surfaceMuted,
     },
     summaryLabel: {
       fontSize: 15,
       fontWeight: "600",
-      color: theme.secondaryText,
+      color: colors.textMuted,
     },
     summaryValue: {
       fontSize: 18,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: colors.primaryText,
     },
     switchRow: {
       flexDirection: "row",
@@ -320,11 +321,11 @@ function createStyles(theme: Theme) {
     switchLabel: {
       fontSize: 16,
       fontWeight: "600",
-      color: theme.primaryText,
+      color: colors.primaryText,
     },
     switchHint: {
       fontSize: 13,
-      color: theme.mutedText,
+      color: colors.textMuted,
       lineHeight: 18,
     },
     actionRow: {

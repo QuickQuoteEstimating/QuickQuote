@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { openDB } from "../lib/sqlite";
 import CustomerForm from "./CustomerForm";
-import { useTheme, type Theme } from "../lib/theme";
+import { useTheme, type Theme } from "../theme";
 import { Button, Card, Input } from "./ui";
 
 type Customer = {
@@ -26,7 +26,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
   const [loading, setLoading] = useState(true);
   const [addingNew, setAddingNew] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const theme = useTheme();
+  const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const loadCustomers = useCallback(async () => {
@@ -130,7 +130,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
   if (loading) {
     return (
       <Card style={styles.loadingCard}>
-        <ActivityIndicator color={theme.accent} />
+        <ActivityIndicator color={theme.colors.primary} />
         <Text style={styles.loadingText}>Loading customers…</Text>
       </Card>
     );
@@ -158,7 +158,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
           selectedValue={selectedCustomer ?? ""}
           onValueChange={handleSelect}
           style={styles.picker}
-          dropdownIconColor={theme.accent}
+          dropdownIconColor={theme.colors.primary}
         >
           <Picker.Item label="-- Select --" value="" />
           {filteredCustomers.length === 0 ? (
@@ -176,6 +176,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
 }
 
 function createStyles(theme: Theme) {
+  const { colors } = theme;
   return StyleSheet.create({
     card: {
       gap: 16,
@@ -186,23 +187,23 @@ function createStyles(theme: Theme) {
     title: {
       fontSize: 18,
       fontWeight: "600",
-      color: theme.primaryText,
+      color: colors.primaryText,
     },
     caption: {
       fontSize: 13,
       lineHeight: 18,
-      color: theme.mutedText,
+      color: colors.textMuted,
     },
     pickerShell: {
       borderRadius: 16,
       borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.surfaceSubtle,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceMuted,
       overflow: "hidden",
     },
     picker: {
       height: 52,
-      color: theme.primaryText,
+      color: colors.primaryText,
     },
     loadingCard: {
       alignItems: "center",
@@ -210,7 +211,7 @@ function createStyles(theme: Theme) {
     },
     loadingText: {
       fontSize: 14,
-      color: theme.secondaryText,
+      color: colors.textMuted,
     },
   });
 }

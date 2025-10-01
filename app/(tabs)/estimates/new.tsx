@@ -10,13 +10,14 @@ import { useSettings } from "../../../context/SettingsContext";
 import { sanitizeEstimateForQueue } from "../../../lib/estimates";
 import { openDB, queueChange } from "../../../lib/sqlite";
 import { runSync } from "../../../lib/sync";
-import { useTheme, type Theme } from "../../../lib/theme";
+import { useTheme, type Theme } from "../../../theme";
 
 function createStyles(theme: Theme) {
+  const { colors } = theme;
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.background,
+      backgroundColor: colors.background,
       alignItems: "center",
       justifyContent: "center",
       padding: 24,
@@ -30,13 +31,13 @@ function createStyles(theme: Theme) {
     title: {
       fontSize: 20,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: colors.primaryText,
       textAlign: "center",
     },
     message: {
       fontSize: 15,
       lineHeight: 22,
-      color: theme.secondaryText,
+      color: colors.textMuted,
       textAlign: "center",
     },
     button: {
@@ -48,7 +49,7 @@ function createStyles(theme: Theme) {
 export default function NewEstimateScreen() {
   const { user, session } = useAuth();
   const { settings } = useSettings();
-  const theme = useTheme();
+  const { theme } = useTheme();
   const navigation = useRouter();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [error, setError] = useState<string | null>(null);
@@ -153,7 +154,7 @@ export default function NewEstimateScreen() {
   if (creating && !error) {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" color={theme.accent} />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
         <View style={styles.messageContainer}>
           <Text style={styles.title}>Setting up your estimate</Text>
           <Text style={styles.message}>

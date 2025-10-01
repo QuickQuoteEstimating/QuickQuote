@@ -4,19 +4,20 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-nat
 import EstimateItemForm from "../../../components/EstimateItemForm";
 import { useItemEditor } from "../../../context/ItemEditorContext";
 import { Card } from "../../../components/ui";
-import { useTheme, type Theme } from "../../../lib/theme";
+import { useTheme, type Theme } from "../../../theme";
 
 function createStyles(theme: Theme) {
+  const { colors } = theme;
   return StyleSheet.create({
     loadingContainer: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.background,
+      backgroundColor: colors.background,
     },
     screen: {
       flex: 1,
-      backgroundColor: theme.background,
+      backgroundColor: colors.background,
     },
     content: {
       padding: 24,
@@ -28,7 +29,7 @@ function createStyles(theme: Theme) {
     title: {
       fontSize: 24,
       fontWeight: "700",
-      color: theme.primaryText,
+      color: colors.primaryText,
     },
   });
 }
@@ -39,7 +40,7 @@ export default function EstimateItemEditorScreen() {
   const { config, closeEditor } = useItemEditor();
   const hasNavigatedAway = useRef(false);
   const hasLoadedConfigRef = useRef(false);
-  const theme = useTheme();
+  const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {
@@ -99,7 +100,7 @@ export default function EstimateItemEditorScreen() {
   if (!config) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.accent} />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
