@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -67,6 +67,7 @@ export default function EstimatesScreen() {
   const [estimates, setEstimates] = useState<EstimateListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const pendingDeleteIdsRef = useRef<Set<string>>(new Set());
 
   const loadEstimates = useCallback(
     async (signal?: { cancelled: boolean }) => {
@@ -85,7 +86,10 @@ export default function EstimatesScreen() {
            ORDER BY datetime(e.updated_at) DESC`
         );
         if (!signal?.cancelled) {
-          setEstimates(rows);
+          const filteredRows = rows.filter(
+            (row) => !pendingDeleteIdsRef.current.has(row.id)
+          );
+          setEstimates(filteredRows);
         }
       } catch (error) {
         console.error("Failed to load estimates", error);
@@ -134,6 +138,7 @@ export default function EstimatesScreen() {
             style: "destructive",
             onPress: () => {
               let previousEstimates: EstimateListItem[] = [];
+              pendingDeleteIdsRef.current.add(estimate.id);
 
               setEstimates((prev) => {
                 previousEstimates = prev;
@@ -176,6 +181,8 @@ export default function EstimatesScreen() {
                     "Unable to delete the estimate. Please try again."
                   );
                   setEstimates(() => [...previousEstimates]);
+                } finally {
+                  pendingDeleteIdsRef.current.delete(estimate.id);
                 }
               })();
             },
