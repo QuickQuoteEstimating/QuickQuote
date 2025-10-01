@@ -154,17 +154,17 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
         value={searchQuery}
         onChangeText={setSearchQuery}
         placeholder="Search by name, phone, email, or address"
-        placeholderTextColor="rgba(255,255,255,0.65)"
+        placeholderTextColor={palette.mutedText}
         autoCorrect={false}
         style={{
           borderWidth: 1,
-          borderRadius: 8,
-          paddingHorizontal: 10,
+          borderRadius: 12,
+          paddingHorizontal: 12,
           paddingVertical: 8,
-          marginBottom: 8,
-          backgroundColor: "rgba(15, 23, 42, 0.4)",
-          borderColor: "rgba(255, 255, 255, 0.25)",
-          color: palette.surface,
+          marginBottom: 10,
+          backgroundColor: palette.surfaceSubtle,
+          borderColor: palette.border,
+          color: palette.primaryText,
         }}
       />
       <Picker

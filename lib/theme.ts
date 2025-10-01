@@ -1,15 +1,15 @@
 import { Platform } from "react-native";
 
 export const palette = {
-  background: "#0b1220",
-  surface: "#16213a",
-  surfaceSubtle: "#1b2742",
-  border: "rgba(148, 163, 184, 0.18)",
+  background: "#111c2e",
+  surface: "#1c2b48",
+  surfaceSubtle: "#243456",
+  border: "rgba(100, 116, 139, 0.3)",
   primaryText: "#f8fafc",
-  secondaryText: "rgba(226, 232, 240, 0.8)",
-  mutedText: "rgba(148, 163, 184, 0.7)",
-  accent: "#38bdf8",
-  accentMuted: "#0ea5e9",
+  secondaryText: "rgba(226, 232, 240, 0.88)",
+  mutedText: "rgba(148, 163, 184, 0.78)",
+  accent: "#1e40af",
+  accentMuted: "#3b82f6",
   danger: "#f87171",
   success: "#34d399",
 };
@@ -19,12 +19,12 @@ export function cardShadow(depth: number = 12) {
     return {};
   }
 
-  const opacity = depth >= 16 ? 0.28 : 0.2;
+  const opacity = depth >= 16 ? 0.24 : 0.18;
   const height = Math.max(6, Math.round(depth / 3));
   const radius = Math.max(10, Math.round(depth / 2));
 
   return {
-    shadowColor: "rgba(8, 47, 73, 0.65)",
+    shadowColor: "rgba(15, 23, 42, 0.45)",
     shadowOpacity: opacity,
     shadowRadius: radius,
     shadowOffset: { width: 0, height: height },

@@ -57,7 +57,7 @@ export function LogoPicker({ label = "Company logo", value, onChange }: LogoPick
     muted: isDark ? "#94a3b8" : "#475569",
     surface: isDark ? "#1e293b" : "#f8fafc",
     border: isDark ? "#334155" : "#cbd5f5",
-    accent: "#2563eb",
+    accent: "#1e40af",
   };
 
   return (
@@ -154,8 +154,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   primaryButton: {
-    backgroundColor: "#2563eb",
-    borderColor: "#2563eb",
+    backgroundColor: "#1e40af",
+    borderColor: "#1e40af",
   },
   primaryButtonText: {
     color: "#fff",

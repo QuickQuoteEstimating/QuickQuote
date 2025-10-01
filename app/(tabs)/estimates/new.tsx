@@ -418,7 +418,7 @@ export default function NewEstimateScreen() {
       border: isDark ? "#334155" : "#e2e8f0",
       primaryText: isDark ? "#f8fafc" : "#0f172a",
       secondaryText: isDark ? "#cbd5f5" : "#475569",
-      accent: "#2563eb",
+      accent: "#1e40af",
       muted: isDark ? "#94a3b8" : "#64748b",
       inputBackground: isDark ? "rgba(15, 23, 42, 0.7)" : "#f8fafc",
     } satisfies ThemePalette;
