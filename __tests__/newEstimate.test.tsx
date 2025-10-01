@@ -1,6 +1,6 @@
 import React from "react";
-import { render, waitFor } from "@testing-library/react-native";
-import { Alert } from "react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { Alert, TextInput } from "react-native";
 
 const mockRouter = {
   push: jest.fn(),
@@ -37,6 +37,23 @@ jest.mock("../context/SettingsContext", () => ({
   useSettings: () => settingsState,
 }));
 
+const mockOpenEditor = jest.fn();
+
+jest.mock("../context/ItemEditorContext", () => ({
+  useItemEditor: () => ({
+    openEditor: mockOpenEditor,
+  }),
+}));
+
+jest.mock("react-native-safe-area-context", () => {
+  const React = require("react");
+  return {
+    SafeAreaProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    SafeAreaView: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+  };
+});
+
 const mockRunAsync = jest.fn();
 const mockOpenDbResult = {
   runAsync: mockRunAsync,
@@ -67,31 +84,40 @@ describe("NewEstimateScreen", () => {
     mockRouter.back.mockClear();
     authState.user = { id: "user-123" };
     authState.session = null;
+    mockOpenEditor.mockReset();
   });
 
-  it("creates a draft estimate and redirects to the editor", async () => {
+  it("saves a draft and navigates to the editor when previewing", async () => {
     mockRunAsync.mockResolvedValue(undefined);
 
-    render(<NewEstimateScreen />);
+    const screen = render(<NewEstimateScreen />);
+    const { getByText } = screen;
+
+    const jobTitleInput = await waitFor(() => {
+      const inputs = screen.UNSAFE_getAllByType(TextInput);
+      const match = inputs.find((input) => input.props.placeholder === "Describe the job");
+      if (!match) {
+        throw new Error("Job title input not found");
+      }
+      return match;
+    });
+    fireEvent.changeText(jobTitleInput, "Kitchen Remodel");
+    fireEvent.press(getByText("Save & Preview"));
 
     await waitFor(() => {
-      expect(mockRunAsync).toHaveBeenCalledTimes(1);
+      expect(mockRunAsync).toHaveBeenCalled();
     });
 
     const insertArgs = mockRunAsync.mock.calls[0];
     expect(insertArgs[0]).toContain("INSERT OR REPLACE INTO estimates");
 
-    expect((queueChange as jest.Mock).mock.calls[0]).toEqual(
-      expect.arrayContaining([
+    await waitFor(() => {
+      expect(queueChange).toHaveBeenCalledWith(
         "estimates",
         "insert",
-        expect.objectContaining({
-          user_id: "user-123",
-          status: "draft",
-          total: 0,
-        }),
-      ]),
-    );
+        expect.objectContaining({ user_id: "user-123", status: "draft" }),
+      );
+    });
 
     expect(mockRouter.replace).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -100,35 +126,62 @@ describe("NewEstimateScreen", () => {
       }),
     );
 
-    expect(alertSpy).not.toHaveBeenCalled();
+    expect(alertSpy).not.toHaveBeenCalledWith(
+      "Estimate",
+      "We couldn't save your estimate. Please try again.",
+    );
   });
 
-  it("shows an error message when creation fails", async () => {
+  it("shows an error message when saving fails", async () => {
     const creationError = new Error("db down");
     mockRunAsync.mockRejectedValueOnce(creationError);
 
-    render(<NewEstimateScreen />);
+    const screen = render(<NewEstimateScreen />);
+    const { getByText, findByText } = screen;
 
-    await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalled();
+    const jobTitleInput = await waitFor(() => {
+      const inputs = screen.UNSAFE_getAllByType(TextInput);
+      const match = inputs.find((input) => input.props.placeholder === "Describe the job");
+      if (!match) {
+        throw new Error("Job title input not found");
+      }
+      return match;
     });
+    fireEvent.changeText(jobTitleInput, "Roof repair");
+    fireEvent.press(getByText("Save & Preview"));
 
-    await waitFor(() => {
-      expect(queueChange).not.toHaveBeenCalled();
-      expect(mockRouter.replace).not.toHaveBeenCalled();
-    });
+    expect(await findByText("We couldn't save your estimate. Please try again.")).toBeTruthy();
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Estimate",
+      "We couldn't save your estimate. Please try again.",
+    );
+    expect(queueChange).not.toHaveBeenCalledWith("estimate_items", "insert", expect.anything());
+    expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 
   it("requires an authenticated user", async () => {
     authState.user = null;
+    authState.session = null;
 
-    const { getByText } = render(<NewEstimateScreen />);
+    const screen = render(<NewEstimateScreen />);
+    const { getByText, findByText } = screen;
 
-    await waitFor(() => {
-      expect(getByText("Unable to create an estimate")).toBeTruthy();
-      expect(getByText("You need to be signed in to create a new estimate.")).toBeTruthy();
+    const jobTitleInput = await waitFor(() => {
+      const inputs = screen.UNSAFE_getAllByType(TextInput);
+      const match = inputs.find((input) => input.props.placeholder === "Describe the job");
+      if (!match) {
+        throw new Error("Job title input not found");
+      }
+      return match;
     });
+    fireEvent.changeText(jobTitleInput, "Landscaping");
+    fireEvent.press(getByText("Save & Preview"));
 
+    expect(await findByText("You need to be signed in to create a new estimate.")).toBeTruthy();
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Estimate",
+      "You need to be signed in to create a new estimate.",
+    );
     expect(mockRunAsync).not.toHaveBeenCalled();
     expect(queueChange).not.toHaveBeenCalled();
     expect(mockRouter.replace).not.toHaveBeenCalled();
