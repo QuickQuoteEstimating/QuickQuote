@@ -29,10 +29,10 @@ import { logEstimateDelivery, openDB, queueChange } from "../../../lib/sqlite";
 import { sanitizeEstimateForQueue } from "../../../lib/estimates";
 import { runSync } from "../../../lib/sync";
 import {
-  listItemCatalog,
-  upsertItemCatalog,
-  type ItemCatalogRecord,
-} from "../../../lib/itemCatalog";
+  listSavedItems,
+  upsertSavedItem,
+  type SavedItemRecord,
+} from "../../../lib/savedItems";
 import {
   createPhotoStoragePath,
   deleteLocalPhoto,
@@ -200,7 +200,7 @@ export default function EditEstimateScreen() {
   const [items, setItems] = useState<EstimateItemRecord[]>(
     () => draftRef.current?.items.map((item) => ({ ...item })) ?? [],
   );
-  const [savedItems, setSavedItems] = useState<ItemCatalogRecord[]>([]);
+  const [savedItems, setSavedItems] = useState<SavedItemRecord[]>([]);
   const [laborHoursText, setLaborHoursText] = useState(draftRef.current?.laborHoursText ?? "0");
   const [hourlyRateText, setHourlyRateText] = useState(
     draftRef.current?.hourlyRateText ?? settings.hourlyRate.toFixed(2),
@@ -283,7 +283,7 @@ export default function EditEstimateScreen() {
     }
 
     try {
-      const records = await listItemCatalog(userId);
+      const records = await listSavedItems(userId);
       setSavedItems(records);
     } catch (error) {
       console.error("Failed to load saved items", error);
@@ -333,8 +333,8 @@ export default function EditEstimateScreen() {
     () =>
       savedItems.map((item) => ({
         id: item.id,
-        description: item.description,
-        unit_price: item.unit_price,
+        description: item.name,
+        unit_price: item.default_unit_price,
         default_quantity: item.default_quantity,
       })),
     [savedItems],
@@ -631,10 +631,10 @@ export default function EditEstimateScreen() {
 
           if (saveToLibrary && userId) {
             try {
-              const record = await upsertItemCatalog({
+              const record = await upsertSavedItem({
                 id: templateId ?? undefined,
                 userId,
-                description: values.description,
+                name: values.description,
                 unitPrice: values.unit_price,
                 defaultQuantity: values.quantity,
               });
@@ -646,7 +646,7 @@ export default function EditEstimateScreen() {
                   next[existingIndex] = record;
                   return next;
                 }
-                return [...prev, record].sort((a, b) => a.description.localeCompare(b.description));
+                return [...prev, record].sort((a, b) => a.name.localeCompare(b.name));
               });
             } catch (error) {
               console.error("Failed to update item catalog", error);

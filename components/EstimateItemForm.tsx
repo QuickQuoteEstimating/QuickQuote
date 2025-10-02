@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { Theme } from "../theme";
 import { useThemeContext } from "../theme/ThemeProvider";
@@ -226,18 +226,20 @@ export default function EstimateItemForm({
         <Text style={styles.summaryValue}>{formatCurrency(total)}</Text>
       </View>
 
-      <View style={styles.switchRow}>
-        <View style={styles.switchText}>
-          <Text style={styles.switchLabel}>Save for future use</Text>
+      <View style={styles.libraryRow}>
+        <View style={styles.libraryInfo}>
+          <Text style={styles.switchLabel}>Saved item</Text>
           <Text style={styles.switchHint}>
             Adds this item to your library so you can quickly reuse or update it later.
           </Text>
         </View>
-        <Switch
-          value={saveToLibrary}
-          onValueChange={setSaveToLibrary}
-          trackColor={{ true: theme.colors.primarySoft, false: theme.colors.border }}
-          thumbColor={saveToLibrary ? theme.colors.surface : undefined}
+        <Button
+          label={saveToLibrary ? "Will update library" : "Save to Library"}
+          variant={saveToLibrary ? "secondary" : "primary"}
+          onPress={() => setSaveToLibrary((value) => !value)}
+          alignment="inline"
+          disabled={submitting}
+          style={styles.libraryButton}
         />
       </View>
 
@@ -309,14 +311,15 @@ function createStyles(theme: Theme) {
       fontWeight: "700",
       color: colors.primaryText,
     },
-    switchRow: {
+    libraryRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
       gap: 16,
+      flexWrap: "wrap",
     },
-    switchText: {
+    libraryInfo: {
       flex: 1,
+      minWidth: 200,
       gap: 4,
     },
     switchLabel: {
@@ -328,6 +331,9 @@ function createStyles(theme: Theme) {
       fontSize: 13,
       color: colors.textMuted,
       lineHeight: 18,
+    },
+    libraryButton: {
+      flexGrow: 0,
     },
     actionRow: {
       flexDirection: "row",
