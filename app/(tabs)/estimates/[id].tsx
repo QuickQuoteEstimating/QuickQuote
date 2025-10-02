@@ -86,6 +86,34 @@ type PhotoRecord = {
   deleted_at: string | null;
 };
 
+type AlertWithConfirmation = typeof Alert & {
+  confirmation?: (
+    title: string,
+    message?: string,
+    buttons?: Parameters<typeof Alert.alert>[2],
+    options?: Parameters<typeof Alert.alert>[3],
+  ) => void;
+};
+
+function showDeletionConfirmation(
+  title: string,
+  message: string,
+  onConfirm: () => void,
+) {
+  const alertModule = Alert as AlertWithConfirmation;
+  if (alertModule.confirmation) {
+    alertModule.confirmation(title, message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: onConfirm },
+    ]);
+  } else {
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: onConfirm },
+    ]);
+  }
+}
+
 type CustomerRecord = {
   id: string;
   name: string;
@@ -1516,13 +1544,11 @@ export default function EditEstimateScreen() {
       return;
     }
 
-    Alert.alert("Delete estimate", "Are you sure you want to delete this estimate?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          void (async () => {
+    showDeletionConfirmation(
+      "Delete Estimate?",
+      "This action cannot be undone. This will permanently delete this estimate and all associated data. Are you sure?",
+      () => {
+        void (async () => {
             setDeleting(true);
             try {
               const db = await openDB();
@@ -1579,9 +1605,8 @@ export default function EditEstimateScreen() {
               setDeleting(false);
             }
           })();
-        },
       },
-    ]);
+    );
   }, [deleting, estimateId]);
 
   const saveEstimate = useCallback(async (): Promise<EstimateListItem | null> => {

@@ -39,6 +39,34 @@ type EditCustomerFormProps = {
   onDelete: (customer: CustomerRecord) => void;
 };
 
+type AlertWithConfirmation = typeof Alert & {
+  confirmation?: (
+    title: string,
+    message?: string,
+    buttons?: Parameters<typeof Alert.alert>[2],
+    options?: Parameters<typeof Alert.alert>[3],
+  ) => void;
+};
+
+function showDeletionConfirmation(
+  title: string,
+  message: string,
+  onConfirm: () => void,
+) {
+  const alertModule = Alert as AlertWithConfirmation;
+  if (alertModule.confirmation) {
+    alertModule.confirmation(title, message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: onConfirm },
+    ]);
+  } else {
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: onConfirm },
+    ]);
+  }
+}
+
 function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustomerFormProps) {
   const { theme } = useThemeContext();
   const styles = useMemo(() => createEditStyles(theme), [theme]);
@@ -158,29 +186,26 @@ function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustome
       />
       <View style={styles.actions}>
         <Button
+          label={saving ? "Saving…" : "Save"}
+          onPress={saveChanges}
+          loading={saving}
+          disabled={saving}
+        />
+        <Button
           label="Cancel"
           variant="secondary"
           onPress={onCancel}
           disabled={saving}
-          alignment="inline"
-          style={styles.actionButton}
-        />
-        <Button
-          label={saving ? "Saving…" : "Save changes"}
-          onPress={saveChanges}
-          loading={saving}
-          disabled={saving}
-          alignment="inline"
-          style={styles.actionButton}
         />
       </View>
-      <Button
-        label="Delete customer"
-        variant="danger"
-        onPress={() => onDelete(customer)}
-        disabled={saving}
-        style={styles.deleteButton}
-      />
+      <View style={styles.deleteSection}>
+        <Button
+          label="Delete"
+          variant="danger"
+          onPress={() => onDelete(customer)}
+          disabled={saving}
+        />
+      </View>
     </Card>
   );
 }
@@ -305,17 +330,15 @@ export default function Customers() {
 
   const handleDelete = useCallback(
     (customer: CustomerRecord) => {
-      Alert.alert("Delete customer", `Are you sure you want to delete ${customer.name}?`, [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              previousCustomersRef.current = customers;
-              setCustomers((current) => current.filter((existing) => existing.id !== customer.id));
-              setEditingCustomer((current) => (current?.id === customer.id ? null : current));
-              setSelectedCustomerId((current) => (current === customer.id ? null : current));
+      showDeletionConfirmation(
+        "Delete Customer?",
+        "This action cannot be undone. This will permanently delete this customer and all associated data. Are you sure?",
+        () => {
+          void (async () => {
+            previousCustomersRef.current = customers;
+            setCustomers((current) => current.filter((existing) => existing.id !== customer.id));
+            setEditingCustomer((current) => (current?.id === customer.id ? null : current));
+            setSelectedCustomerId((current) => (current === customer.id ? null : current));
 
               try {
                 const db = await openDB();
@@ -407,7 +430,7 @@ export default function Customers() {
             })();
           },
         },
-      ]);
+      );
     },
     [customers, reloadCustomers],
   );
@@ -766,15 +789,12 @@ function createEditStyles(theme: Theme) {
       backgroundColor: theme.colors.primarySoft,
     },
     actions: {
-      flexDirection: "row",
-      flexWrap: "wrap",
+      flexDirection: "column",
       gap: theme.spacing.sm,
     },
-    actionButton: {
-      flexGrow: 0,
-    },
-    deleteButton: {
-      alignSelf: "flex-start",
+    deleteSection: {
+      marginTop: theme.spacing.lg,
+      alignSelf: "stretch",
     },
   });
 }
