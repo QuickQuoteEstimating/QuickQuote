@@ -1862,51 +1862,33 @@ export default function EditEstimateScreen() {
           />
         </Card>
 
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Labor &amp; tax</Text>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Project hours</Text>
-            <TextInput
-              placeholder="0"
-              placeholderTextColor={colors.textMuted}
-              value={laborHoursText}
-              onChangeText={setLaborHoursText}
-              keyboardType="decimal-pad"
-              style={styles.input}
-            />
-          </View>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Hourly rate</Text>
-            <View style={styles.inputRow}>
-              <Text style={styles.prefixSymbol}>$</Text>
-              <TextInput
-                placeholder="0.00"
-                placeholderTextColor={colors.textMuted}
-                value={hourlyRateText}
-                onChangeText={setHourlyRateText}
-                keyboardType="decimal-pad"
-                style={[styles.input, styles.inputGrow]}
-              />
-            </View>
-            <Text style={styles.helpText}>
-              Labor total (not shown to customers): {formatCurrency(totals.laborTotal)}
-            </Text>
-          </View>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Tax rate</Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                placeholder="0"
-                placeholderTextColor={colors.textMuted}
-                value={taxRateText}
-                onChangeText={setTaxRateText}
-                keyboardType="decimal-pad"
-                style={[styles.input, styles.inputGrow]}
-              />
-              <Text style={styles.suffixSymbol}>%</Text>
-            </View>
-          </View>
-        </View>
+          <Input
+            label="Project hours"
+            placeholder="0"
+            value={laborHoursText}
+            onChangeText={setLaborHoursText}
+            keyboardType="decimal-pad"
+          />
+          <Input
+            label="Hourly rate"
+            placeholder="0.00"
+            value={hourlyRateText}
+            onChangeText={setHourlyRateText}
+            keyboardType="decimal-pad"
+            leftElement={<Text style={styles.inputAdornment}>$</Text>}
+            caption={`Labor total (not shown to customers): ${formatCurrency(totals.laborTotal)}`}
+          />
+          <Input
+            label="Tax rate"
+            placeholder="0"
+            value={taxRateText}
+            onChangeText={setTaxRateText}
+            keyboardType="decimal-pad"
+            rightElement={<Text style={styles.inputAdornment}>%</Text>}
+          />
+        </Card>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Estimate summary</Text>
@@ -2392,24 +2374,9 @@ function createStyles(theme: Theme) {
     lineItemAddButton: {
       marginTop: spacing.sm,
     },
-    inputRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-    inputGrow: {
-      flex: 1,
-    },
-    prefixSymbol: {
-      fontWeight: "700",
-      color: colors.primaryText,
-    },
-    suffixSymbol: {
-      fontWeight: "700",
-      color: colors.primaryText,
-    },
-    helpText: {
-      fontSize: 12,
+    inputAdornment: {
+      fontSize: 16,
+      fontWeight: "600",
       color: colors.textMuted,
     },
     pickerShell: {
