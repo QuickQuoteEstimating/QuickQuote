@@ -1890,27 +1890,27 @@ export default function EditEstimateScreen() {
           />
         </Card>
 
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Estimate summary</Text>
-          <View style={styles.totalsCard}>
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>Materials</Text>
-              <Text style={styles.totalsValue}>{formatCurrency(totals.materialTotal)}</Text>
+          <View style={styles.summaryList}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Materials</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(totals.materialTotal)}</Text>
             </View>
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>Labor</Text>
-              <Text style={styles.totalsValue}>{formatCurrency(totals.laborTotal)}</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Labor</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(totals.laborTotal)}</Text>
             </View>
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>Tax</Text>
-              <Text style={styles.totalsValue}>{formatCurrency(totals.taxTotal)}</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Tax</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(totals.taxTotal)}</Text>
             </View>
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsGrand}>Project total</Text>
-              <Text style={styles.totalsGrand}>{formatCurrency(totals.grandTotal)}</Text>
+            <View style={[styles.summaryRow, styles.summaryTotalRow]}>
+              <Text style={styles.summaryTotalLabel}>Project total</Text>
+              <Text style={styles.summaryTotalValue}>{formatCurrency(totals.grandTotal)}</Text>
             </View>
           </View>
-        </View>
+        </Card>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Status &amp; notes</Text>
@@ -2386,22 +2386,36 @@ function createStyles(theme: Theme) {
       overflow: "hidden",
       backgroundColor: colors.surfaceMuted,
     },
-    totalsCard: {
-      gap: 10,
+    summaryList: {
+      gap: spacing.md,
     },
-    totalsRow: {
+    summaryRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
     },
-    totalsLabel: {
+    summaryLabel: {
+      fontSize: 14,
+      fontWeight: "600",
       color: colors.textMuted,
     },
-    totalsValue: {
+    summaryValue: {
+      fontSize: 16,
       fontWeight: "600",
       color: colors.primaryText,
     },
-    totalsGrand: {
+    summaryTotalRow: {
+      marginTop: spacing.sm,
+      paddingTop: spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    summaryTotalLabel: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.primaryText,
+    },
+    summaryTotalValue: {
       fontSize: 18,
       fontWeight: "700",
       color: colors.primaryText,
