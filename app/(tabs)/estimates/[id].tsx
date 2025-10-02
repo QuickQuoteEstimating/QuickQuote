@@ -50,11 +50,13 @@ import { calculateEstimateTotals } from "../../../lib/estimateMath";
 import { formatPercentageInput } from "../../../lib/numberFormat";
 import {
   Badge,
+  Body,
   Button,
   Card,
   Input,
   ListItem,
   Subtitle,
+  Title,
   type BadgeTone,
 } from "../../../components/ui";
 import { cardShadow, useTheme, type Theme } from "../../../theme";
@@ -1938,69 +1940,67 @@ export default function EditEstimateScreen() {
           </View>
         </View>
         <View style={previewStyles.previewSection}>
-          <Text style={previewStyles.previewTitle}>Send to client preview</Text>
-          <Text style={previewStyles.previewSubtitle}>
+          <Title style={previewStyles.previewTitle}>Send to client preview</Title>
+          <Subtitle style={previewStyles.previewSubtitle}>
             Double-check the essentials before sharing the full PDF with your client.
-          </Text>
+          </Subtitle>
           {sendSuccessMessage ? (
             <View style={previewStyles.successBanner}>
-              <Text style={previewStyles.successText}>{sendSuccessMessage}</Text>
+              <Body style={previewStyles.successText}>{sendSuccessMessage}</Body>
             </View>
           ) : null}
           <Card style={previewStyles.previewCard}>
             <View style={previewStyles.previewHeader}>
               <View style={previewStyles.brandBlock}>
-                <Text style={previewStyles.brandName}>QuickQuote</Text>
-                <Text style={previewStyles.brandTagline}>Estimate summary</Text>
+                <Title style={previewStyles.brandName}>QuickQuote</Title>
+                <Subtitle style={previewStyles.brandTagline}>Estimate summary</Subtitle>
               </View>
               <View style={previewStyles.metaBlock}>
-                <Text style={previewStyles.metaLabel}>Estimate #</Text>
-                <Text style={previewStyles.metaValue}>{previewEstimateNumber}</Text>
+                <Subtitle style={previewStyles.metaLabel}>Estimate #</Subtitle>
+                <Title style={previewStyles.metaValue}>{previewEstimateNumber}</Title>
               </View>
             </View>
             <Badge tone={statusBadgeTone} style={previewStyles.statusBadge}>
               {statusLabel}
             </Badge>
-            <View style={previewStyles.summaryDivider} />
-            <View style={previewStyles.summaryGrid}>
+            <View style={previewStyles.summaryRows}>
               <View style={previewStyles.summaryRow}>
-                <Text style={previewStyles.summaryLabel}>Client</Text>
-                <Text style={previewStyles.summaryValue}>{previewCustomerName}</Text>
+                <Body style={previewStyles.summaryLabel}>Client</Body>
+                <Body style={previewStyles.summaryValue}>{previewCustomerName}</Body>
               </View>
               <View style={previewStyles.summaryRow}>
-                <Text style={previewStyles.summaryLabel}>Line items</Text>
-                <Text style={previewStyles.summaryValue}>{previewLineItems}</Text>
+                <Body style={previewStyles.summaryLabel}>Line items</Body>
+                <Body style={previewStyles.summaryValue}>{previewLineItems}</Body>
               </View>
               <View style={previewStyles.summaryRow}>
-                <Text style={previewStyles.summaryLabel}>Estimate date</Text>
-                <Text style={previewStyles.summaryValue}>{previewDate}</Text>
+                <Body style={previewStyles.summaryLabel}>Estimate date</Body>
+                <Body style={previewStyles.summaryValue}>{previewDate}</Body>
               </View>
             </View>
             <View style={previewStyles.totalBlock}>
-              <Text style={previewStyles.totalLabel}>Total amount</Text>
-              <Text style={previewStyles.totalValue}>{formatCurrency(totals.grandTotal)}</Text>
+              <Subtitle style={previewStyles.totalLabel}>Total amount</Subtitle>
+              <Title style={previewStyles.totalValue}>{formatCurrency(totals.grandTotal)}</Title>
             </View>
           </Card>
-          <Text style={previewStyles.previewHint}>
+          <Body style={previewStyles.previewHint}>
             A polished PDF and this summary will be included when you send the estimate.
-          </Text>
+          </Body>
           <View style={previewStyles.previewActions}>
             <Button
               label="Save & Preview PDF"
-              variant="secondary"
               onPress={handleSaveAndPreview}
               disabled={pdfWorking || smsSending || saving}
               loading={pdfWorking}
             />
             <Button
               label="Share via Email"
-              variant="ghost"
+              variant="secondary"
               onPress={handleShareEmail}
               disabled={pdfWorking || smsSending}
             />
             <Button
               label="Share via SMS"
-              variant="ghost"
+              variant="secondary"
               onPress={handleShareSms}
               disabled={smsSending || pdfWorking}
             />
@@ -2032,37 +2032,33 @@ export default function EditEstimateScreen() {
 }
 
 function createPreviewStyles(theme: Theme) {
-  const { colors } = theme;
+  const { colors, spacing, radii } = theme;
   return StyleSheet.create({
     previewSection: {
-      marginTop: 28,
+      marginTop: spacing.xxl,
       alignItems: "center",
       alignSelf: "stretch",
-      gap: 20,
+      gap: spacing.lg,
     },
     previewTitle: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: colors.primaryText,
       textAlign: "center",
+      color: colors.text,
+      letterSpacing: 0,
     },
     previewSubtitle: {
-      fontSize: 15,
-      lineHeight: 22,
-      color: colors.textMuted,
       textAlign: "center",
+      color: colors.textMuted,
       maxWidth: 520,
     },
     successBanner: {
-      alignSelf: "center",
-      maxWidth: 520,
       width: "100%",
+      maxWidth: 520,
       backgroundColor: colors.successSoft,
       borderColor: colors.success,
       borderWidth: StyleSheet.hairlineWidth,
-      borderRadius: 18,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
     },
     successText: {
       color: colors.success,
@@ -2072,97 +2068,88 @@ function createPreviewStyles(theme: Theme) {
     previewCard: {
       width: "100%",
       maxWidth: 520,
-      backgroundColor: colors.surface,
-      borderRadius: 26,
-      padding: 28,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      gap: 20,
-      ...cardShadow(20, theme.mode),
+      alignSelf: "center",
+      gap: spacing.lg,
     },
     previewHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-start",
-      gap: 16,
+      gap: spacing.lg,
     },
     brandBlock: {
-      gap: 6,
+      flexShrink: 1,
+      gap: spacing.xs,
     },
     brandName: {
-      fontSize: 20,
-      fontWeight: "700",
+      fontSize: 22,
       color: colors.primaryText,
     },
     brandTagline: {
-      fontSize: 12,
-      letterSpacing: 1,
       textTransform: "uppercase",
+      letterSpacing: 1,
       color: colors.textMuted,
+      fontSize: 13,
     },
     metaBlock: {
       alignItems: "flex-end",
-      gap: 4,
+      gap: spacing.xs,
     },
     metaLabel: {
-      fontSize: 12,
       textTransform: "uppercase",
-      letterSpacing: 0.8,
+      letterSpacing: 1,
       color: colors.textMuted,
+      fontSize: 12,
     },
     metaValue: {
-      fontSize: 18,
-      fontWeight: "700",
+      fontSize: 20,
       color: colors.primaryText,
     },
     statusBadge: {
       alignSelf: "flex-end",
     },
-    summaryDivider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-    },
-    summaryGrid: {
-      gap: 16,
+    summaryRows: {
+      width: "100%",
+      gap: spacing.md,
+      paddingTop: spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.separator,
     },
     summaryRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      gap: 16,
+      gap: spacing.md,
     },
     summaryLabel: {
-      fontSize: 14,
       color: colors.textMuted,
+      fontWeight: "500",
     },
     summaryValue: {
-      fontSize: 15,
+      color: colors.text,
       fontWeight: "600",
-      color: colors.primaryText,
       textAlign: "right",
+      flexShrink: 1,
     },
     totalBlock: {
-      marginTop: 8,
-      paddingTop: 16,
+      marginTop: spacing.lg,
+      paddingTop: spacing.lg,
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
+      borderTopColor: colors.separator,
       alignItems: "flex-end",
-      gap: 4,
+      gap: spacing.xs,
     },
     totalLabel: {
-      fontSize: 13,
-      letterSpacing: 0.6,
       textTransform: "uppercase",
+      letterSpacing: 0.8,
       color: colors.textMuted,
+      fontSize: 12,
     },
     totalValue: {
       fontSize: 30,
-      fontWeight: "700",
       color: colors.primaryText,
     },
     previewHint: {
-      fontSize: 14,
-      lineHeight: 20,
       color: colors.textMuted,
       textAlign: "center",
       maxWidth: 520,
@@ -2170,7 +2157,7 @@ function createPreviewStyles(theme: Theme) {
     previewActions: {
       width: "100%",
       maxWidth: 520,
-      gap: 12,
+      gap: spacing.md,
     },
     bottomBar: {
       paddingHorizontal: 20,
