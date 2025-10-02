@@ -52,8 +52,3 @@ jest.mock("react-native/Libraries/Components/Touchable/TouchableOpacity", () => 
   return MockTouchableOpacity;
 });
 
-jest.mock("expo-image-manipulator", () => ({
-  __esModule: true,
-  manipulateAsync: jest.fn(async (uri: string) => ({ uri, base64: null })),
-  SaveFormat: { JPEG: "jpeg", PNG: "png" },
-}));

@@ -1,7 +1,6 @@
 import { Platform } from "react-native";
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
-import * as ImageManipulator from "expo-image-manipulator";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const PHOTO_BUCKET = process.env.EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "estimate-photos";
@@ -120,31 +119,6 @@ async function resolvePhotoSource(photo: EstimatePdfPhoto): Promise<string | nul
     const info = await FileSystem.getInfoAsync(candidate);
     if (!info.exists) {
       return null;
-    }
-
-    try {
-      const manipulated = await ImageManipulator.manipulateAsync(
-        candidate,
-        [{ resize: { width: 1200 } }],
-        {
-          compress: 0.7,
-          format: ImageManipulator.SaveFormat.JPEG,
-          base64: true,
-        },
-      );
-
-      if (manipulated.base64) {
-        return `data:image/jpeg;base64,${manipulated.base64}`;
-      }
-
-      if (manipulated.uri && manipulated.uri !== candidate) {
-        const fallback = await FileSystem.readAsStringAsync(manipulated.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        return `data:image/jpeg;base64,${fallback}`;
-      }
-    } catch (error) {
-      console.warn("Failed to optimize photo for PDF", error);
     }
 
     const base64 = await FileSystem.readAsStringAsync(candidate, {
