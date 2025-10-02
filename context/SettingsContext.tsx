@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import * as Haptics from "expo-haptics";
+import type { MarkupMode } from "../lib/estimateMath";
 
 export type ThemePreference = "light" | "dark" | "system";
 
@@ -28,7 +29,9 @@ export interface CompanyProfile {
 export interface SettingsState {
   themePreference: ThemePreference;
   materialMarkup: number;
+  materialMarkupMode: MarkupMode;
   laborMarkup: number;
+  laborMarkupMode: MarkupMode;
   hourlyRate: number;
   taxRate: number;
   hapticsEnabled: boolean;
@@ -46,7 +49,9 @@ interface SettingsContextValue {
   resolvedTheme: "light" | "dark";
   setThemePreference: (preference: ThemePreference) => void;
   setMaterialMarkup: (value: number) => void;
+  setMaterialMarkupMode: (value: MarkupMode) => void;
   setLaborMarkup: (value: number) => void;
+  setLaborMarkupMode: (value: MarkupMode) => void;
   setHourlyRate: (value: number) => void;
   setTaxRate: (value: number) => void;
   setHapticsEnabled: (value: boolean) => void;
@@ -85,7 +90,9 @@ const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
 const DEFAULT_SETTINGS: SettingsState = {
   themePreference: "system",
   materialMarkup: 15,
+  materialMarkupMode: "percentage",
   laborMarkup: 20,
+  laborMarkupMode: "percentage",
   hourlyRate: 85,
   taxRate: 8,
   hapticsEnabled: true,
@@ -217,9 +224,23 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     [updateSettings],
   );
 
+  const setMaterialMarkupMode = useCallback(
+    (mode: MarkupMode) => {
+      updateSettings({ materialMarkupMode: mode === "flat" ? "flat" : "percentage" });
+    },
+    [updateSettings],
+  );
+
   const setLaborMarkup = useCallback(
     (value: number) => {
       updateSettings({ laborMarkup: Number.isFinite(value) ? Math.max(0, value) : 0 });
+    },
+    [updateSettings],
+  );
+
+  const setLaborMarkupMode = useCallback(
+    (mode: MarkupMode) => {
+      updateSettings({ laborMarkupMode: mode === "flat" ? "flat" : "percentage" });
     },
     [updateSettings],
   );
@@ -342,7 +363,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       resolvedTheme,
       setThemePreference,
       setMaterialMarkup,
+      setMaterialMarkupMode,
       setLaborMarkup,
+      setLaborMarkupMode,
       setHourlyRate,
       setTaxRate,
       setHapticsEnabled,
@@ -364,7 +387,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setHapticIntensity,
       setHapticsEnabled,
       setLaborMarkup,
+      setLaborMarkupMode,
       setMaterialMarkup,
+      setMaterialMarkupMode,
       setHourlyRate,
       setTaxRate,
       setNotificationsEnabled,

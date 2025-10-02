@@ -9,6 +9,7 @@ export default function EstimatesLayout() {
         <Stack.Screen name="new" options={{ title: "New Estimate", presentation: "modal" }} />
         <Stack.Screen name="[id]" options={{ title: "Edit Estimate", presentation: "modal" }} />
         <Stack.Screen name="item-editor" options={{ title: "Item" }} />
+        <Stack.Screen name="saved-items" options={{ title: "Saved Items" }} />
       </Stack>
     </ItemEditorProvider>
   );

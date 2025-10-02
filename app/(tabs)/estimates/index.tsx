@@ -247,7 +247,16 @@ export default function EstimatesScreen() {
                     );
                   })}
                 </View>
-              </Card>
+                </Card>
+              <View style={styles.utilitiesRow}>
+                <Button
+                  label="Manage saved items"
+                  variant="secondary"
+                  alignment="inline"
+                  onPress={() => router.push("/(tabs)/estimates/saved-items")}
+                  leadingIcon={<Feather name="bookmark" size={18} color={theme.colors.primary} />}
+                />
+              </View>
               {loading ? (
                 <Card style={styles.messageCard}>
                   <View style={styles.loadingRow}>
@@ -342,6 +351,10 @@ function createStyles(theme: Theme) {
     },
     titleBlock: {
       gap: theme.spacing.sm,
+    },
+    utilitiesRow: {
+      flexDirection: "row",
+      justifyContent: "flex-start",
     },
     screenTitle: {
       fontSize: 28,

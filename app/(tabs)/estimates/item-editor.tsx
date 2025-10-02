@@ -116,9 +116,12 @@ export default function EstimateItemEditorScreen() {
           initialValue={config.initialValue}
           initialTemplateId={config.initialTemplateId ?? null}
           templates={templates}
+          materialMarkupValue={config.materialMarkupValue}
+          materialMarkupMode={config.materialMarkupMode}
           onSubmit={handleSubmit}
           onCancel={handleCancel}
           submitLabel={config.submitLabel}
+          showLibraryToggle={config.showLibraryToggle ?? true}
         />
       </Card>
     </ScrollView>

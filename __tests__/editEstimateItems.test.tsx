@@ -16,6 +16,30 @@ jest.mock("expo-router", () => {
   };
 });
 
+jest.mock("@react-native-picker/picker", () => {
+  const React = require("react");
+  const { View, Pressable, Text } = require("react-native");
+  const MockPicker = ({ children, onValueChange }: any) => (
+    <View testID="picker">
+      {React.Children.map(children, (child, index) => {
+        if (!React.isValidElement(child)) {
+          return child;
+        }
+        return React.cloneElement(child, {
+          onSelect: () => onValueChange(child.props.value, index),
+        });
+      })}
+    </View>
+  );
+  const MockPickerItem = ({ label, value, onSelect }: any) => (
+    <Pressable onPress={onSelect} testID={`picker-item-${value ?? "empty"}`}>
+      <Text>{label}</Text>
+    </Pressable>
+  );
+  MockPicker.Item = MockPickerItem;
+  return { Picker: MockPicker };
+});
+
 const mockOpenEditor = jest.fn();
 
 jest.mock("../context/ItemEditorContext", () => ({
@@ -36,6 +60,10 @@ jest.mock("../context/AuthContext", () => ({
 jest.mock("../context/SettingsContext", () => ({
   useSettings: () => ({
     settings: {
+      materialMarkup: 10,
+      materialMarkupMode: "percentage",
+      laborMarkup: 5,
+      laborMarkupMode: "percentage",
       hourlyRate: 55,
       taxRate: 7.5,
       companyProfile: {
@@ -216,7 +244,9 @@ describe("EditEstimateScreen - item editing", () => {
           description: "Service Call",
           quantity: 2,
           unit_price: 50,
-          total: 100,
+          apply_markup: true,
+          base_total: 100,
+          total: 110,
         },
         saveToLibrary: false,
         templateId: null,
@@ -225,8 +255,8 @@ describe("EditEstimateScreen - item editing", () => {
 
     await waitFor(() => {
       expect(getByText("Service Call")).toBeTruthy();
-      expect(getByText("Qty: 2 @ $50.00")).toBeTruthy();
-      expect(getAllByText("$100.00").length).toBeGreaterThan(0);
+      expect(getByText("Qty: 2 @ $55.00")).toBeTruthy();
+      expect(getAllByText("$110.00").length).toBeGreaterThan(0);
     });
 
     expect(mockDb.runAsync).toHaveBeenCalled();

@@ -40,7 +40,10 @@ type EstimateItem = {
   description: string;
   quantity: number;
   unit_price: number;
+  base_total: number | null;
   total: number;
+  apply_markup: number | null;
+  catalog_item_id: string | null;
   version: number | null;
   updated_at: string | null;
   deleted_at: string | null;
@@ -144,15 +147,18 @@ export async function bootstrapUserData(userId: string) {
 
   for (const item of estimateItems) {
     await db.runAsync(
-      `INSERT OR REPLACE INTO estimate_items (id, estimate_id, description, quantity, unit_price, total, version, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO estimate_items (id, estimate_id, description, quantity, unit_price, base_total, total, apply_markup, catalog_item_id, version, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         item.id,
         item.estimate_id,
         item.description,
         item.quantity,
         item.unit_price,
+        item.base_total ?? item.total ?? 0,
         item.total,
+        item.apply_markup ?? 1,
+        item.catalog_item_id ?? null,
         item.version ?? 1,
         item.updated_at ?? new Date().toISOString(),
         item.deleted_at,
