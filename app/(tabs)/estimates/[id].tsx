@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
+  AlertButton,
   FlatList,
   Image,
   Linking,
@@ -58,7 +59,7 @@ import {
   Title,
   type BadgeTone,
 } from "../../../components/ui";
-import { Theme, cardShadow } from "../../../theme";
+import { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
@@ -222,7 +223,7 @@ export default function EditEstimateScreen() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [pdfWorking, setPdfWorking] = useState(false);
-  const [smsSending, setSmsSending] = useState(false);
+  const [sending, setSending] = useState(false);
   const [sendSuccessMessage, setSendSuccessMessage] = useState<string | null>(null);
   const [customerContact, setCustomerContact] = useState<CustomerRecord | null>(null);
 
@@ -1258,12 +1259,15 @@ export default function EditEstimateScreen() {
     [setEstimate, setSendSuccessMessage, setStatus, status],
   );
 
-  const handleShareEmail = useCallback(async () => {
+  const sendEstimateViaEmail = useCallback(async (
+    pdf: EstimatePdfResult,
+  ) => {
     if (!estimate) {
       return;
     }
 
-    if (!customerContact?.email) {
+    const emailAddress = customerContact?.email?.trim();
+    if (!emailAddress) {
       Alert.alert(
         "Missing email",
         "Add an email address for this customer to share the estimate via email.",
@@ -1271,17 +1275,13 @@ export default function EditEstimateScreen() {
       return;
     }
 
+    setSending(true);
     try {
       setSendSuccessMessage(null);
-      setPdfWorking(true);
-      const pdf = await ensurePdfReady();
-      if (!pdf) {
-        return;
-      }
-      const emailAddress = customerContact.email;
       const subject = encodeURIComponent(`Estimate ${estimate.id} from QuickQuote`);
+      const greetingName = customerContact?.name?.trim() || "there";
       const bodyLines = [
-        `Hi ${customerContact.name || "there"},`,
+        `Hi ${greetingName},`,
         "",
         "Please review your estimate from QuickQuote.",
         `Total: ${formatCurrency(totals.grandTotal)}`,
@@ -1325,97 +1325,103 @@ export default function EditEstimateScreen() {
       console.error("Failed to share via email", error);
       Alert.alert("Error", "Unable to share the estimate via email.");
     } finally {
-      setPdfWorking(false);
+      setSending(false);
     }
   }, [
-    ensurePdfReady,
-    customerContact,
+    customerContact?.email,
+    customerContact?.name,
     estimate,
-    totals.grandTotal,
     logEstimateDelivery,
+    markEstimateSent,
     setSendSuccessMessage,
+    totals.grandTotal,
   ]);
 
-  const handleShareSms = useCallback(async () => {
-    if (!estimate) {
-      return;
-    }
-
-    if (!customerContact?.phone) {
-      Alert.alert(
-        "Missing phone",
-        "Add a mobile number for this customer to share the estimate via SMS.",
-      );
-      return;
-    }
-
-    if (!(await SMS.isAvailableAsync())) {
-      Alert.alert("Unavailable", "SMS is not supported on this device.");
-      return;
-    }
-
-    try {
-      setSendSuccessMessage(null);
-      setSmsSending(true);
-      const pdf = await ensurePdfReady();
-      if (!pdf) {
+  const sendEstimateViaSms = useCallback(
+    async (pdf: EstimatePdfResult) => {
+      if (!estimate) {
         return;
       }
-      const message = `Estimate ${estimate.id} total ${formatCurrency(
-        totals.grandTotal,
-      )}. PDF: ${pdf.uri}`;
 
-      let smsResponse;
-      try {
-        smsResponse = await SMS.sendSMSAsync(
-          [customerContact.phone],
-          message,
-          pdf.uri
-            ? {
-                attachments: [
-                  {
-                    uri: pdf.uri,
-                    mimeType: "application/pdf",
-                    filename: pdf.fileName,
-                  },
-                ],
-              }
-            : undefined,
+      const phoneNumber = customerContact?.phone?.trim();
+      if (!phoneNumber) {
+        Alert.alert(
+          "Missing phone",
+          "Add a mobile number for this customer to share the estimate via SMS.",
         );
-      } catch (error) {
-        console.warn("Failed to send SMS with attachment", error);
-        smsResponse = await SMS.sendSMSAsync([customerContact.phone], message);
+        return;
       }
 
-      await logEstimateDelivery({
-        estimateId: estimate.id,
-        channel: "sms",
-        recipient: customerContact.phone,
-        messagePreview: message.length > 240 ? `${message.slice(0, 237)}...` : message,
-        metadata: {
-          pdfUri: pdf.uri,
-          smsResult: smsResponse?.result ?? null,
-        },
-      });
-      await markEstimateSent("sms");
-    } catch (error) {
-      console.error("Failed to share via SMS", error);
-      Alert.alert("Error", "Unable to share the estimate via SMS.");
-    } finally {
-      setSmsSending(false);
-    }
-  }, [
-    ensurePdfReady,
-    customerContact,
-    estimate,
-    totals.grandTotal,
-    logEstimateDelivery,
-    setSendSuccessMessage,
-  ]);
+      setSending(true);
+      try {
+        setSendSuccessMessage(null);
+        const smsSupported = await SMS.isAvailableAsync();
+        if (!smsSupported) {
+          Alert.alert("Unavailable", "SMS is not supported on this device.");
+          return;
+        }
 
-  const handleSendToClient = useCallback(() => {
-    const hasEmail = Boolean(customerContact?.email);
-    const hasPhone = Boolean(customerContact?.phone);
+        const message = `Estimate ${estimate.id} total ${formatCurrency(
+          totals.grandTotal,
+        )}. PDF: ${pdf.uri}`;
+
+        let smsResponse;
+        try {
+          smsResponse = await SMS.sendSMSAsync(
+            [phoneNumber],
+            message,
+            pdf.uri
+              ? {
+                  attachments: [
+                    {
+                      uri: pdf.uri,
+                      mimeType: "application/pdf",
+                      filename: pdf.fileName,
+                    },
+                  ],
+                }
+              : undefined,
+          );
+        } catch (error) {
+          console.warn("Failed to send SMS with attachment", error);
+          smsResponse = await SMS.sendSMSAsync([phoneNumber], message);
+        }
+
+        await logEstimateDelivery({
+          estimateId: estimate.id,
+          channel: "sms",
+          recipient: phoneNumber,
+          messagePreview: message.length > 240 ? `${message.slice(0, 237)}...` : message,
+          metadata: {
+            pdfUri: pdf.uri,
+            smsResult: smsResponse?.result ?? null,
+          },
+        });
+        await markEstimateSent("sms");
+      } catch (error) {
+        console.error("Failed to share via SMS", error);
+        Alert.alert("Error", "Unable to share the estimate via SMS.");
+      } finally {
+        setSending(false);
+      }
+    },
+    [
+      customerContact?.phone,
+      estimate,
+      logEstimateDelivery,
+      markEstimateSent,
+      setSendSuccessMessage,
+      totals.grandTotal,
+    ],
+  );
+
+  const handleSendToClient = useCallback(async () => {
+    if (sending || saving) {
+      return;
+    }
+
+    const hasEmail = Boolean(customerContact?.email?.trim());
+    const hasPhone = Boolean(customerContact?.phone?.trim());
 
     if (!hasEmail && !hasPhone) {
       Alert.alert(
@@ -1425,29 +1431,63 @@ export default function EditEstimateScreen() {
       return;
     }
 
-    const sendEmail = () => {
-      void handleShareEmail();
-    };
-    const sendSms = () => {
-      void handleShareSms();
-    };
+    setSendSuccessMessage(null);
+    setSending(true);
+    try {
+      const updated = await saveEstimate();
+      if (!updated) {
+        return;
+      }
 
-    if (hasEmail && hasPhone) {
-      Alert.alert("Send estimate", "Choose how you'd like to send the estimate.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Text message", onPress: sendSms },
-        { text: "Email", onPress: sendEmail },
-      ]);
-      return;
+      const pdf = await ensurePdfReady();
+      if (!pdf) {
+        return;
+      }
+
+      const buttons: AlertButton[] = [{ text: "Cancel", style: "cancel" }];
+
+      if (hasEmail) {
+        buttons.push({
+          text: hasPhone ? "Email" : "Send email",
+          onPress: () => {
+            void sendEstimateViaEmail(pdf);
+          },
+        });
+      }
+
+      if (hasPhone) {
+        buttons.push({
+          text: hasEmail ? "Text message" : "Send text",
+          onPress: () => {
+            void sendEstimateViaSms(pdf);
+          },
+        });
+      }
+
+      Alert.alert(
+        "Send estimate",
+        hasEmail && hasPhone
+          ? "Choose how you'd like to share the estimate."
+          : "Confirm how you'd like to send the estimate.",
+        buttons,
+      );
+    } catch (error) {
+      console.error("Failed to prepare estimate for sending", error);
+      Alert.alert("Estimate", "We couldn't send this estimate. Please try again.");
+    } finally {
+      setSending(false);
     }
-
-    if (hasEmail) {
-      sendEmail();
-      return;
-    }
-
-    sendSms();
-  }, [customerContact?.email, customerContact?.phone, handleShareEmail, handleShareSms]);
+  }, [
+    customerContact?.email,
+    customerContact?.phone,
+    ensurePdfReady,
+    saveEstimate,
+    saving,
+    sendEstimateViaEmail,
+    sendEstimateViaSms,
+    sending,
+    setSendSuccessMessage,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1615,15 +1655,6 @@ export default function EditEstimateScreen() {
     settings.laborMarkup,
     settings.laborMarkupMode,
   ]);
-
-  const handleCancel = () => {
-    if (!saving) {
-      if (estimateId) {
-        clearEstimateFormDraft(estimateId);
-      }
-      router.back();
-    }
-  };
 
   const handleDeleteEstimate = useCallback(() => {
     const currentEstimate = estimateRef.current;
@@ -1909,7 +1940,7 @@ export default function EditEstimateScreen() {
     return null;
   }
 
-  const sendingToClient = pdfWorking || smsSending;
+  const sendingToClient = sending;
 
   return (
     <View style={styles.screenContainer}>
@@ -2177,40 +2208,28 @@ export default function EditEstimateScreen() {
           </Body>
           <View style={previewStyles.previewActions}>
             <Button
-              label="Save & Preview PDF"
+              label={saving ? "Saving…" : "Save Draft"}
+              onPress={handleSaveDraft}
+              disabled={saving || deleting || sendingToClient}
+              loading={saving}
+            />
+            <Button
+              label={sendingToClient ? "Sending…" : "Send to Client"}
+              onPress={handleSendToClient}
+              disabled={saving || deleting || sendingToClient}
+              loading={sendingToClient}
+            />
+            <Button
+              label={pdfWorking ? "Preparing preview…" : "Preview PDF"}
+              variant="ghost"
+              alignment="inline"
               onPress={handleSaveAndPreview}
-              disabled={pdfWorking || smsSending || saving}
+              disabled={pdfWorking || saving || deleting || sendingToClient}
               loading={pdfWorking}
-            />
-            <Button
-              label="Share via Email"
-              variant="secondary"
-              onPress={handleShareEmail}
-              disabled={pdfWorking || smsSending}
-            />
-            <Button
-              label="Share via SMS"
-              variant="secondary"
-              onPress={handleShareSms}
-              disabled={smsSending || pdfWorking}
+              style={previewStyles.previewLink}
+              contentStyle={previewStyles.previewLinkContent}
             />
           </View>
-        </View>
-        <View style={styles.footerButtons}>
-          <Button
-            label={saving ? "Saving…" : "Save"}
-            onPress={handleSaveDraft}
-            disabled={saving || deleting}
-            loading={saving}
-            alignment="full"
-          />
-          <Button
-            label="Cancel"
-            variant="secondary"
-            onPress={handleCancel}
-            disabled={saving || deleting}
-            alignment="full"
-          />
         </View>
         <View style={styles.deleteSection}>
           <Button
@@ -2223,15 +2242,6 @@ export default function EditEstimateScreen() {
           />
         </View>
       </ScrollView>
-      <View style={previewStyles.bottomBar}>
-        <Button
-          label={sendingToClient ? "Sending…" : "Send to Client"}
-          onPress={handleSendToClient}
-          disabled={sendingToClient}
-          loading={sendingToClient}
-          alignment="full"
-        />
-      </View>
     </View>
   );
 }
@@ -2364,14 +2374,12 @@ function createPreviewStyles(theme: Theme) {
       maxWidth: 520,
       gap: spacing.md,
     },
-    bottomBar: {
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 24,
-      backgroundColor: colors.surface,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-      ...cardShadow(16, theme.mode),
+    previewLink: {
+      alignSelf: "center",
+    },
+    previewLinkContent: {
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
     },
   });
 }
@@ -2582,13 +2590,9 @@ function createStyles(theme: Theme) {
       color: colors.primaryText,
       fontSize: 22,
     },
-    footerButtons: {
-      gap: spacing.sm,
-      paddingBottom: spacing.lg,
-      alignSelf: "stretch",
-    },
     deleteSection: {
       alignSelf: "stretch",
+      marginTop: spacing.md,
       marginBottom: spacing.lg,
     },
   });
