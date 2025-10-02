@@ -4,13 +4,14 @@ import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from "react-n
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
-import { useTheme, type Theme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const handleLogin = async () => {

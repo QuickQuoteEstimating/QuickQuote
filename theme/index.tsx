@@ -1,4 +1,3 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { Appearance, Platform } from "react-native";
 
 export type ThemeSpacing = {
@@ -122,48 +121,6 @@ export const dark: Theme = {
   spacing,
   radii,
 };
-
-type ThemeContextValue = {
-  mode: ThemeMode;
-  theme: Theme;
-  setMode: (mode: ThemeMode) => void;
-  toggleMode: () => void;
-};
-
-const defaultThemeContext: ThemeContextValue = {
-  mode: "light",
-  theme: light,
-  setMode: () => {},
-  toggleMode: () => {},
-};
-
-export const ThemeContext = createContext<ThemeContextValue>(defaultThemeContext);
-
-export type ThemeProviderProps = {
-  children: ReactNode;
-  defaultMode?: ThemeMode;
-};
-
-export function ThemeProvider({ children, defaultMode = "light" }: ThemeProviderProps) {
-  const [mode, setMode] = useState<ThemeMode>(defaultMode);
-
-  const value = useMemo<ThemeContextValue>(() => {
-    const theme = mode === "light" ? light : dark;
-
-    return {
-      mode,
-      theme,
-      setMode,
-      toggleMode: () => setMode((prev) => (prev === "light" ? "dark" : "light")),
-    };
-  }, [mode]);
-
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
-}
-
-export function useTheme() {
-  return useContext(ThemeContext);
-}
 
 export function cardShadow(
   depth: number = 12,

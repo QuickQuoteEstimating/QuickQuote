@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { Platform, Pressable, StyleProp, StyleSheet, ViewStyle } from "react-native";
-import { useTheme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 type FABPalette = "auto" | "primary" | "highlight";
 
@@ -13,10 +14,10 @@ export interface FABProps {
 }
 
 export function FAB({ icon, onPress, accessibilityLabel, palette = "auto", style }: FABProps) {
-  const { theme, mode } = useTheme();
+  const { theme, isDark } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const resolvedPalette =
-    palette === "auto" ? (mode === "dark" ? "highlight" : "primary") : palette;
+    palette === "auto" ? (isDark ? "highlight" : "primary") : palette;
 
   return (
     <Pressable
@@ -35,7 +36,7 @@ export function FAB({ icon, onPress, accessibilityLabel, palette = "auto", style
   );
 }
 
-function createStyles(theme: ReturnType<typeof useTheme>["theme"]) {
+function createStyles(theme: Theme) {
   return StyleSheet.create({
     base: {
       alignItems: "center",

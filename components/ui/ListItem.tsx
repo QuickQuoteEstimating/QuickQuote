@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { Pressable, StyleProp, StyleSheet, Text, TextStyle, View, ViewStyle } from "react-native";
-import { useTheme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 export interface ListItemProps {
   title: string;
@@ -27,7 +28,7 @@ export function ListItem({
   subtitleStyle,
   amountStyle,
 }: ListItemProps) {
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   let resolvedRightContent: ReactNode | null = rightContent ?? null;
   if (!resolvedRightContent) {
@@ -64,7 +65,7 @@ export function ListItem({
   );
 }
 
-function createStyles(theme: ReturnType<typeof useTheme>["theme"]) {
+function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       flexDirection: "row",

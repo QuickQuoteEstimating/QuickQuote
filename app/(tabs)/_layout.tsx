@@ -3,17 +3,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 export default function TabsLayout() {
   const { session, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
+  const { theme } = useThemeContext();
   const palette = {
-    background: "#f8fafc",
-    card: "#ffffff",
-    accent: "#1e40af",
-    primaryText: "#0f172a",
-    muted: "#64748b",
-    border: "#e2e8f0",
+    background: theme.colors.surface,
+    card: theme.colors.surfaceMuted,
+    accent: theme.colors.primary,
+    primaryText: theme.colors.primaryText,
+    muted: theme.colors.textMuted,
+    border: theme.colors.border,
   };
 
   if (isLoading) {
@@ -43,7 +45,7 @@ export default function TabsLayout() {
           backgroundColor: palette.background,
           borderTopWidth: 1,
           borderTopColor: palette.border,
-          shadowColor: palette.primaryText,
+          shadowColor: theme.colors.overlay,
           shadowOpacity: 0.06,
           shadowOffset: { width: 0, height: -4 },
           shadowRadius: 12,

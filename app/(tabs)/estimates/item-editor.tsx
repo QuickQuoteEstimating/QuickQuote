@@ -4,7 +4,8 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-nat
 import EstimateItemForm from "../../../components/EstimateItemForm";
 import { useItemEditor } from "../../../context/ItemEditorContext";
 import { Card } from "../../../components/ui";
-import { useTheme, type Theme } from "../../../theme";
+import { Theme } from "../../../theme";
+import { useThemeContext } from "../../../theme/ThemeProvider";
 
 function createStyles(theme: Theme) {
   const { colors } = theme;
@@ -40,7 +41,7 @@ export default function EstimateItemEditorScreen() {
   const { config, closeEditor } = useItemEditor();
   const hasNavigatedAway = useRef(false);
   const hasLoadedConfigRef = useRef(false);
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {

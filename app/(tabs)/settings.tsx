@@ -16,7 +16,8 @@ import { Badge, Button, Card, Input, ListItem } from "../../components/ui";
 import LogoPicker from "../../components/LogoPicker";
 import { useAuth } from "../../context/AuthContext";
 import { type ThemePreference, useSettings } from "../../context/SettingsContext";
-import { useTheme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 const THEME_OPTIONS = [
   { label: "Light", value: "light" },
@@ -27,7 +28,7 @@ const THEME_OPTIONS = [
 const HAPTIC_LABELS = ["Subtle", "Balanced", "Bold"];
 
 export default function Settings() {
-  const { theme } = useTheme();
+  const { theme, isDark, toggleTheme } = useThemeContext();
   const { user, signOut, signOutLoading, needsBootstrapRetry } = useAuth();
   const {
     settings,
@@ -313,6 +314,13 @@ export default function Settings() {
             style={styles.listItem}
           />
         </View>
+        <View style={styles.buttonRow}>
+          <Button
+            label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            alignment="inline"
+            onPress={toggleTheme}
+          />
+        </View>
         {isEditingTaxRate ? (
           <Input
             label="Sales tax percentage"
@@ -453,7 +461,7 @@ export default function Settings() {
   );
 }
 
-function createStyles(theme: ReturnType<typeof useTheme>["theme"]) {
+function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       flex: 1,

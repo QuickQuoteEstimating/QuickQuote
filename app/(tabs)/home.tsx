@@ -18,7 +18,8 @@ import {
   ListItem,
   Title,
 } from "../../components/ui";
-import { useTheme, type Theme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 type DashboardMetrics = {
   jobsSold: number;
@@ -233,7 +234,7 @@ function formatStatus(value: string) {
 
 export default function Home() {
   const insets = useSafeAreaInsets();
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);

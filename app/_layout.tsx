@@ -1,5 +1,5 @@
 import { Stack } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
@@ -13,10 +13,61 @@ import { AuthProvider, useAuth } from "../context/AuthContext";
 import { SettingsProvider } from "../context/SettingsContext";
 import { initLocalDB } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
-import { ThemeProvider } from "../theme";
+import { ThemeProvider, useThemeContext } from "../theme/ThemeProvider";
+import { Theme } from "../theme";
+
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    loadingContainer: {
+      alignItems: "center",
+      flex: 1,
+      justifyContent: "center",
+    },
+    rootContainer: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    retryBanner: {
+      backgroundColor: theme.colors.warningSoft,
+      borderBottomColor: theme.colors.warning,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: theme.spacing.md,
+    },
+    retryBannerTitle: {
+      color: theme.colors.warning,
+      fontSize: 16,
+      fontWeight: "600",
+      marginBottom: 4,
+    },
+    retryBannerMessage: {
+      color: theme.colors.text,
+      fontSize: 14,
+      lineHeight: 20,
+      marginBottom: 12,
+    },
+    retryButton: {
+      alignSelf: "flex-start",
+      backgroundColor: theme.colors.warning,
+      borderRadius: theme.radii.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.sm,
+    },
+    retryButtonDisabled: {
+      opacity: 0.6,
+    },
+    retryButtonText: {
+      color: theme.colors.surface,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+  });
+}
 
 function RootNavigator() {
   const { isLoading, needsBootstrapRetry, retryBootstrap } = useAuth();
+  const { theme } = useThemeContext();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [retryingBootstrap, setRetryingBootstrap] = useState(false);
 
   useEffect(() => {
@@ -118,48 +169,3 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    alignItems: "center",
-    flex: 1,
-    justifyContent: "center",
-  },
-  rootContainer: {
-    flex: 1,
-  },
-  retryBanner: {
-    backgroundColor: "#FEF3C7",
-    borderBottomColor: "#FCD34D",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  retryBannerTitle: {
-    color: "#92400E",
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  retryBannerMessage: {
-    color: "#B45309",
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  retryButton: {
-    alignSelf: "flex-start",
-    backgroundColor: "#B45309",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  retryButtonDisabled: {
-    opacity: 0.6,
-  },
-  retryButtonText: {
-    color: "#FFFBEB",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-});

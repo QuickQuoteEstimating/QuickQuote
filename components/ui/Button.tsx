@@ -9,7 +9,8 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { useTheme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -44,7 +45,7 @@ export function Button({
   contentStyle,
   accessibilityLabel,
 }: ButtonProps) {
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const isDisabled = disabled || loading;
 
@@ -84,7 +85,7 @@ export function Button({
   );
 }
 
-function createStyles(theme: ReturnType<typeof useTheme>["theme"]) {
+function createStyles(theme: Theme) {
   return StyleSheet.create({
     base: {
       borderRadius: theme.radii.lg,

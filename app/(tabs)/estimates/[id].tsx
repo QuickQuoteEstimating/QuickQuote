@@ -57,7 +57,8 @@ import {
   Title,
   type BadgeTone,
 } from "../../../components/ui";
-import { useTheme, type Theme } from "../../../theme";
+import { Theme } from "../../../theme";
+import { useThemeContext } from "../../../theme/ThemeProvider";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
 
@@ -178,7 +179,7 @@ export default function EditEstimateScreen() {
   const estimateId = params.id ?? "";
   const { user, session } = useAuth();
   const { settings } = useSettings();
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const previewStyles = useMemo(() => createPreviewStyles(theme), [theme]);
   const colors = theme.colors;

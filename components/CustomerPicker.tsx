@@ -4,7 +4,8 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { openDB } from "../lib/sqlite";
 import CustomerForm from "./CustomerForm";
-import { useTheme, type Theme } from "../theme";
+import { Theme } from "../theme";
+import { useThemeContext } from "../theme/ThemeProvider";
 import { Button, Card, Input } from "./ui";
 
 type Customer = {
@@ -26,7 +27,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
   const [loading, setLoading] = useState(true);
   const [addingNew, setAddingNew] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const loadCustomers = useCallback(async () => {

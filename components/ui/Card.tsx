@@ -1,6 +1,7 @@
 import { PropsWithChildren, useMemo } from "react";
 import { Platform, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
-import { useTheme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 export interface CardProps {
   style?: StyleProp<ViewStyle>;
@@ -8,13 +9,13 @@ export interface CardProps {
 }
 
 export function Card({ children, style, elevated = true }: PropsWithChildren<CardProps>) {
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme, elevated), [theme, elevated]);
 
   return <View style={[styles.container, style]}>{children}</View>;
 }
 
-function createStyles(theme: ReturnType<typeof useTheme>["theme"], elevated: boolean) {
+function createStyles(theme: Theme, elevated: boolean) {
   const shadow: ViewStyle = elevated
     ? {
         shadowColor: theme.colors.overlay,

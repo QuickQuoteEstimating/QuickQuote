@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, StyleSheet, Switch, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import { useTheme, type Theme } from "../theme";
+import { Theme } from "../theme";
+import { useThemeContext } from "../theme/ThemeProvider";
 import { Button, Input } from "./ui";
 
 export type EstimateItemFormValues = {
@@ -81,7 +82,7 @@ export default function EstimateItemForm({
   );
   const [saveToLibrary, setSaveToLibrary] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState(false);
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {

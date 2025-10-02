@@ -10,7 +10,8 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { useTheme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 export interface InputProps extends TextInputProps {
   label?: string;
@@ -36,7 +37,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   }: InputProps,
   ref: ForwardedRef<TextInput>,
 ) {
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [isFocused, setFocused] = useState(false);
 
@@ -90,7 +91,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   );
 });
 
-function createStyles(theme: ReturnType<typeof useTheme>["theme"]) {
+function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       gap: theme.spacing.xs,

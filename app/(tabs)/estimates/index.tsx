@@ -12,7 +12,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Badge, Button, Card, FAB, Input, ListItem } from "../../../components/ui";
 import { openDB } from "../../../lib/sqlite";
-import { useTheme, type Theme } from "../../../theme";
+import { Theme } from "../../../theme";
+import { useThemeContext } from "../../../theme/ThemeProvider";
 
 type EstimateListItem = {
   id: string;
@@ -88,7 +89,7 @@ function formatEstimateNumber(estimate: EstimateListItem): string {
 }
 
 export default function EstimatesScreen() {
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [estimates, setEstimates] = useState<EstimateListItem[]>([]);
   const [loading, setLoading] = useState(true);
