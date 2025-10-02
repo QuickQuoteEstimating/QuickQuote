@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import * as Print from "expo-print";
@@ -21,7 +22,12 @@ import { Button, Card, Input, ListItem } from "../../../components/ui";
 import { useAuth } from "../../../context/AuthContext";
 import { useSettings } from "../../../context/SettingsContext";
 import { sanitizeEstimateForQueue } from "../../../lib/estimates";
-import { calculateEstimateTotals } from "../../../lib/estimateMath";
+import {
+  applyMarkup,
+  calculateEstimateTotals,
+  roundCurrency,
+  type MarkupMode,
+} from "../../../lib/estimateMath";
 import { logEstimateDelivery, openDB, queueChange } from "../../../lib/sqlite";
 import {
   renderEstimatePdf,
@@ -34,6 +40,7 @@ import {
   deleteLocalPhoto,
   persistLocalPhotoCopy,
 } from "../../../lib/storage";
+import { listSavedItems, type SavedItemRecord } from "../../../lib/savedItems";
 import { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 
@@ -56,6 +63,8 @@ type LineItemDraft = {
   name: string;
   quantity: string;
   unitPrice: string;
+  applyMarkup: boolean;
+  templateId: string | null;
 };
 
 type PhotoDraft = {
@@ -95,7 +104,9 @@ type PersistedEstimateItem = {
   description: string;
   quantity: number;
   unit_price: number;
+  base_total: number;
   total: number;
+  apply_markup: number | null;
   catalog_item_id: string | null;
   version: number;
   updated_at: string;
@@ -141,15 +152,21 @@ function parseDecimal(value: string): number | null {
   return parsed;
 }
 
-function computeLineItemTotal(item: LineItemDraft): number {
+function computeLineItemTotals(
+  item: LineItemDraft,
+  markupMode: MarkupMode,
+  markupValue: number,
+): { baseTotal: number; total: number; markupAmount: number } {
   const quantity = parseDecimal(item.quantity);
   const unitPrice = parseDecimal(item.unitPrice);
 
   if (quantity === null || unitPrice === null) {
-    return 0;
+    return { baseTotal: 0, total: 0, markupAmount: 0 };
   }
 
-  return Math.round(quantity * unitPrice * 100) / 100;
+  const base = roundCurrency(quantity * unitPrice);
+  const result = applyMarkup(base, { mode: markupMode, value: markupValue }, { apply: item.applyMarkup });
+  return { baseTotal: base, total: result.total, markupAmount: result.markupAmount };
 }
 
 function toPhotoQueuePayload(photo: {
@@ -280,6 +297,21 @@ function createStyles(theme: Theme) {
       padding: theme.spacing.lg,
       gap: theme.spacing.md,
     },
+    savedItemsPicker: {
+      gap: theme.spacing.sm,
+    },
+    savedItemsLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.colors.primaryText,
+    },
+    savedItemsPickerShell: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radii.md,
+      overflow: "hidden",
+      backgroundColor: theme.colors.surfaceMuted,
+    },
     lineItemRow: {
       flexDirection: "row",
       gap: theme.spacing.md,
@@ -287,19 +319,62 @@ function createStyles(theme: Theme) {
     lineItemColumn: {
       flex: 1,
     },
-    lineItemFooter: {
+    lineItemToggleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.md,
+    },
+    lineItemToggleInfo: {
+      flex: 1,
+      gap: 4,
+    },
+    lineItemToggleLabel: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: theme.colors.primaryText,
+    },
+    lineItemToggleHint: {
+      fontSize: 12,
+      color: theme.colors.textMuted,
+    },
+    lineItemSummaryRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+      backgroundColor: theme.colors.surfaceMuted,
+      borderRadius: theme.radii.md,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      gap: theme.spacing.sm,
     },
-    lineItemTotalLabel: {
-      fontSize: 14,
+    lineItemSummaryColumn: {
+      flex: 1,
+      gap: 2,
+    },
+    lineItemSummaryLabel: {
+      fontSize: 13,
+      fontWeight: "600",
       color: theme.colors.textMuted,
     },
-    lineItemTotalValue: {
+    lineItemSummaryHint: {
+      fontSize: 11,
+      color: theme.colors.textMuted,
+    },
+    lineItemSummaryValue: {
       fontSize: 16,
       fontWeight: "600",
       color: theme.colors.primaryText,
+    },
+    lineItemSummaryTotalRow: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.primarySoft,
+    },
+    lineItemSummaryTotal: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.colors.primary,
     },
     addItemButton: {
       alignSelf: "flex-start",
@@ -437,6 +512,8 @@ export default function NewEstimateScreen() {
   const [laborHoursInput, setLaborHoursInput] = useState("");
 
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([]);
+  const [savedItems, setSavedItems] = useState<SavedItemRecord[]>([]);
+  const [selectedSavedItemId, setSelectedSavedItemId] = useState<string>("");
 
   const [photoDrafts, setPhotoDrafts] = useState<PhotoDraft[]>([]);
   const [pendingPhotoDeletes, setPendingPhotoDeletes] = useState<PhotoDraft[]>([]);
@@ -461,9 +538,43 @@ export default function NewEstimateScreen() {
     }
   }, [billingAddress, jobAddressSameAsBilling]);
 
-  const materialLineItems = useMemo(
-    () => lineItems.map((item) => ({ total: computeLineItemTotal(item) })),
-    [lineItems],
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSavedItems = async () => {
+      if (!userId) {
+        setSavedItems([]);
+        return;
+      }
+
+      try {
+        const records = await listSavedItems(userId);
+        if (!cancelled) {
+          setSavedItems(records);
+        }
+      } catch (error) {
+        console.error("Failed to load saved items", error);
+      }
+    };
+
+    void loadSavedItems();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  const computedLineItems = useMemo(
+    () =>
+      lineItems.map((item) => {
+        const { baseTotal, total, markupAmount } = computeLineItemTotals(
+          item,
+          settings.materialMarkupMode,
+          settings.materialMarkup,
+        );
+        return { ...item, baseTotal, total, markupAmount };
+      }),
+    [lineItems, settings.materialMarkup, settings.materialMarkupMode],
   );
 
   const laborRateValue = useMemo(() => parseDecimal(laborRateInput) ?? 0, [laborRateInput]);
@@ -471,12 +582,32 @@ export default function NewEstimateScreen() {
 
   const totals = useMemo(() => {
     return calculateEstimateTotals({
-      materialLineItems,
+      materialLineItems: computedLineItems.map((item) => ({
+        baseTotal: item.baseTotal,
+        applyMarkup: item.applyMarkup,
+      })),
+      materialMarkup: {
+        mode: settings.materialMarkupMode,
+        value: settings.materialMarkup,
+      },
       laborHours: laborHoursValue,
       laborRate: laborRateValue,
+      laborMarkup: {
+        mode: settings.laborMarkupMode,
+        value: settings.laborMarkup,
+      },
       taxRate,
     });
-  }, [laborHoursValue, laborRateValue, materialLineItems, taxRate]);
+  }, [
+    computedLineItems,
+    laborHoursValue,
+    laborRateValue,
+    settings.laborMarkup,
+    settings.laborMarkupMode,
+    settings.materialMarkup,
+    settings.materialMarkupMode,
+    taxRate,
+  ]);
 
   const fetchCustomers = useCallback(async (query: string) => {
     const db = await openDB();
@@ -667,7 +798,7 @@ export default function NewEstimateScreen() {
   const handleAddLineItem = useCallback(() => {
     setLineItems((current) => [
       ...current,
-      { id: uuidv4(), name: "", quantity: "1", unitPrice: "" },
+      { id: uuidv4(), name: "", quantity: "1", unitPrice: "", applyMarkup: true, templateId: null },
     ]);
   }, []);
 
@@ -680,9 +811,41 @@ export default function NewEstimateScreen() {
     [],
   );
 
+  const handleLineItemApplyMarkupChange = useCallback((itemId: string, value: boolean) => {
+    setLineItems((current) =>
+      current.map((item) => (item.id === itemId ? { ...item, applyMarkup: value } : item)),
+    );
+  }, []);
+
   const handleRemoveLineItem = useCallback((itemId: string) => {
     setLineItems((current) => current.filter((item) => item.id !== itemId));
   }, []);
+
+  const handleApplySavedItem = useCallback(
+    (savedItemId: string) => {
+      const template = savedItems.find((item) => item.id === savedItemId);
+      if (!template) {
+        return;
+      }
+
+      setLineItems((current) => [
+        ...current,
+        {
+          id: uuidv4(),
+          name: template.name,
+          quantity:
+            template.default_quantity !== undefined && template.default_quantity !== null
+              ? String(template.default_quantity)
+              : "1",
+          unitPrice: template.default_unit_price.toFixed(2),
+          applyMarkup: (template.default_markup_applicable ?? 1) !== 0,
+          templateId: template.id,
+        },
+      ]);
+      setSelectedSavedItemId("");
+    },
+    [savedItems],
+  );
 
   const handleAddPhoto = useCallback(async () => {
     if (addingPhoto) {
@@ -841,12 +1004,33 @@ export default function NewEstimateScreen() {
 
         const quantity = Math.max(0, Math.round(quantityValue * 1000) / 1000);
         const unitPrice = Math.max(0, Math.round(unitPriceValue * 100) / 100);
-        const total = Math.round(quantity * unitPrice * 100) / 100;
-        return { name, quantity, unitPrice, total };
+        const totals = computeLineItemTotals(
+          { ...item, quantity: String(quantity), unitPrice: String(unitPrice) },
+          settings.materialMarkupMode,
+          settings.materialMarkup,
+        );
+        return {
+          name,
+          quantity,
+          unitPrice,
+          baseTotal: totals.baseTotal,
+          total: totals.total,
+          applyMarkup: item.applyMarkup,
+          templateId: item.templateId,
+        };
       })
       .filter(
-        (item): item is { name: string; quantity: number; unitPrice: number; total: number } =>
-          item !== null,
+        (
+          item,
+        ): item is {
+          name: string;
+          quantity: number;
+          unitPrice: number;
+          baseTotal: number;
+          total: number;
+          applyMarkup: boolean;
+          templateId: string | null;
+        } => item !== null,
       );
 
     if (lineItemError) {
@@ -866,9 +1050,20 @@ export default function NewEstimateScreen() {
     const jobDetailsValue = jobDetails.trim() ? jobDetails.trim() : null;
 
     const estimateTotals = calculateEstimateTotals({
-      materialLineItems: normalizedLineItems.map((item) => ({ total: item.total })),
+      materialLineItems: normalizedLineItems.map((item) => ({
+        baseTotal: item.baseTotal,
+        applyMarkup: item.applyMarkup,
+      })),
+      materialMarkup: {
+        mode: settings.materialMarkupMode,
+        value: settings.materialMarkup,
+      },
       laborHours: laborHoursValue,
       laborRate: laborRateValue,
+      laborMarkup: {
+        mode: settings.laborMarkupMode,
+        value: settings.laborMarkup,
+      },
       taxRate,
     });
 
@@ -984,8 +1179,10 @@ export default function NewEstimateScreen() {
           description: item.name,
           quantity: item.quantity,
           unit_price: item.unitPrice,
+          base_total: item.baseTotal,
           total: item.total,
-          catalog_item_id: null,
+          apply_markup: item.applyMarkup ? 1 : 0,
+          catalog_item_id: item.templateId,
           version: 1,
           updated_at: now,
           deleted_at: null,
@@ -993,15 +1190,17 @@ export default function NewEstimateScreen() {
 
         await db.runAsync(
           `INSERT OR REPLACE INTO estimate_items
-             (id, estimate_id, description, quantity, unit_price, total, catalog_item_id, version, updated_at, deleted_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, estimate_id, description, quantity, unit_price, base_total, total, apply_markup, catalog_item_id, version, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             record.id,
             record.estimate_id,
             record.description,
             record.quantity,
             record.unit_price,
+            record.base_total,
             record.total,
+            record.apply_markup,
             record.catalog_item_id,
             record.version,
             record.updated_at,
@@ -1139,8 +1338,11 @@ export default function NewEstimateScreen() {
         id: item.id,
         description: item.description,
         quantity: item.quantity,
-        unitPrice: item.unit_price,
-        total: item.total,
+        unitPrice:
+          item.quantity > 0
+            ? Math.round((item.total / item.quantity) * 100) / 100
+            : Math.round(item.total * 100) / 100,
+        total: Math.round(item.total * 100) / 100,
       })),
       photos: context.photos.map((photo) => ({
         id: photo.id,
@@ -1550,15 +1752,39 @@ export default function NewEstimateScreen() {
                 Add materials and services with inline totals.
               </Text>
             </View>
+            {savedItems.length > 0 ? (
+              <View style={styles.savedItemsPicker}>
+                <Text style={styles.savedItemsLabel}>Add from saved items</Text>
+                <View style={styles.savedItemsPickerShell}>
+                  <Picker
+                    selectedValue={selectedSavedItemId}
+                    onValueChange={(value) => {
+                      const normalized = value ? String(value) : "";
+                      setSelectedSavedItemId(normalized);
+                      if (normalized) {
+                        handleApplySavedItem(normalized);
+                      }
+                    }}
+                    dropdownIconColor={theme.colors.primary}
+                  >
+                    <Picker.Item label="Select a saved item" value="" />
+                    {savedItems.map((item) => (
+                      <Picker.Item key={item.id} label={item.name} value={item.id} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.lineItemList}>
-              {lineItems.length === 0 ? (
+              {computedLineItems.length === 0 ? (
                 <View style={styles.customerEmpty}>
                   <Text style={styles.customerEmptyText}>
                     No line items yet. Add your first item to build the estimate.
                   </Text>
                 </View>
               ) : (
-                lineItems.map((item) => (
+                computedLineItems.map((item) => (
                   <View key={item.id} style={styles.lineItemCard}>
                     <Input
                       label="Item name"
@@ -1585,11 +1811,41 @@ export default function NewEstimateScreen() {
                         containerStyle={styles.lineItemColumn}
                       />
                     </View>
-                    <View style={styles.lineItemFooter}>
-                      <Text style={styles.lineItemTotalLabel}>Line total</Text>
-                      <Text style={styles.lineItemTotalValue}>
-                        {formatCurrency(computeLineItemTotal(item))}
-                      </Text>
+                    <View style={styles.lineItemToggleRow}>
+                      <View style={styles.lineItemToggleInfo}>
+                        <Text style={styles.lineItemToggleLabel}>Apply markup</Text>
+                        <Text style={styles.lineItemToggleHint}>Uses your material markup setting.</Text>
+                      </View>
+                      <Switch
+                        value={item.applyMarkup}
+                        onValueChange={(value) => handleLineItemApplyMarkupChange(item.id, value)}
+                        trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }}
+                        thumbColor={item.applyMarkup ? theme.colors.primary : undefined}
+                      />
+                    </View>
+                    <View style={styles.lineItemSummaryRow}>
+                      <View style={styles.lineItemSummaryColumn}>
+                        <Text style={styles.lineItemSummaryLabel}>Base total</Text>
+                        <Text style={styles.lineItemSummaryHint}>Quantity × unit price</Text>
+                      </View>
+                      <Text style={styles.lineItemSummaryValue}>{formatCurrency(item.baseTotal)}</Text>
+                    </View>
+                    {item.applyMarkup && item.markupAmount > 0 ? (
+                      <View style={styles.lineItemSummaryRow}>
+                        <View style={styles.lineItemSummaryColumn}>
+                          <Text style={styles.lineItemSummaryLabel}>Markup applied</Text>
+                          <Text style={styles.lineItemSummaryHint}>
+                            {settings.materialMarkupMode === "percentage"
+                              ? `${settings.materialMarkup}% material markup`
+                              : `${formatCurrency(settings.materialMarkup)} flat markup`}
+                          </Text>
+                        </View>
+                        <Text style={styles.lineItemSummaryValue}>{formatCurrency(item.markupAmount)}</Text>
+                      </View>
+                    ) : null}
+                    <View style={[styles.lineItemSummaryRow, styles.lineItemSummaryTotalRow]}>
+                      <Text style={styles.lineItemSummaryLabel}>Line total</Text>
+                      <Text style={styles.lineItemSummaryTotal}>{formatCurrency(item.total)}</Text>
                     </View>
                     <View style={styles.inlineActions}>
                       <Button

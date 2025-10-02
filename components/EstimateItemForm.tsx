@@ -1,14 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Switch, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
+import { Feather } from "@expo/vector-icons";
 import { Theme } from "../theme";
 import { useThemeContext } from "../theme/ThemeProvider";
 import { Button, Input } from "./ui";
+import { applyMarkup, roundCurrency, type MarkupMode } from "../lib/estimateMath";
 
 export type EstimateItemFormValues = {
   description: string;
   quantity: number;
   unit_price: number;
+  apply_markup: boolean;
+  base_total: number;
   total: number;
 };
 
@@ -17,6 +21,7 @@ export type EstimateItemTemplate = {
   description: string;
   unit_price: number;
   default_quantity?: number | null;
+  default_markup_applicable?: boolean | null;
 };
 
 export type EstimateItemFormSubmit = {
@@ -30,12 +35,16 @@ type EstimateItemFormProps = {
     description: string;
     quantity: number;
     unit_price: number;
+    apply_markup?: boolean;
   };
   initialTemplateId?: string | null;
   templates?: EstimateItemTemplate[];
+  materialMarkupValue: number;
+  materialMarkupMode: MarkupMode;
   onSubmit: (payload: EstimateItemFormSubmit) => Promise<void> | void;
   onCancel: () => void;
   submitLabel?: string;
+  showLibraryToggle?: boolean;
 };
 
 function parseQuantity(value: string): number {
@@ -66,9 +75,12 @@ export default function EstimateItemForm({
   initialValue,
   initialTemplateId = null,
   templates = [],
+  materialMarkupValue,
+  materialMarkupMode,
   onSubmit,
   onCancel,
   submitLabel = "Save Item",
+  showLibraryToggle = true,
 }: EstimateItemFormProps) {
   const [description, setDescription] = useState(initialValue?.description ?? "");
   const [quantityText, setQuantityText] = useState(
@@ -80,7 +92,8 @@ export default function EstimateItemForm({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     initialTemplateId ?? null,
   );
-  const [saveToLibrary, setSaveToLibrary] = useState<boolean>(true);
+  const [applyMarkup, setApplyMarkup] = useState<boolean>(initialValue?.apply_markup ?? true);
+  const [saveToLibrary, setSaveToLibrary] = useState<boolean>(showLibraryToggle);
   const [submitting, setSubmitting] = useState(false);
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -92,12 +105,13 @@ export default function EstimateItemForm({
     setDescription(initialValue.description);
     setQuantityText(String(initialValue.quantity));
     setUnitPriceText(String(initialValue.unit_price));
+    setApplyMarkup(initialValue.apply_markup ?? true);
   }, [initialValue]);
 
   useEffect(() => {
     setSelectedTemplateId(initialTemplateId ?? null);
-    setSaveToLibrary(true);
-  }, [initialTemplateId]);
+    setSaveToLibrary(showLibraryToggle);
+  }, [initialTemplateId, showLibraryToggle]);
 
   const templateMap = useMemo(() => {
     return templates.reduce<Record<string, EstimateItemTemplate>>((acc, template) => {
@@ -106,11 +120,18 @@ export default function EstimateItemForm({
     }, {});
   }, [templates]);
 
-  const total = useMemo(() => {
+  const markupRule = useMemo(
+    () => ({ mode: materialMarkupMode, value: materialMarkupValue }),
+    [materialMarkupMode, materialMarkupValue],
+  );
+
+  const { baseTotal, finalTotal, markupAmount } = useMemo(() => {
     const quantity = parseQuantity(quantityText);
     const unitPrice = parseCurrency(unitPriceText);
-    return Math.round(quantity * unitPrice * 100) / 100;
-  }, [quantityText, unitPriceText]);
+    const raw = roundCurrency(quantity * unitPrice);
+    const result = applyMarkup(raw, markupRule, { apply: applyMarkup });
+    return { baseTotal: raw, finalTotal: result.total, markupAmount: result.markupAmount };
+  }, [applyMarkup, markupRule, quantityText, unitPriceText]);
 
   const applyTemplate = (templateId: string | null) => {
     if (!templateId) {
@@ -121,10 +142,20 @@ export default function EstimateItemForm({
       return;
     }
 
-    setDescription(template.description);
-    setUnitPriceText(template.unit_price.toString());
-    if (template.default_quantity && template.default_quantity > 0) {
+    if (template.description) {
+      setDescription(template.description);
+    }
+
+    if (template.default_quantity !== undefined && template.default_quantity !== null) {
       setQuantityText(String(template.default_quantity));
+    }
+
+    if (typeof template.unit_price === "number") {
+      setUnitPriceText(String(template.unit_price));
+    }
+
+    if (template.default_markup_applicable !== undefined && template.default_markup_applicable !== null) {
+      setApplyMarkup(Boolean(template.default_markup_applicable));
     }
   };
 
@@ -148,9 +179,11 @@ export default function EstimateItemForm({
         description: trimmedDescription,
         quantity,
         unit_price: unitPrice,
-        total,
+        apply_markup: applyMarkup,
+        base_total: baseTotal,
+        total: finalTotal,
       },
-      saveToLibrary,
+      saveToLibrary: showLibraryToggle ? saveToLibrary : false,
       templateId: selectedTemplateId,
     };
 
@@ -221,27 +254,69 @@ export default function EstimateItemForm({
         </View>
       </View>
 
-      <View style={styles.summaryRow}>
-        <Text style={styles.summaryLabel}>Line Total</Text>
-        <Text style={styles.summaryValue}>{formatCurrency(total)}</Text>
-      </View>
-
-      <View style={styles.libraryRow}>
-        <View style={styles.libraryInfo}>
-          <Text style={styles.switchLabel}>Saved item</Text>
-          <Text style={styles.switchHint}>
-            Adds this item to your library so you can quickly reuse or update it later.
-          </Text>
+      <View style={styles.toggleRow}>
+        <View style={styles.toggleInfo}>
+          <Text style={styles.switchLabel}>Apply markup</Text>
+          <Text style={styles.switchHint}>Uses your material markup setting.</Text>
         </View>
-        <Button
-          label={saveToLibrary ? "Will update library" : "Save to Library"}
-          variant={saveToLibrary ? "secondary" : "primary"}
-          onPress={() => setSaveToLibrary((value) => !value)}
-          alignment="inline"
-          disabled={submitting}
-          style={styles.libraryButton}
+        <Switch
+          value={applyMarkup}
+          onValueChange={setApplyMarkup}
+          trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }}
+          thumbColor={applyMarkup ? theme.colors.primary : undefined}
         />
       </View>
+
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryColumn}>
+          <Text style={styles.summaryLabel}>Base total</Text>
+          <Text style={styles.summaryHint}>Quantity × unit price</Text>
+        </View>
+        <Text style={styles.summaryValue}>{formatCurrency(baseTotal)}</Text>
+      </View>
+      {applyMarkup && markupAmount > 0 ? (
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryColumn}>
+            <Text style={styles.summaryLabel}>Markup applied</Text>
+            <Text style={styles.summaryHint}>
+              {materialMarkupMode === "percentage"
+                ? `${materialMarkupValue}% material markup`
+                : `${formatCurrency(materialMarkupValue)} flat markup`}
+            </Text>
+          </View>
+          <Text style={styles.summaryValue}>{formatCurrency(markupAmount)}</Text>
+        </View>
+      ) : null}
+      <View style={[styles.summaryRow, styles.summaryTotalRow]}>
+        <Text style={styles.summaryLabel}>Line total</Text>
+        <Text style={styles.summaryTotalValue}>{formatCurrency(finalTotal)}</Text>
+      </View>
+
+      {showLibraryToggle ? (
+        <View style={styles.libraryRow}>
+          <View style={styles.libraryInfo}>
+            <Text style={styles.switchLabel}>Save to library</Text>
+            <Text style={styles.switchHint}>
+              Adds this item to your library so you can quickly reuse or update it later.
+            </Text>
+          </View>
+          <Button
+            label={saveToLibrary ? "Will update library" : "Save to library"}
+            variant={saveToLibrary ? "secondary" : "primary"}
+            onPress={() => setSaveToLibrary((value) => !value)}
+            alignment="inline"
+            disabled={submitting}
+            style={styles.libraryButton}
+            leadingIcon={
+              <Feather
+                name={saveToLibrary ? "check" : "bookmark"}
+                size={18}
+                color={saveToLibrary ? theme.colors.primary : theme.colors.surface}
+              />
+            }
+          />
+        </View>
+      ) : null}
 
       <View style={styles.actionRow}>
         <View style={styles.actionFlex}>
@@ -292,6 +367,17 @@ function createStyles(theme: Theme) {
     rowField: {
       flex: 1,
     },
+    toggleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 8,
+    },
+    toggleInfo: {
+      flex: 1,
+      marginRight: 12,
+      gap: 4,
+    },
     summaryRow: {
       flexDirection: "row",
       alignItems: "center",
@@ -301,15 +387,34 @@ function createStyles(theme: Theme) {
       borderRadius: 16,
       backgroundColor: colors.surfaceMuted,
     },
+    summaryColumn: {
+      flex: 1,
+      marginRight: 12,
+      gap: 2,
+    },
     summaryLabel: {
       fontSize: 15,
       fontWeight: "600",
+      color: colors.textMuted,
+    },
+    summaryHint: {
+      fontSize: 12,
       color: colors.textMuted,
     },
     summaryValue: {
       fontSize: 18,
       fontWeight: "700",
       color: colors.primaryText,
+    },
+    summaryTotalRow: {
+      borderWidth: 1,
+      borderColor: colors.primary,
+      backgroundColor: colors.primarySoft,
+    },
+    summaryTotalValue: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: colors.primary,
     },
     libraryRow: {
       flexDirection: "row",

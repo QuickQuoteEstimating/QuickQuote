@@ -69,7 +69,9 @@ type EstimateItemRecord = {
   description: string;
   quantity: number;
   unit_price: number;
+  base_total: number;
   total: number;
+  apply_markup: number | null;
   catalog_item_id: string | null;
   version: number | null;
   updated_at: string;
@@ -318,16 +320,36 @@ export default function EditEstimateScreen() {
     return Math.max(0, Math.round(parsed * 100) / 100);
   }, [estimate?.tax_rate, parseNumericInput, settings.taxRate, taxRateText]);
 
-  const totals = useMemo(
-    () =>
-      calculateEstimateTotals({
-        materialLineItems: items,
-        laborHours,
-        laborRate: hourlyRate,
-        taxRate,
-      }),
-    [hourlyRate, items, laborHours, taxRate],
-  );
+  const totals = useMemo(() => {
+    const materialLineItems = items.map((item) => ({
+      baseTotal: typeof item.base_total === "number" ? item.base_total : item.total,
+      applyMarkup: item.apply_markup !== 0,
+    }));
+
+    return calculateEstimateTotals({
+      materialLineItems,
+      materialMarkup: {
+        mode: settings.materialMarkupMode,
+        value: settings.materialMarkup,
+      },
+      laborHours,
+      laborRate: hourlyRate,
+      laborMarkup: {
+        mode: settings.laborMarkupMode,
+        value: settings.laborMarkup,
+      },
+      taxRate,
+    });
+  }, [
+    hourlyRate,
+    items,
+    laborHours,
+    settings.laborMarkup,
+    settings.laborMarkupMode,
+    settings.materialMarkup,
+    settings.materialMarkupMode,
+    taxRate,
+  ]);
 
   const savedItemTemplates = useMemo<EstimateItemTemplate[]>(
     () =>
@@ -336,6 +358,7 @@ export default function EditEstimateScreen() {
         description: item.name,
         unit_price: item.default_unit_price,
         default_quantity: item.default_quantity,
+        default_markup_applicable: item.default_markup_applicable,
       })),
     [savedItems],
   );
@@ -467,8 +490,11 @@ export default function EditEstimateScreen() {
         id: item.id,
         description: item.description,
         quantity: item.quantity,
-        unitPrice: item.unit_price,
-        total: item.total,
+        unitPrice:
+          item.quantity > 0
+            ? Math.round((item.total / item.quantity) * 100) / 100
+            : Math.round(item.total * 100) / 100,
+        total: Math.round(item.total * 100) / 100,
       })),
       photos: photos.map((photo) => ({
         id: photo.id,
@@ -637,6 +663,7 @@ export default function EditEstimateScreen() {
                 name: values.description,
                 unitPrice: values.unit_price,
                 defaultQuantity: values.quantity,
+                markupApplicable: values.apply_markup,
               });
               resolvedTemplateId = record.id;
               setSavedItems((prev) => {
@@ -666,7 +693,9 @@ export default function EditEstimateScreen() {
               description: values.description,
               quantity: values.quantity,
               unit_price: values.unit_price,
+              base_total: values.base_total,
               total: values.total,
+              apply_markup: values.apply_markup ? 1 : 0,
               catalog_item_id: resolvedTemplateId,
               version: nextVersion,
               updated_at: now,
@@ -675,13 +704,15 @@ export default function EditEstimateScreen() {
 
             await db.runAsync(
               `UPDATE estimate_items
-               SET description = ?, quantity = ?, unit_price = ?, total = ?, catalog_item_id = ?, version = ?, updated_at = ?, deleted_at = NULL
+               SET description = ?, quantity = ?, unit_price = ?, base_total = ?, total = ?, apply_markup = ?, catalog_item_id = ?, version = ?, updated_at = ?, deleted_at = NULL
                WHERE id = ?`,
               [
                 updatedItem.description,
                 updatedItem.quantity,
                 updatedItem.unit_price,
+                updatedItem.base_total,
                 updatedItem.total,
+                updatedItem.apply_markup,
                 updatedItem.catalog_item_id,
                 nextVersion,
                 now,
@@ -702,7 +733,9 @@ export default function EditEstimateScreen() {
               description: values.description,
               quantity: values.quantity,
               unit_price: values.unit_price,
+              base_total: values.base_total,
               total: values.total,
+              apply_markup: values.apply_markup ? 1 : 0,
               catalog_item_id: resolvedTemplateId,
               version: 1,
               updated_at: now,
@@ -710,15 +743,17 @@ export default function EditEstimateScreen() {
             };
 
             await db.runAsync(
-              `INSERT OR REPLACE INTO estimate_items (id, estimate_id, description, quantity, unit_price, total, catalog_item_id, version, updated_at, deleted_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              `INSERT OR REPLACE INTO estimate_items (id, estimate_id, description, quantity, unit_price, base_total, total, apply_markup, catalog_item_id, version, updated_at, deleted_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 newItem.id,
                 newItem.estimate_id,
                 newItem.description,
                 newItem.quantity,
                 newItem.unit_price,
+                newItem.base_total,
                 newItem.total,
+                newItem.apply_markup,
                 newItem.catalog_item_id,
                 newItem.version,
                 newItem.updated_at,
@@ -735,9 +770,20 @@ export default function EditEstimateScreen() {
           }
 
           const nextTotals = calculateEstimateTotals({
-            materialLineItems: nextItems,
+            materialLineItems: nextItems.map((item) => ({
+              baseTotal: typeof item.base_total === "number" ? item.base_total : item.total,
+              applyMarkup: item.apply_markup !== 0,
+            })),
+            materialMarkup: {
+              mode: settings.materialMarkupMode,
+              value: settings.materialMarkup,
+            },
             laborHours,
             laborRate: hourlyRate,
+            laborMarkup: {
+              mode: settings.laborMarkupMode,
+              value: settings.laborMarkup,
+            },
             taxRate,
           });
           await persistEstimateTotals(nextTotals);
@@ -747,7 +793,17 @@ export default function EditEstimateScreen() {
           Alert.alert("Error", "Unable to save the item. Please try again.");
         }
       },
-    [hourlyRate, laborHours, persistEstimateTotals, taxRate, userId],
+    [
+      hourlyRate,
+      laborHours,
+      persistEstimateTotals,
+      settings.laborMarkup,
+      settings.laborMarkupMode,
+      settings.materialMarkup,
+      settings.materialMarkupMode,
+      taxRate,
+      userId,
+    ],
   );
 
   const handleDeleteItem = useCallback(
@@ -825,46 +881,63 @@ export default function EditEstimateScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: EstimateItemRecord }) => (
-      <View style={styles.lineItemRow}>
-        <ListItem
-          title={item.description}
-          subtitle={`Qty: ${item.quantity} @ ${formatCurrency(item.unit_price)}`}
-          rightContent={<Body style={styles.lineItemTotal}>{formatCurrency(item.total)}</Body>}
-          style={styles.lineItem}
-        />
-        <View style={styles.lineItemActions}>
-          <Button
-            label="Edit"
-            variant="secondary"
-            alignment="inline"
-            onPress={() =>
-              openItemEditorScreen({
-                title: "Edit Item",
-                submitLabel: "Update Item",
-                initialValue: {
-                  description: item.description,
-                  quantity: item.quantity,
-                  unit_price: item.unit_price,
-                },
-                initialTemplateId: item.catalog_item_id,
-                templates: () => savedItemTemplates,
-                onSubmit: makeItemSubmitHandler(item),
-              })
-            }
-            style={styles.lineItemActionButton}
+    ({ item }: { item: EstimateItemRecord }) => {
+      const quantity = item.quantity || 0;
+      const normalizedTotal = Math.round(item.total * 100) / 100;
+      const unitDisplay =
+        quantity > 0 ? Math.round((normalizedTotal / quantity) * 100) / 100 : normalizedTotal;
+
+      return (
+        <View style={styles.lineItemRow}>
+          <ListItem
+            title={item.description}
+            subtitle={`Qty: ${quantity} @ ${formatCurrency(unitDisplay)}`}
+            rightContent={<Body style={styles.lineItemTotal}>{formatCurrency(normalizedTotal)}</Body>}
+            style={styles.lineItem}
           />
-          <Button
-            label="Remove"
-            variant="danger"
-            alignment="inline"
-            onPress={() => handleDeleteItem(item)}
-            style={styles.lineItemActionButton}
-          />
+          <View style={styles.lineItemActions}>
+            <Button
+              label="Edit"
+              variant="secondary"
+              alignment="inline"
+              onPress={() =>
+                openItemEditorScreen({
+                  title: "Edit Item",
+                  submitLabel: "Update Item",
+                  initialValue: {
+                    description: item.description,
+                    quantity: item.quantity,
+                    unit_price: item.unit_price,
+                    apply_markup: item.apply_markup !== 0,
+                  },
+                  initialTemplateId: item.catalog_item_id,
+                  templates: () => savedItemTemplates,
+                  materialMarkupValue: settings.materialMarkup,
+                  materialMarkupMode: settings.materialMarkupMode,
+                  onSubmit: makeItemSubmitHandler(item),
+                })
+              }
+              style={styles.lineItemActionButton}
+            />
+            <Button
+              label="Remove"
+              variant="danger"
+              alignment="inline"
+              onPress={() => handleDeleteItem(item)}
+              style={styles.lineItemActionButton}
+            />
+          </View>
         </View>
-      </View>
-    ),
-    [handleDeleteItem, makeItemSubmitHandler, openItemEditorScreen, savedItemTemplates],
+      );
+    },
+    [
+      handleDeleteItem,
+      makeItemSubmitHandler,
+      openItemEditorScreen,
+      savedItemTemplates,
+      settings.materialMarkup,
+      settings.materialMarkupMode,
+    ],
   );
 
   const handlePhotoDraftChange = useCallback((photoId: string, value: string) => {
@@ -1446,14 +1519,23 @@ export default function EditEstimateScreen() {
         }
 
         const itemRows = await db.getAllAsync<EstimateItemRecord>(
-          `SELECT id, estimate_id, description, quantity, unit_price, total, catalog_item_id, version, updated_at, deleted_at
+          `SELECT id, estimate_id, description, quantity, unit_price, base_total, total, apply_markup, catalog_item_id, version, updated_at, deleted_at
            FROM estimate_items
            WHERE estimate_id = ? AND (deleted_at IS NULL OR deleted_at = '')
            ORDER BY datetime(updated_at) ASC`,
           [estimateId],
         );
 
-        const activeItems = itemRows.filter((item) => !item.deleted_at);
+        const activeItems = itemRows
+          .filter((item) => !item.deleted_at)
+          .map((item) => ({
+            ...item,
+            base_total:
+              typeof item.base_total === "number"
+                ? Math.round(item.base_total * 100) / 100
+                : Math.round(item.total * 100) / 100,
+            apply_markup: item.apply_markup ?? 1,
+          }));
 
         if (isMounted) {
           setItems(activeItems);
@@ -1474,9 +1556,20 @@ export default function EditEstimateScreen() {
         }
 
         const recalculatedTotals = calculateEstimateTotals({
-          materialLineItems: activeItems,
+          materialLineItems: activeItems.map((item) => ({
+            baseTotal: typeof item.base_total === "number" ? item.base_total : item.total,
+            applyMarkup: item.apply_markup !== 0,
+          })),
+          materialMarkup: {
+            mode: settings.materialMarkupMode,
+            value: settings.materialMarkup,
+          },
           laborHours: laborHoursValue,
           laborRate: laborRateValue,
+          laborMarkup: {
+            mode: settings.laborMarkupMode,
+            value: settings.laborMarkup,
+          },
           taxRate: taxRateValue,
         });
         if (isMounted) {
@@ -1511,7 +1604,17 @@ export default function EditEstimateScreen() {
     return () => {
       isMounted = false;
     };
-  }, [estimateId, persistEstimateTotals, applyPhotoState, settings.hourlyRate]);
+  }, [
+    estimateId,
+    persistEstimateTotals,
+    applyPhotoState,
+    settings.hourlyRate,
+    settings.taxRate,
+    settings.materialMarkup,
+    settings.materialMarkupMode,
+    settings.laborMarkup,
+    settings.laborMarkupMode,
+  ]);
 
   const handleCancel = () => {
     if (!saving) {
@@ -1942,6 +2045,8 @@ export default function EditEstimateScreen() {
                 submitLabel: "Add line item",
                 templates: () => savedItemTemplates,
                 initialTemplateId: null,
+                materialMarkupValue: settings.materialMarkup,
+                materialMarkupMode: settings.materialMarkupMode,
                 onSubmit: makeItemSubmitHandler(null),
               })
             }

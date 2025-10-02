@@ -16,6 +16,7 @@ import { Badge, Button, Card, Input, ListItem } from "../../components/ui";
 import LogoPicker from "../../components/LogoPicker";
 import { useAuth } from "../../context/AuthContext";
 import { useSettings } from "../../context/SettingsContext";
+import type { MarkupMode } from "../../lib/estimateMath";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
 
@@ -28,7 +29,9 @@ export default function Settings() {
     settings,
     isHydrated,
     setMaterialMarkup,
+    setMaterialMarkupMode,
     setLaborMarkup,
+    setLaborMarkupMode,
     setHourlyRate,
     setTaxRate,
     setHapticsEnabled,
@@ -44,10 +47,20 @@ export default function Settings() {
 
   const styles = useMemo(() => createStyles(theme), [theme]);
 
+  const formatMarkupInput = useCallback((value: number, mode: MarkupMode) => {
+    if (mode === "flat") {
+      return Math.max(0, value).toFixed(2);
+    }
+    const safe = Math.max(0, value);
+    return safe % 1 === 0 ? safe.toFixed(0) : safe.toString();
+  }, []);
+
   const [materialMarkupInput, setMaterialMarkupInput] = useState(
-    settings.materialMarkup.toString(),
+    formatMarkupInput(settings.materialMarkup, settings.materialMarkupMode),
   );
-  const [laborMarkupInput, setLaborMarkupInput] = useState(settings.laborMarkup.toString());
+  const [laborMarkupInput, setLaborMarkupInput] = useState(
+    formatMarkupInput(settings.laborMarkup, settings.laborMarkupMode),
+  );
   const [hourlyRateInput, setHourlyRateInput] = useState(settings.hourlyRate.toFixed(2));
   const [taxRateInput, setTaxRateInput] = useState(() =>
     settings.taxRate % 1 === 0 ? settings.taxRate.toFixed(0) : settings.taxRate.toString(),
@@ -55,12 +68,12 @@ export default function Settings() {
   const [isEditingTaxRate, setIsEditingTaxRate] = useState(false);
 
   useEffect(() => {
-    setMaterialMarkupInput(settings.materialMarkup.toString());
-  }, [settings.materialMarkup]);
+    setMaterialMarkupInput(formatMarkupInput(settings.materialMarkup, settings.materialMarkupMode));
+  }, [formatMarkupInput, settings.materialMarkup, settings.materialMarkupMode]);
 
   useEffect(() => {
-    setLaborMarkupInput(settings.laborMarkup.toString());
-  }, [settings.laborMarkup]);
+    setLaborMarkupInput(formatMarkupInput(settings.laborMarkup, settings.laborMarkupMode));
+  }, [formatMarkupInput, settings.laborMarkup, settings.laborMarkupMode]);
 
   useEffect(() => {
     setHourlyRateInput(settings.hourlyRate.toFixed(2));
@@ -74,11 +87,17 @@ export default function Settings() {
 
   const hapticLabel = HAPTIC_LABELS[settings.hapticIntensity] ?? HAPTIC_LABELS[1];
 
-  const handleUpdatePercentage = useCallback(
-    (value: string, updater: (parsed: number) => void) => {
-      const parsed = Number.parseFloat(value);
+  const handleUpdateMarkup = useCallback(
+    (value: string, mode: MarkupMode, updater: (parsed: number) => void) => {
+      const normalized = value.replace(/[^0-9.]/g, "");
+      const parsed = Number.parseFloat(normalized);
       if (Number.isNaN(parsed)) {
         updater(0);
+        return;
+      }
+
+      if (mode === "flat") {
+        updater(Math.max(0, Math.round(parsed * 100) / 100));
         return;
       }
 
@@ -305,22 +324,78 @@ export default function Settings() {
           />
         ) : null}
         <View style={styles.inlineFieldGroup}>
-          <Input
-            label="Material markup"
-            value={materialMarkupInput}
-            onChangeText={setMaterialMarkupInput}
-            onBlur={() => handleUpdatePercentage(materialMarkupInput, setMaterialMarkup)}
-            keyboardType="numeric"
-            rightElement={<Text style={styles.inputAdornment}>%</Text>}
-          />
-          <Input
-            label="Labor markup"
-            value={laborMarkupInput}
-            onChangeText={setLaborMarkupInput}
-            onBlur={() => handleUpdatePercentage(laborMarkupInput, setLaborMarkup)}
-            keyboardType="numeric"
-            rightElement={<Text style={styles.inputAdornment}>%</Text>}
-          />
+          <View style={styles.markupGroup}>
+            <Input
+              label={`Material markup (${settings.materialMarkupMode === "percentage" ? "%" : "$"})`}
+              value={materialMarkupInput}
+              onChangeText={setMaterialMarkupInput}
+              onBlur={() => handleUpdateMarkup(materialMarkupInput, settings.materialMarkupMode, setMaterialMarkup)}
+              keyboardType="decimal-pad"
+              leftElement={
+                settings.materialMarkupMode === "flat" ? (
+                  <Text style={styles.inputAdornment}>$</Text>
+                ) : undefined
+              }
+              rightElement={
+                settings.materialMarkupMode === "percentage" ? (
+                  <Text style={styles.inputAdornment}>%</Text>
+                ) : undefined
+              }
+            />
+            <Button
+              label={
+                settings.materialMarkupMode === "percentage"
+                  ? "Use flat markup"
+                  : "Use percentage markup"
+              }
+              variant="ghost"
+              alignment="inline"
+              onPress={() => {
+                const nextMode: MarkupMode =
+                  settings.materialMarkupMode === "percentage" ? "flat" : "percentage";
+                setMaterialMarkupMode(nextMode);
+                setMaterialMarkupInput(formatMarkupInput(settings.materialMarkup, nextMode));
+              }}
+              style={styles.markupToggle}
+              textStyle={styles.markupToggleLabel}
+            />
+          </View>
+          <View style={styles.markupGroup}>
+            <Input
+              label={`Labor markup (${settings.laborMarkupMode === "percentage" ? "%" : "$"})`}
+              value={laborMarkupInput}
+              onChangeText={setLaborMarkupInput}
+              onBlur={() => handleUpdateMarkup(laborMarkupInput, settings.laborMarkupMode, setLaborMarkup)}
+              keyboardType="decimal-pad"
+              leftElement={
+                settings.laborMarkupMode === "flat" ? (
+                  <Text style={styles.inputAdornment}>$</Text>
+                ) : undefined
+              }
+              rightElement={
+                settings.laborMarkupMode === "percentage" ? (
+                  <Text style={styles.inputAdornment}>%</Text>
+                ) : undefined
+              }
+            />
+            <Button
+              label={
+                settings.laborMarkupMode === "percentage"
+                  ? "Use flat markup"
+                  : "Use percentage markup"
+              }
+              variant="ghost"
+              alignment="inline"
+              onPress={() => {
+                const nextMode: MarkupMode =
+                  settings.laborMarkupMode === "percentage" ? "flat" : "percentage";
+                setLaborMarkupMode(nextMode);
+                setLaborMarkupInput(formatMarkupInput(settings.laborMarkup, nextMode));
+              }}
+              style={styles.markupToggle}
+              textStyle={styles.markupToggleLabel}
+            />
+          </View>
         </View>
         <Input
           label="Hourly rate"
@@ -544,6 +619,17 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: theme.spacing.md,
+    },
+    markupGroup: {
+      gap: theme.spacing.xs,
+    },
+    markupToggle: {
+      alignSelf: "flex-start",
+      paddingHorizontal: 0,
+    },
+    markupToggleLabel: {
+      fontSize: 13,
+      color: theme.colors.primary,
     },
     buttonRow: {
       flexDirection: "column",

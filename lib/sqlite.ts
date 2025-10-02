@@ -142,7 +142,9 @@ export async function initLocalDB(): Promise<void> {
       description TEXT NOT NULL,
       quantity INTEGER NOT NULL,
       unit_price REAL NOT NULL,
+      base_total REAL NOT NULL DEFAULT 0,
       total REAL NOT NULL,
+      apply_markup INTEGER NOT NULL DEFAULT 1,
       catalog_item_id TEXT,
       version INTEGER DEFAULT 1,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -154,8 +156,15 @@ export async function initLocalDB(): Promise<void> {
   const estimateItemColumns = await db.getAllAsync<{ name: string }>(
     "PRAGMA table_info(estimate_items)",
   );
+  if (!estimateItemColumns.some((column) => column.name === "base_total")) {
+    await db.execAsync("ALTER TABLE estimate_items ADD COLUMN base_total REAL NOT NULL DEFAULT 0");
+    await db.execAsync("UPDATE estimate_items SET base_total = total WHERE base_total = 0");
+  }
   if (!estimateItemColumns.some((column) => column.name === "catalog_item_id")) {
     await db.execAsync("ALTER TABLE estimate_items ADD COLUMN catalog_item_id TEXT");
+  }
+  if (!estimateItemColumns.some((column) => column.name === "apply_markup")) {
+    await db.execAsync("ALTER TABLE estimate_items ADD COLUMN apply_markup INTEGER NOT NULL DEFAULT 1");
   }
 
   // Photos
@@ -194,6 +203,7 @@ export async function initLocalDB(): Promise<void> {
       name TEXT NOT NULL,
       default_quantity INTEGER DEFAULT 1,
       default_unit_price REAL NOT NULL,
+      default_markup_applicable INTEGER NOT NULL DEFAULT 1,
       version INTEGER DEFAULT 1,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT
@@ -207,12 +217,17 @@ export async function initLocalDB(): Promise<void> {
   if (!savedItemColumns.some((column) => column.name === "default_quantity")) {
     await db.execAsync("ALTER TABLE saved_items ADD COLUMN default_quantity INTEGER DEFAULT 1");
   }
+  if (!savedItemColumns.some((column) => column.name === "default_markup_applicable")) {
+    await db.execAsync(
+      "ALTER TABLE saved_items ADD COLUMN default_markup_applicable INTEGER NOT NULL DEFAULT 1",
+    );
+  }
 
   const legacyCatalogColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(item_catalog)");
   if (legacyCatalogColumns.length) {
     await db.execAsync(`
-      INSERT OR IGNORE INTO saved_items (id, user_id, name, default_quantity, default_unit_price, version, updated_at, deleted_at)
-      SELECT id, user_id, description AS name, default_quantity, unit_price AS default_unit_price, version, updated_at, deleted_at
+      INSERT OR IGNORE INTO saved_items (id, user_id, name, default_quantity, default_unit_price, default_markup_applicable, version, updated_at, deleted_at)
+      SELECT id, user_id, description AS name, default_quantity, unit_price AS default_unit_price, 1, version, updated_at, deleted_at
       FROM item_catalog
     `);
   }

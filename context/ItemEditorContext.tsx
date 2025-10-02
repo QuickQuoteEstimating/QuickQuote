@@ -6,7 +6,11 @@ import React, {
   useState,
   type PropsWithChildren,
 } from "react";
-import type { EstimateItemFormSubmit, EstimateItemTemplate } from "../components/EstimateItemForm";
+import type {
+  EstimateItemFormSubmit,
+  EstimateItemTemplate,
+} from "../components/EstimateItemForm";
+import type { MarkupMode } from "../lib/estimateMath";
 
 export type ItemEditorConfig = {
   title: string;
@@ -15,9 +19,13 @@ export type ItemEditorConfig = {
     description: string;
     quantity: number;
     unit_price: number;
+    apply_markup?: boolean;
   };
   initialTemplateId?: string | null;
   templates?: EstimateItemTemplate[] | (() => EstimateItemTemplate[]);
+  materialMarkupValue: number;
+  materialMarkupMode: MarkupMode;
+  showLibraryToggle?: boolean;
   onSubmit: (payload: EstimateItemFormSubmit) => Promise<void> | void;
   onCancel?: () => void;
 };

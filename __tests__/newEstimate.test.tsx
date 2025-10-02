@@ -14,6 +14,30 @@ jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
 }));
 
+jest.mock("@react-native-picker/picker", () => {
+  const React = require("react");
+  const { View, Pressable, Text } = require("react-native");
+  const MockPicker = ({ children, onValueChange }: any) => (
+    <View testID="picker">
+      {React.Children.map(children, (child, index) => {
+        if (!React.isValidElement(child)) {
+          return child;
+        }
+        return React.cloneElement(child, {
+          onSelect: () => onValueChange(child.props.value, index),
+        });
+      })}
+    </View>
+  );
+  const MockPickerItem = ({ label, value, onSelect }: any) => (
+    <Pressable onPress={onSelect} testID={`picker-item-${value ?? "empty"}`}>
+      <Text>{label}</Text>
+    </Pressable>
+  );
+  MockPicker.Item = MockPickerItem;
+  return { Picker: MockPicker };
+});
+
 const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
 const authState = {
@@ -27,6 +51,10 @@ jest.mock("../context/AuthContext", () => ({
 
 const settingsState = {
   settings: {
+    materialMarkup: 15,
+    materialMarkupMode: "percentage" as const,
+    laborMarkup: 10,
+    laborMarkupMode: "percentage" as const,
     hourlyRate: 50,
     taxRate: 8,
   },
@@ -43,6 +71,10 @@ jest.mock("../context/ItemEditorContext", () => ({
   useItemEditor: () => ({
     openEditor: mockOpenEditor,
   }),
+}));
+
+jest.mock("../lib/savedItems", () => ({
+  listSavedItems: jest.fn().mockResolvedValue([]),
 }));
 
 jest.mock("react-native-safe-area-context", () => {
@@ -83,6 +115,7 @@ jest.mock("../lib/sync", () => ({
 import NewEstimateScreen from "../app/(tabs)/estimates/new";
 import { openDB, queueChange } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
+import { listSavedItems } from "../lib/savedItems";
 
 describe("NewEstimateScreen", () => {
   beforeEach(() => {
@@ -98,6 +131,7 @@ describe("NewEstimateScreen", () => {
     authState.user = { id: "user-123" };
     authState.session = null;
     mockOpenEditor.mockReset();
+    (listSavedItems as jest.Mock).mockClear().mockResolvedValue([]);
   });
 
   it("saves a draft and navigates to the editor when previewing", async () => {
@@ -204,5 +238,32 @@ describe("NewEstimateScreen", () => {
     expect(mockRunAsync).not.toHaveBeenCalled();
     expect(queueChange).not.toHaveBeenCalled();
     expect(mockRouter.replace).not.toHaveBeenCalled();
+  });
+
+  it("prefills a line item when selecting a saved item", async () => {
+    (listSavedItems as jest.Mock).mockResolvedValueOnce([
+      {
+        id: "saved-1",
+        user_id: "user-123",
+        name: "Premium flooring",
+        default_quantity: 3,
+        default_unit_price: 42.5,
+        default_markup_applicable: 0,
+        version: 1,
+        updated_at: new Date().toISOString(),
+        deleted_at: null,
+      },
+    ]);
+
+    const screen = render(<NewEstimateScreen />);
+    const savedItemButton = await screen.findByText("Premium flooring");
+    fireEvent.press(savedItemButton);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Premium flooring")).toBeTruthy();
+    });
+
+    expect(screen.getByDisplayValue("3")).toBeTruthy();
+    expect(screen.getByDisplayValue("42.50")).toBeTruthy();
   });
 });
