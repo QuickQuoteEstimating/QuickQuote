@@ -7,6 +7,7 @@ export interface ListItemProps {
   subtitle?: string;
   amount?: string;
   badge?: ReactNode;
+  rightContent?: ReactNode;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   titleStyle?: StyleProp<TextStyle>;
@@ -19,6 +20,7 @@ export function ListItem({
   subtitle,
   amount,
   badge,
+  rightContent,
   onPress,
   style,
   titleStyle,
@@ -27,6 +29,14 @@ export function ListItem({
 }: ListItemProps) {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  let resolvedRightContent: ReactNode | null = rightContent ?? null;
+  if (!resolvedRightContent) {
+    if (badge) {
+      resolvedRightContent = badge;
+    } else if (amount) {
+      resolvedRightContent = <Text style={[styles.amount, amountStyle]}>{amount}</Text>;
+    }
+  }
   if (onPress) {
     return (
       <Pressable
@@ -38,13 +48,7 @@ export function ListItem({
           <Text style={[styles.title, titleStyle]}>{title}</Text>
           {subtitle ? <Text style={[styles.subtitle, subtitleStyle]}>{subtitle}</Text> : null}
         </View>
-        <View style={styles.rightColumn}>
-          {badge ? (
-            badge
-          ) : amount ? (
-            <Text style={[styles.amount, amountStyle]}>{amount}</Text>
-          ) : null}
-        </View>
+        <View style={styles.rightColumn}>{resolvedRightContent}</View>
       </Pressable>
     );
   }
@@ -55,9 +59,7 @@ export function ListItem({
         <Text style={[styles.title, titleStyle]}>{title}</Text>
         {subtitle ? <Text style={[styles.subtitle, subtitleStyle]}>{subtitle}</Text> : null}
       </View>
-      <View style={styles.rightColumn}>
-        {badge ? badge : amount ? <Text style={[styles.amount, amountStyle]}>{amount}</Text> : null}
-      </View>
+      <View style={styles.rightColumn}>{resolvedRightContent}</View>
     </View>
   );
 }

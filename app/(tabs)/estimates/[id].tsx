@@ -4,7 +4,6 @@ import { router, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
-  Button as RNButton,
   FlatList,
   Image,
   Linking,
@@ -813,53 +812,45 @@ export default function EditEstimateScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: EstimateItemRecord }) => (
-      <View style={styles.itemCard}>
-        <View style={styles.itemInfo}>
-          <Text style={styles.itemTitle}>{item.description}</Text>
-          <Text style={styles.itemMeta}>
-            Qty: {item.quantity} @ {formatCurrency(item.unit_price)}
-          </Text>
-          <Text style={styles.itemMeta}>Line Total: {formatCurrency(item.total)}</Text>
-        </View>
-        <View style={styles.inlineButtons}>
-          <View style={styles.buttonFlex}>
-            <RNButton
-              title="Edit"
-              color={colors.primary}
-              onPress={() =>
-                openItemEditorScreen({
-                  title: "Edit Item",
-                  submitLabel: "Update Item",
-                  initialValue: {
-                    description: item.description,
-                    quantity: item.quantity,
-                    unit_price: item.unit_price,
-                  },
-                  initialTemplateId: item.catalog_item_id,
-                  templates: () => savedItemTemplates,
-                  onSubmit: makeItemSubmitHandler(item),
-                })
-              }
-            />
-          </View>
-          <View style={styles.buttonFlex}>
-            <RNButton
-              title="Remove"
-              color={colors.danger}
-              onPress={() => handleDeleteItem(item)}
-            />
-          </View>
+      <View style={styles.lineItemRow}>
+        <ListItem
+          title={item.description}
+          subtitle={`Qty: ${item.quantity} @ ${formatCurrency(item.unit_price)}`}
+          rightContent={<Text style={styles.lineItemTotal}>{formatCurrency(item.total)}</Text>}
+          style={styles.lineItem}
+        />
+        <View style={styles.lineItemActions}>
+          <Button
+            label="Edit"
+            variant="secondary"
+            alignment="inline"
+            onPress={() =>
+              openItemEditorScreen({
+                title: "Edit Item",
+                submitLabel: "Update Item",
+                initialValue: {
+                  description: item.description,
+                  quantity: item.quantity,
+                  unit_price: item.unit_price,
+                },
+                initialTemplateId: item.catalog_item_id,
+                templates: () => savedItemTemplates,
+                onSubmit: makeItemSubmitHandler(item),
+              })
+            }
+            style={styles.lineItemActionButton}
+          />
+          <Button
+            label="Remove"
+            variant="danger"
+            alignment="inline"
+            onPress={() => handleDeleteItem(item)}
+            style={styles.lineItemActionButton}
+          />
         </View>
       </View>
     ),
-    [
-      colors.danger,
-      colors.primary,
-      handleDeleteItem,
-      makeItemSubmitHandler,
-      openItemEditorScreen,
-      savedItemTemplates,
-    ],
+    [handleDeleteItem, makeItemSubmitHandler, openItemEditorScreen, savedItemTemplates],
   );
 
   const handlePhotoDraftChange = useCallback((photoId: string, value: string) => {
@@ -1836,26 +1827,28 @@ export default function EditEstimateScreen() {
           />
         </Card>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Estimate items</Text>
-          <Text style={styles.sectionSubtitle}>
-            Track the work you&apos;re quoting. Saved items help you move fast.
-          </Text>
+        <Card style={styles.lineItemsCard}>
+          <View style={styles.lineItemsHeader}>
+            <Text style={styles.sectionTitle}>Estimate items</Text>
+            <Text style={styles.sectionSubtitle}>
+              Track the work you&apos;re quoting. Saved items help you move fast.
+            </Text>
+          </View>
           <FlatList
             data={items}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
             scrollEnabled={false}
-            ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
+            ItemSeparatorComponent={() => <View style={styles.lineItemSeparator} />}
+            contentContainerStyle={styles.lineItemsList}
             ListEmptyComponent={
               <View style={styles.emptyCard}>
                 <Text style={styles.emptyText}>No items added yet.</Text>
               </View>
             }
           />
-          <RNButton
-            title="Add line item"
-            color={colors.primary}
+          <Button
+            label="Add line item"
             onPress={() =>
               openItemEditorScreen({
                 title: "Add line item",
@@ -1865,8 +1858,9 @@ export default function EditEstimateScreen() {
                 onSubmit: makeItemSubmitHandler(null),
               })
             }
+            style={styles.lineItemAddButton}
           />
-        </View>
+        </Card>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Labor &amp; tax</Text>
@@ -2362,27 +2356,41 @@ function createStyles(theme: Theme) {
     emptyText: {
       color: colors.textMuted,
     },
-    itemSeparator: {
-      height: 12,
+    lineItemsCard: {
+      gap: spacing.lg,
     },
-    itemCard: {
+    lineItemsHeader: {
+      gap: spacing.xs,
+    },
+    lineItemsList: {
+      paddingVertical: spacing.xs,
+    },
+    lineItemRow: {
+      gap: spacing.sm,
+    },
+    lineItem: {
       backgroundColor: colors.surfaceMuted,
-      borderRadius: 16,
-      padding: 16,
-      gap: 8,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
-      ...cardShadow(6, theme.mode),
+      borderRadius: radii.lg,
     },
-    itemInfo: {
-      gap: 4,
-    },
-    itemTitle: {
+    lineItemTotal: {
+      fontSize: 16,
       fontWeight: "600",
       color: colors.primaryText,
     },
-    itemMeta: {
-      color: colors.textMuted,
+    lineItemActions: {
+      flexDirection: "row",
+      gap: spacing.md,
+    },
+    lineItemActionButton: {
+      flex: 1,
+    },
+    lineItemSeparator: {
+      height: spacing.md,
+    },
+    lineItemAddButton: {
+      marginTop: spacing.sm,
     },
     inputRow: {
       flexDirection: "row",
