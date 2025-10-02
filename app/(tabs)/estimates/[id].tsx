@@ -95,11 +95,10 @@ type AlertWithConfirmation = typeof Alert & {
   ) => void;
 };
 
-function showDeletionConfirmation(
-  title: string,
-  message: string,
-  onConfirm: () => void,
-) {
+function showDeletionConfirmation(entityLabel: string, onConfirm: () => void) {
+  const title = `Delete this ${entityLabel}?`;
+  const message =
+    "This action cannot be undone. This will permanently delete this record and all related data. Are you sure?";
   const alertModule = Alert as AlertWithConfirmation;
   if (alertModule.confirmation) {
     alertModule.confirmation(title, message, [
@@ -403,7 +402,10 @@ export default function EditEstimateScreen() {
       try {
         const db = await openDB();
         const rows = await db.getAllAsync<CustomerRecord>(
-          `SELECT id, name, email, phone, address, notes FROM customers WHERE id = ? LIMIT 1`,
+          `SELECT id, name, email, phone, address, notes
+           FROM customers
+           WHERE id = ? AND deleted_at IS NULL
+           LIMIT 1`,
           [customerId],
         );
 
@@ -1404,10 +1406,10 @@ export default function EditEstimateScreen() {
                   c.email AS customer_email,
                   c.phone AS customer_phone,
                   c.address AS customer_address
-           FROM estimates e
-           LEFT JOIN customers c ON c.id = e.customer_id
-           WHERE e.id = ?
-           LIMIT 1`,
+          FROM estimates e
+          LEFT JOIN customers c ON c.id = e.customer_id
+          WHERE e.id = ? AND e.deleted_at IS NULL
+          LIMIT 1`,
           [estimateId],
         );
 
@@ -1544,50 +1546,43 @@ export default function EditEstimateScreen() {
       return;
     }
 
-    showDeletionConfirmation(
-      "Delete Estimate?",
-      "This action cannot be undone. This will permanently delete this estimate and all associated data. Are you sure?",
-      () => {
+    showDeletionConfirmation("Estimate", () => {
         void (async () => {
             setDeleting(true);
             try {
               const db = await openDB();
 
-              const [itemRows, photoRows] = await Promise.all([
-                db.getAllAsync<{ id: string }>(
-                  `SELECT id FROM estimate_items WHERE estimate_id = ?`,
-                  [targetEstimateId],
-                ),
-                db.getAllAsync<{ id: string; uri: string; local_uri: string | null }>(
-                  `SELECT id, uri, local_uri FROM photos WHERE estimate_id = ?`,
-                  [targetEstimateId],
-                ),
-              ]);
-
               await db.execAsync("BEGIN TRANSACTION");
               try {
-                await db.runAsync(`DELETE FROM estimate_items WHERE estimate_id = ?`, [targetEstimateId]);
-                await db.runAsync(`DELETE FROM photos WHERE estimate_id = ?`, [targetEstimateId]);
-                await db.runAsync(`DELETE FROM delivery_logs WHERE estimate_id = ?`, [targetEstimateId]);
-                await db.runAsync(`DELETE FROM estimates WHERE id = ?`, [targetEstimateId]);
+                await db.runAsync(
+                  `UPDATE estimates
+                   SET deleted_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP,
+                       version = COALESCE(version, 0) + 1
+                   WHERE id = ?`,
+                  [targetEstimateId],
+                );
+                await db.runAsync(
+                  `UPDATE estimate_items
+                   SET deleted_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP,
+                       version = COALESCE(version, 0) + 1
+                   WHERE estimate_id = ?`,
+                  [targetEstimateId],
+                );
+                await db.runAsync(
+                  `UPDATE photos
+                   SET deleted_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP,
+                       version = COALESCE(version, 0) + 1
+                   WHERE estimate_id = ?`,
+                  [targetEstimateId],
+                );
                 await db.execAsync("COMMIT");
               } catch (transactionError) {
                 await db.execAsync("ROLLBACK");
                 throw transactionError;
               }
-
-              await Promise.all(
-                photoRows.map(async (photo) => {
-                  const fallbackLocalUri =
-                    photo.local_uri ?? (photo.uri ? deriveLocalPhotoUri(photo.id, photo.uri) : null);
-                  await deleteLocalPhoto(fallbackLocalUri ?? undefined);
-                  await queueChange("photos", "delete", { id: photo.id });
-                }),
-              );
-
-              await Promise.all(
-                itemRows.map((item) => queueChange("estimate_items", "delete", { id: item.id })),
-              );
 
               await queueChange("estimates", "delete", { id: targetEstimateId });
 
@@ -1669,9 +1664,13 @@ export default function EditEstimateScreen() {
           email: string | null;
           phone: string | null;
           address: string | null;
-        }>(`SELECT name, email, phone, address, notes FROM customers WHERE id = ? LIMIT 1`, [
-          customerId,
-        ]);
+        }>(
+          `SELECT name, email, phone, address, notes
+           FROM customers
+           WHERE id = ? AND deleted_at IS NULL
+           LIMIT 1`,
+          [customerId],
+        );
         const customerRecord = customerRows[0];
         customerName = customerRecord?.name ?? customerName ?? null;
         customerEmail = customerRecord?.email ?? null;
@@ -2108,30 +2107,30 @@ export default function EditEstimateScreen() {
         </View>
         <View style={styles.footerButtons}>
           <Button
-            label="Cancel"
-            variant="secondary"
-            alignment="inline"
-            onPress={handleCancel}
-            disabled={saving || deleting}
-            style={styles.footerButton}
-          />
-          <Button
-            label={saving ? "Saving…" : "Save Draft"}
-            alignment="inline"
+            label={saving ? "Saving…" : "Save"}
             onPress={handleSaveDraft}
             disabled={saving || deleting}
             loading={saving}
-            style={styles.footerButton}
+            alignment="full"
+          />
+          <Button
+            label="Cancel"
+            variant="secondary"
+            onPress={handleCancel}
+            disabled={saving || deleting}
+            alignment="full"
           />
         </View>
-        <Button
-          label={deleting ? "Deleting…" : "Delete Estimate"}
-          variant="danger"
-          onPress={handleDeleteEstimate}
-          disabled={saving || deleting}
-          loading={deleting}
-          style={styles.deleteButton}
-        />
+        <View style={styles.deleteSection}>
+          <Button
+            label={deleting ? "Deleting…" : "Delete Estimate"}
+            variant="danger"
+            onPress={handleDeleteEstimate}
+            disabled={saving || deleting}
+            loading={deleting}
+            alignment="full"
+          />
+        </View>
       </ScrollView>
       <View style={previewStyles.bottomBar}>
         <Button
@@ -2493,16 +2492,13 @@ function createStyles(theme: Theme) {
       fontSize: 22,
     },
     footerButtons: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: spacing.md,
+      gap: spacing.sm,
       paddingBottom: spacing.lg,
+      alignSelf: "stretch",
     },
-    footerButton: {
-      flexGrow: 0,
-    },
-    deleteButton: {
-      alignSelf: "flex-start",
+    deleteSection: {
+      alignSelf: "stretch",
+      marginBottom: spacing.lg,
     },
   });
 }

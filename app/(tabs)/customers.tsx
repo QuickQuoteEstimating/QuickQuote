@@ -17,7 +17,6 @@ import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
 import { openDB, queueChange } from "../../lib/sqlite";
 import { runSync } from "../../lib/sync";
-import { deleteLocalPhoto, deriveLocalPhotoUri } from "../../lib/storage";
 
 export type CustomerRecord = {
   id: string;
@@ -48,11 +47,10 @@ type AlertWithConfirmation = typeof Alert & {
   ) => void;
 };
 
-function showDeletionConfirmation(
-  title: string,
-  message: string,
-  onConfirm: () => void,
-) {
+function showDeletionConfirmation(entityLabel: string, onConfirm: () => void) {
+  const title = `Delete this ${entityLabel}?`;
+  const message =
+    "This action cannot be undone. This will permanently delete this record and all related data. Are you sure?";
   const alertModule = Alert as AlertWithConfirmation;
   if (alertModule.confirmation) {
     alertModule.confirmation(title, message, [
@@ -190,12 +188,14 @@ function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustome
           onPress={saveChanges}
           loading={saving}
           disabled={saving}
+          alignment="full"
         />
         <Button
           label="Cancel"
           variant="secondary"
           onPress={onCancel}
           disabled={saving}
+          alignment="full"
         />
       </View>
       <View style={styles.deleteSection}>
@@ -204,6 +204,7 @@ function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustome
           variant="danger"
           onPress={() => onDelete(customer)}
           disabled={saving}
+          alignment="full"
         />
       </View>
     </Card>
@@ -330,10 +331,7 @@ export default function Customers() {
 
   const handleDelete = useCallback(
     (customer: CustomerRecord) => {
-      showDeletionConfirmation(
-        "Delete Customer?",
-        "This action cannot be undone. This will permanently delete this customer and all associated data. Are you sure?",
-        () => {
+      showDeletionConfirmation("Customer", () => {
           void (async () => {
             previousCustomersRef.current = customers;
             setCustomers((current) => current.filter((existing) => existing.id !== customer.id));
@@ -344,72 +342,61 @@ export default function Customers() {
                 const db = await openDB();
 
                 const estimateRows = await db.getAllAsync<{ id: string }>(
-                  `SELECT id FROM estimates WHERE customer_id = ?`,
+                  `SELECT id FROM estimates WHERE customer_id = ? AND deleted_at IS NULL`,
                   [customer.id],
                 );
                 const estimateIds = estimateRows.map((row) => row.id);
                 const placeholders = estimateIds.map(() => "?").join(", ");
 
-                const itemRows = estimateIds.length
-                  ? await db.getAllAsync<{ id: string }>(
-                      `SELECT id FROM estimate_items WHERE estimate_id IN (${placeholders})`,
-                      estimateIds,
-                    )
-                  : [];
-
-                const photoRows = estimateIds.length
-                  ? await db.getAllAsync<{ id: string; uri: string; local_uri: string | null }>(
-                      `SELECT id, uri, local_uri FROM photos WHERE estimate_id IN (${placeholders})`,
-                      estimateIds,
-                    )
-                  : [];
-
                 await db.execAsync("BEGIN TRANSACTION");
                 try {
+                  await db.runAsync(
+                    `UPDATE customers
+                     SET deleted_at = CURRENT_TIMESTAMP,
+                         updated_at = CURRENT_TIMESTAMP,
+                         version = COALESCE(version, 0) + 1
+                     WHERE id = ?`,
+                    [customer.id],
+                  );
+
                   if (estimateIds.length) {
                     await db.runAsync(
-                      `DELETE FROM estimate_items WHERE estimate_id IN (${placeholders})`,
+                      `UPDATE estimates
+                       SET deleted_at = CURRENT_TIMESTAMP,
+                           updated_at = CURRENT_TIMESTAMP,
+                           version = COALESCE(version, 0) + 1
+                       WHERE id IN (${placeholders})`,
                       estimateIds,
                     );
                     await db.runAsync(
-                      `DELETE FROM photos WHERE estimate_id IN (${placeholders})`,
+                      `UPDATE estimate_items
+                       SET deleted_at = CURRENT_TIMESTAMP,
+                           updated_at = CURRENT_TIMESTAMP,
+                           version = COALESCE(version, 0) + 1
+                       WHERE estimate_id IN (${placeholders})`,
                       estimateIds,
                     );
                     await db.runAsync(
-                      `DELETE FROM delivery_logs WHERE estimate_id IN (${placeholders})`,
-                      estimateIds,
-                    );
-                    await db.runAsync(
-                      `DELETE FROM estimates WHERE id IN (${placeholders})`,
+                      `UPDATE photos
+                       SET deleted_at = CURRENT_TIMESTAMP,
+                           updated_at = CURRENT_TIMESTAMP,
+                           version = COALESCE(version, 0) + 1
+                       WHERE estimate_id IN (${placeholders})`,
                       estimateIds,
                     );
                   }
 
-                  await db.runAsync(`DELETE FROM customers WHERE id = ?`, [customer.id]);
                   await db.execAsync("COMMIT");
                 } catch (transactionError) {
                   await db.execAsync("ROLLBACK");
                   throw transactionError;
                 }
 
-                await Promise.all(
-                  photoRows.map(async (photo) => {
-                    await deleteLocalPhoto(
-                      photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri) ?? undefined,
-                    );
-                    await queueChange("photos", "delete", { id: photo.id });
-                  }),
-                );
-
-                await Promise.all(
-                  itemRows.map((item) => queueChange("estimate_items", "delete", { id: item.id })),
-                );
+                await queueChange("customers", "delete", { id: customer.id });
 
                 await Promise.all(
                   estimateIds.map((estimateId) => queueChange("estimates", "delete", { id: estimateId })),
                 );
-
-                await queueChange("customers", "delete", { id: customer.id });
 
                 await runSync().catch((syncError) => {
                   console.error("Failed to sync customer deletion", syncError);
