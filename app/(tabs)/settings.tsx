@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Pressable,
+  Image,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import Constants from "expo-constants";
 import Slider from "@react-native-community/slider";
+
+import { Badge, Button, Card, Input, ListItem } from "../../components/ui";
+import LogoPicker from "../../components/LogoPicker";
 import { useAuth } from "../../context/AuthContext";
 import { type ThemePreference, useSettings } from "../../context/SettingsContext";
-import LogoPicker from "../../components/LogoPicker";
+import { useTheme } from "../../theme";
 
 const THEME_OPTIONS = [
   { label: "Light", value: "light" },
@@ -24,11 +27,11 @@ const THEME_OPTIONS = [
 const HAPTIC_LABELS = ["Subtle", "Balanced", "Bold"];
 
 export default function Settings() {
-  const { user, signOut, signOutLoading } = useAuth();
+  const { theme } = useTheme();
+  const { user, signOut, signOutLoading, needsBootstrapRetry } = useAuth();
   const {
     settings,
     isHydrated,
-    resolvedTheme,
     setThemePreference,
     setMaterialMarkup,
     setLaborMarkup,
@@ -45,6 +48,8 @@ export default function Settings() {
     resetToDefaults,
   } = useSettings();
 
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const [materialMarkupInput, setMaterialMarkupInput] = useState(
     settings.materialMarkup.toString(),
   );
@@ -53,6 +58,7 @@ export default function Settings() {
   const [taxRateInput, setTaxRateInput] = useState(() =>
     settings.taxRate % 1 === 0 ? settings.taxRate.toFixed(0) : settings.taxRate.toString(),
   );
+  const [isEditingTaxRate, setIsEditingTaxRate] = useState(false);
 
   useEffect(() => {
     setMaterialMarkupInput(settings.materialMarkup.toString());
@@ -72,648 +78,527 @@ export default function Settings() {
     );
   }, [settings.taxRate]);
 
-  const colors = useMemo(() => {
-    const isDark = resolvedTheme === "dark";
-    return {
-      isDark,
-      background: isDark ? "#0f172a" : "#f1f5f9",
-      card: isDark ? "#1e293b" : "#fff",
-      primaryText: isDark ? "#f8fafc" : "#0f172a",
-      secondaryText: isDark ? "#cbd5f5" : "#475569",
-      border: isDark ? "#334155" : "#e2e8f0",
-      accent: "#1e40af",
-      destructive: "#ef4444",
-    };
-  }, [resolvedTheme]);
-
-  const handleUpdateMarkup = (value: string, updater: (parsed: number) => void) => {
-    const parsed = Number.parseFloat(value);
-    if (Number.isNaN(parsed)) {
-      updater(0);
-      return;
-    }
-
-    updater(Math.max(0, Math.min(parsed, 1000)));
-  };
-
-  const handleUpdateHourlyRate = (value: string) => {
-    const parsed = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
-    if (Number.isNaN(parsed)) {
-      setHourlyRate(0);
-      return;
-    }
-
-    setHourlyRate(Math.max(0, Math.round(parsed * 100) / 100));
-  };
-
   const hapticLabel = HAPTIC_LABELS[settings.hapticIntensity] ?? HAPTIC_LABELS[1];
 
-  const handleSavePreferences = () => {
-    triggerHaptic();
-    Alert.alert("Preferences saved", "Your settings have been saved.");
-  };
+  const handleUpdatePercentage = useCallback(
+    (value: string, updater: (parsed: number) => void) => {
+      const parsed = Number.parseFloat(value);
+      if (Number.isNaN(parsed)) {
+        updater(0);
+        return;
+      }
 
-  const themedStyles = useMemo(
-    () =>
-      StyleSheet.create({
-        loadingContainer: {
-          backgroundColor: colors.background,
-        },
-        loadingText: {
-          color: colors.secondaryText,
-        },
-        container: {
-          flex: 1,
-          backgroundColor: colors.background,
-        },
-        content: {
-          padding: 24,
-          gap: 20,
-        },
-        section: {
-          backgroundColor: colors.card,
-          borderRadius: 18,
-          padding: 20,
-          gap: 16,
-          shadowColor: colors.isDark ? "#000" : "#0f172a",
-          shadowOpacity: colors.isDark ? 0.4 : 0.08,
-          shadowOffset: { width: 0, height: 6 },
-          shadowRadius: 18,
-          elevation: 4,
-        },
-        sectionHeader: {
-          fontSize: 18,
-          fontWeight: "700",
-          color: colors.primaryText,
-        },
-        sectionDescription: {
-          fontSize: 14,
-          color: colors.secondaryText,
-          lineHeight: 20,
-        },
-        divider: {
-          height: StyleSheet.hairlineWidth,
-          backgroundColor: colors.border,
-          marginVertical: 4,
-        },
-        row: {
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 16,
-        },
-        rowLabel: {
-          fontSize: 16,
-          color: colors.primaryText,
-          fontWeight: "500",
-        },
-        rowCaption: {
-          fontSize: 13,
-          color: colors.secondaryText,
-          marginTop: 6,
-          lineHeight: 18,
-        },
-        themeOptions: {
-          flexDirection: "row",
-          gap: 8,
-          flexWrap: "wrap",
-        },
-        themeChip: {
-          paddingVertical: 8,
-          paddingHorizontal: 14,
-          borderRadius: 999,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.isDark ? "rgba(148, 163, 184, 0.08)" : "#f8fafc",
-        },
-        themeChipActive: {
-          borderColor: colors.accent,
-          backgroundColor: colors.isDark ? "rgba(37, 99, 235, 0.2)" : "rgba(37, 99, 235, 0.08)",
-        },
-        themeChipText: {
-          color: colors.primaryText,
-          fontWeight: "600",
-        },
-        textFieldContainer: {
-          flex: 1,
-        },
-        textField: {
-          borderWidth: 1,
-          borderColor: colors.border,
-          borderRadius: 12,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          fontSize: 16,
-          color: colors.primaryText,
-          backgroundColor: colors.isDark ? "rgba(15, 23, 42, 0.7)" : "#f8fafc",
-        },
-        textArea: {
-          borderWidth: 1,
-          borderColor: colors.border,
-          borderRadius: 12,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          fontSize: 16,
-          color: colors.primaryText,
-          backgroundColor: colors.isDark ? "rgba(15, 23, 42, 0.7)" : "#f8fafc",
-          minHeight: 90,
-          textAlignVertical: "top",
-        },
-        fieldLabel: {
-          fontSize: 15,
-          fontWeight: "600",
-          color: colors.primaryText,
-          marginBottom: 6,
-        },
-        helperText: {
-          fontSize: 13,
-          color: colors.secondaryText,
-          lineHeight: 18,
-          marginTop: 6,
-        },
-        logoSection: {
-          gap: 16,
-        },
-        percentSuffix: {
-          fontSize: 16,
-          fontWeight: "600",
-          color: colors.secondaryText,
-          marginLeft: 8,
-        },
-        currencyPrefix: {
-          fontSize: 16,
-          fontWeight: "600",
-          color: colors.secondaryText,
-          marginRight: 8,
-        },
-        sliderLabelRow: {
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginTop: 6,
-        },
-        sliderLabel: {
-          fontSize: 13,
-          color: colors.secondaryText,
-        },
-        sliderLabelActive: {
-          color: colors.primaryText,
-          fontWeight: "600",
-        },
-        rowLabelLarge: {
-          fontSize: 17,
-        },
-        destructiveButton: {
-          backgroundColor: colors.destructive,
-          borderRadius: 14,
-          paddingVertical: 14,
-          alignItems: "center",
-        },
-        destructiveText: {
-          color: "#fff",
-          fontSize: 16,
-          fontWeight: "600",
-        },
-        buttonDisabled: {
-          opacity: 0.6,
-        },
-        footerActions: {
-          gap: 16,
-        },
-        saveButton: {
-          borderRadius: 14,
-          paddingVertical: 14,
-          alignItems: "center",
-          backgroundColor: colors.accent,
-        },
-        saveText: {
-          color: "#fff",
-          fontSize: 16,
-          fontWeight: "600",
-        },
-        resetButton: {
-          borderRadius: 14,
-          paddingVertical: 14,
-          alignItems: "center",
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.isDark ? "rgba(148, 163, 184, 0.08)" : "#fff",
-        },
-        resetText: {
-          color: colors.primaryText,
-          fontSize: 16,
-          fontWeight: "600",
-        },
-      }),
-    [colors],
+      updater(Math.max(0, Math.min(parsed, 1000)));
+    },
+    [],
   );
+
+  const handleUpdateHourlyRate = useCallback(
+    (value: string) => {
+      const parsed = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
+      if (Number.isNaN(parsed)) {
+        setHourlyRate(0);
+        return;
+      }
+
+      setHourlyRate(Math.max(0, Math.round(parsed * 100) / 100));
+    },
+    [setHourlyRate],
+  );
+
+  const handleCycleTheme = useCallback(() => {
+    const currentIndex = THEME_OPTIONS.findIndex((option) => option.value === settings.themePreference);
+    const nextIndex = (currentIndex + 1) % THEME_OPTIONS.length;
+    triggerHaptic();
+    setThemePreference(THEME_OPTIONS[nextIndex]!.value);
+  }, [setThemePreference, settings.themePreference, triggerHaptic]);
+
+  const handleSavePreferences = useCallback(() => {
+    triggerHaptic();
+    Alert.alert("Preferences saved", "Your settings have been updated.");
+  }, [triggerHaptic]);
+
+  const handleResetPreferences = useCallback(() => {
+    triggerHaptic();
+    resetToDefaults();
+  }, [resetToDefaults, triggerHaptic]);
+
+  const handleSignOut = useCallback(() => {
+    triggerHaptic();
+    void signOut();
+  }, [signOut, triggerHaptic]);
+
+  const selectedThemeLabel = useMemo(() => {
+    const match = THEME_OPTIONS.find((option) => option.value === settings.themePreference);
+    return match ? match.label : "System";
+  }, [settings.themePreference]);
+
+  const accountName =
+    (user?.user_metadata as { full_name?: string } | null)?.full_name ??
+    user?.email?.split("@")[0] ??
+    "QuickQuote";
+  const accountEmail = user?.email ?? "Unknown";
+  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
+  const buildNumber =
+    Constants.expoConfig?.ios?.buildNumber ??
+    Constants.expoConfig?.android?.versionCode?.toString() ??
+    "N/A";
+  const environment = __DEV__ ? "Development" : "Production";
 
   if (!isHydrated) {
     return (
-      <View style={[styles.loadingContainer, themedStyles.loadingContainer]}>
+      <View style={[styles.loadingContainer]}>
         <ActivityIndicator size="large" />
-        <Text style={[styles.loadingText, themedStyles.loadingText]}>
-          Loading your preferences…
-        </Text>
+        <Text style={styles.loadingText}>Loading your preferences…</Text>
       </View>
     );
   }
 
-  const handleSignOut = () => {
-    triggerHaptic();
-    signOut();
-  };
-
   return (
-    <View style={themedStyles.container}>
-      <ScrollView contentContainerStyle={themedStyles.content} showsVerticalScrollIndicator={false}>
-        <View style={[themedStyles.section, themedStyles.logoSection]}>
-          <Text style={themedStyles.sectionHeader}>Company profile</Text>
-          <Text style={themedStyles.sectionDescription}>
-            Keep these details current so new estimates automatically display your brand.
-          </Text>
-          <LogoPicker
-            value={settings.companyProfile.logoUri}
-            onChange={(uri) => setCompanyProfile({ logoUri: uri })}
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      <Card>
+        <Text style={styles.cardTitle}>Account</Text>
+        <View style={styles.accountHeader}>
+          <View style={styles.avatarShell}>
+            <Image source={require("../../assets/icon.png")} style={styles.avatarImage} />
+          </View>
+          <View style={styles.accountDetails}>
+            <Text style={styles.accountName}>{accountName}</Text>
+            <Text style={styles.accountEmail}>{accountEmail}</Text>
+          </View>
+        </View>
+        <Button
+          label="Edit profile"
+          variant="secondary"
+          alignment="inline"
+          onPress={() => Alert.alert("Coming soon", "Profile editing is not yet available.")}
+        />
+        <Text style={styles.mutedText}>Signed in via Supabase</Text>
+        <View style={styles.sectionDivider} />
+        <Text style={styles.sectionHeading}>Company profile</Text>
+        <LogoPicker
+          value={settings.companyProfile.logoUri}
+          onChange={(uri) => setCompanyProfile({ logoUri: uri })}
+        />
+        <View style={styles.fieldGroup}>
+          <Input
+            label="Company name"
+            value={settings.companyProfile.name}
+            onChangeText={(text) => setCompanyProfile({ name: text })}
+            placeholder="QuickQuote Construction"
           />
-          <View style={styles.fieldGroup}>
-            <View>
-              <Text style={themedStyles.fieldLabel}>Company name</Text>
-              <TextInput
-                value={settings.companyProfile.name}
-                onChangeText={(text) => setCompanyProfile({ name: text })}
-                placeholder="QuickQuote Construction"
-                placeholderTextColor={colors.secondaryText}
-                style={themedStyles.textField}
+          <Input
+            label="Email"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={settings.companyProfile.email}
+            onChangeText={(text) => setCompanyProfile({ email: text })}
+            placeholder="hello@quickquote.com"
+          />
+          <Input
+            label="Phone"
+            keyboardType="phone-pad"
+            value={settings.companyProfile.phone}
+            onChangeText={(text) => setCompanyProfile({ phone: text })}
+            placeholder="(555) 123-4567"
+          />
+          <Input
+            label="Website"
+            autoCapitalize="none"
+            value={settings.companyProfile.website}
+            onChangeText={(text) => setCompanyProfile({ website: text })}
+            placeholder="quickquote.com"
+          />
+          <Input
+            label="Address"
+            multiline
+            value={settings.companyProfile.address}
+            onChangeText={(text) => setCompanyProfile({ address: text })}
+            placeholder="123 Main Street, Springfield, USA"
+          />
+        </View>
+      </Card>
+
+      <Card>
+        <Text style={styles.cardTitle}>Preferences</Text>
+        <View style={styles.listGroup}>
+          <ListItem
+            title="Appearance"
+            subtitle="Cycle through light, dark, or follow system."
+            onPress={handleCycleTheme}
+            badge={<Badge style={styles.badge} textStyle={styles.badgeTextMuted}>{selectedThemeLabel}</Badge>}
+            style={styles.listItem}
+          />
+          <View style={styles.listDivider} />
+          <ListItem
+            title="Haptic feedback"
+            subtitle={settings.hapticsEnabled ? `Intensity: ${hapticLabel}` : "Currently disabled"}
+            badge={
+              <Switch
+                value={settings.hapticsEnabled}
+                onValueChange={(value) => {
+                  setHapticsEnabled(value);
+                  triggerHaptic();
+                }}
+                trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+                thumbColor={theme.colors.surface}
+              />
+            }
+            style={styles.listItem}
+          />
+          {settings.hapticsEnabled ? (
+            <View style={styles.sliderSection}>
+              <Text style={styles.sliderLabel}>Adjust how strong interactions should feel.</Text>
+              <Slider
+                accessibilityLabel="Haptic intensity"
+                minimumValue={0}
+                maximumValue={HAPTIC_LABELS.length - 1}
+                step={1}
+                value={settings.hapticIntensity}
+                onSlidingComplete={(value) => {
+                  setHapticIntensity(value);
+                  triggerHaptic();
+                }}
+                minimumTrackTintColor={theme.colors.primary}
+                maximumTrackTintColor={theme.colors.border}
               />
             </View>
-            <View>
-              <Text style={themedStyles.fieldLabel}>Email</Text>
-              <TextInput
-                value={settings.companyProfile.email}
-                onChangeText={(text) => setCompanyProfile({ email: text })}
-                placeholder="hello@quickquote.com"
-                placeholderTextColor={colors.secondaryText}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                style={themedStyles.textField}
+          ) : null}
+          <View style={styles.listDivider} />
+          <ListItem
+            title="Email notifications"
+            subtitle="Receive a daily digest of estimate activity."
+            badge={
+              <Switch
+                value={settings.notificationsEnabled}
+                onValueChange={(value) => {
+                  setNotificationsEnabled(value);
+                  triggerHaptic();
+                }}
+                trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+                thumbColor={theme.colors.surface}
               />
-            </View>
-            <View>
-              <Text style={themedStyles.fieldLabel}>Phone</Text>
-              <TextInput
-                value={settings.companyProfile.phone}
-                onChangeText={(text) => setCompanyProfile({ phone: text })}
-                placeholder="(555) 123-4567"
-                placeholderTextColor={colors.secondaryText}
-                keyboardType="phone-pad"
-                style={themedStyles.textField}
+            }
+            style={styles.listItem}
+          />
+          <View style={styles.listDivider} />
+          <ListItem
+            title="Auto-sync data"
+            subtitle="Refresh estimates automatically when opening the app."
+            badge={
+              <Switch
+                value={settings.autoSyncEnabled}
+                onValueChange={(value) => {
+                  setAutoSyncEnabled(value);
+                  triggerHaptic();
+                }}
+                trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+                thumbColor={theme.colors.surface}
               />
-            </View>
-            <View>
-              <Text style={themedStyles.fieldLabel}>Website</Text>
-              <TextInput
-                value={settings.companyProfile.website}
-                onChangeText={(text) => setCompanyProfile({ website: text })}
-                placeholder="quickquote.com"
-                placeholderTextColor={colors.secondaryText}
-                autoCapitalize="none"
-                style={themedStyles.textField}
-              />
-            </View>
-            <View>
-              <Text style={themedStyles.fieldLabel}>Address</Text>
-              <TextInput
-                value={settings.companyProfile.address}
-                onChangeText={(text) => setCompanyProfile({ address: text })}
-                placeholder="123 Main Street, Springfield, USA"
-                placeholderTextColor={colors.secondaryText}
-                multiline
-                style={themedStyles.textArea}
-              />
-            </View>
-          </View>
+            }
+            style={styles.listItem}
+          />
+          <View style={styles.listDivider} />
+          <ListItem
+            title="Default tax rate"
+            subtitle="Tap to adjust how new estimates handle sales tax."
+            onPress={() => setIsEditingTaxRate((prev) => !prev)}
+            badge={
+              <Badge style={styles.badge} textStyle={styles.badgeTextMuted}>{`${settings.taxRate}%`}</Badge>
+            }
+            style={styles.listItem}
+          />
         </View>
-
-        <View style={themedStyles.section}>
-          <Text style={themedStyles.sectionHeader}>Estimate fine print</Text>
-          <Text style={themedStyles.sectionDescription}>
-            Control the language that appears in the footer of every estimate PDF.
-          </Text>
-          <View>
-            <Text style={themedStyles.fieldLabel}>Terms &amp; conditions</Text>
-            <TextInput
-              value={settings.termsAndConditions}
-              onChangeText={setTermsAndConditions}
-              placeholder="List each term on a new line"
-              placeholderTextColor={colors.secondaryText}
-              multiline
-              style={[themedStyles.textArea, styles.textAreaTall]}
-            />
-            <Text style={themedStyles.helperText}>
-              Each new line becomes a bullet point on the PDF.
-            </Text>
-          </View>
-          <View>
-            <Text style={themedStyles.fieldLabel}>Payment details</Text>
-            <TextInput
-              value={settings.paymentDetails}
-              onChangeText={setPaymentDetails}
-              placeholder="Add payment instructions"
-              placeholderTextColor={colors.secondaryText}
-              multiline
-              style={[themedStyles.textArea, styles.textAreaTall]}
-            />
-            <Text style={themedStyles.helperText}>Use blank lines to start a new paragraph.</Text>
-          </View>
+        {isEditingTaxRate ? (
+          <Input
+            label="Sales tax percentage"
+            value={taxRateInput}
+            onChangeText={setTaxRateInput}
+            onBlur={() => handleUpdatePercentage(taxRateInput, setTaxRate)}
+            keyboardType="decimal-pad"
+            rightElement={<Text style={styles.inputAdornment}>%</Text>}
+          />
+        ) : null}
+        <View style={styles.inlineFieldGroup}>
+          <Input
+            label="Material markup"
+            value={materialMarkupInput}
+            onChangeText={setMaterialMarkupInput}
+            onBlur={() => handleUpdatePercentage(materialMarkupInput, setMaterialMarkup)}
+            keyboardType="numeric"
+            rightElement={<Text style={styles.inputAdornment}>%</Text>}
+          />
+          <Input
+            label="Labor markup"
+            value={laborMarkupInput}
+            onChangeText={setLaborMarkupInput}
+            onBlur={() => handleUpdatePercentage(laborMarkupInput, setLaborMarkup)}
+            keyboardType="numeric"
+            rightElement={<Text style={styles.inputAdornment}>%</Text>}
+          />
         </View>
-
-        <View style={themedStyles.section}>
-          <Text style={themedStyles.sectionHeader}>Appearance</Text>
-          <Text style={themedStyles.sectionDescription}>
-            Choose how QuickQuote should look. You can follow your device, or force a specific mode.
-          </Text>
-          <View style={themedStyles.themeOptions}>
-            {THEME_OPTIONS.map((option) => {
-              const isActive = settings.themePreference === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Switch to ${option.label.toLowerCase()} theme`}
-                  onPress={() => {
-                    setThemePreference(option.value);
-                    triggerHaptic();
-                  }}
-                  style={[themedStyles.themeChip, isActive && themedStyles.themeChipActive]}
-                >
-                  <Text style={themedStyles.themeChipText}>{option.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
+        <Input
+          label="Hourly rate"
+          value={hourlyRateInput}
+          onChangeText={setHourlyRateInput}
+          onBlur={() => handleUpdateHourlyRate(hourlyRateInput)}
+          keyboardType="decimal-pad"
+          leftElement={<Text style={styles.inputAdornment}>$</Text>}
+        />
+        <Text style={styles.sectionHeading}>Estimate fine print</Text>
+        <Input
+          label="Terms & conditions"
+          value={settings.termsAndConditions}
+          onChangeText={setTermsAndConditions}
+          multiline
+          placeholder="List each term on a new line"
+          caption="Each new line becomes a bullet point on the PDF."
+        />
+        <Input
+          label="Payment details"
+          value={settings.paymentDetails}
+          onChangeText={setPaymentDetails}
+          multiline
+          placeholder="Add payment instructions"
+          caption="Use blank lines to create new paragraphs."
+        />
+        <View style={styles.buttonRow}>
+          <Button label="Save changes" onPress={handleSavePreferences} />
+          <Button label="Reset to defaults" variant="secondary" onPress={handleResetPreferences} />
         </View>
+      </Card>
 
-        <View style={themedStyles.section}>
-          <Text style={themedStyles.sectionHeader}>Markup defaults</Text>
-          <Text style={themedStyles.sectionDescription}>
-            Adjust the default markup percentages for new estimates. You can still override these on
-            a per-estimate basis.
-          </Text>
-          <View>
-            <Text style={themedStyles.rowLabel}>Material markup</Text>
-            <View style={styles.inputRow}>
-              <View style={themedStyles.textFieldContainer}>
-                <TextInput
-                  value={materialMarkupInput}
-                  onChangeText={setMaterialMarkupInput}
-                  onBlur={() => handleUpdateMarkup(materialMarkupInput, setMaterialMarkup)}
-                  keyboardType="numeric"
-                  returnKeyType="done"
-                  style={themedStyles.textField}
-                  placeholder="0"
-                  placeholderTextColor={colors.secondaryText}
-                />
-              </View>
-              <Text style={themedStyles.percentSuffix}>%</Text>
-            </View>
-          </View>
-          <View style={styles.fieldSpacer} />
-          <View>
-            <Text style={themedStyles.rowLabel}>Labor markup</Text>
-            <View style={styles.inputRow}>
-              <View style={themedStyles.textFieldContainer}>
-                <TextInput
-                  value={laborMarkupInput}
-                  onChangeText={setLaborMarkupInput}
-                  onBlur={() => handleUpdateMarkup(laborMarkupInput, setLaborMarkup)}
-                  keyboardType="numeric"
-                  returnKeyType="done"
-                  style={themedStyles.textField}
-                  placeholder="0"
-                  placeholderTextColor={colors.secondaryText}
-                />
-              </View>
-              <Text style={themedStyles.percentSuffix}>%</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={themedStyles.section}>
-          <Text style={themedStyles.sectionHeader}>Tax defaults</Text>
-          <Text style={themedStyles.sectionDescription}>
-            Set the default sales tax rate that will be applied to new estimates. You can still
-            adjust it per project.
-          </Text>
-          <View>
-            <Text style={themedStyles.rowLabel}>Tax rate</Text>
-            <View style={styles.inputRow}>
-              <View style={themedStyles.textFieldContainer}>
-                <TextInput
-                  value={taxRateInput}
-                  onChangeText={setTaxRateInput}
-                  onBlur={() => handleUpdateMarkup(taxRateInput, setTaxRate)}
-                  keyboardType="decimal-pad"
-                  returnKeyType="done"
-                  style={themedStyles.textField}
-                  placeholder="0"
-                  placeholderTextColor={colors.secondaryText}
-                />
-              </View>
-              <Text style={themedStyles.percentSuffix}>%</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={themedStyles.section}>
-          <Text style={themedStyles.sectionHeader}>Labor defaults</Text>
-          <Text style={themedStyles.sectionDescription}>
-            Set the standard hourly rate used when calculating project labor totals. You can adjust
-            this on individual estimates when needed.
-          </Text>
-          <View>
-            <Text style={themedStyles.rowLabel}>Hourly rate</Text>
-            <View style={styles.inputRow}>
-              <Text style={themedStyles.currencyPrefix}>$</Text>
-              <View style={[themedStyles.textFieldContainer, styles.currencyInputWrapper]}>
-                <TextInput
-                  value={hourlyRateInput}
-                  onChangeText={setHourlyRateInput}
-                  onBlur={() => handleUpdateHourlyRate(hourlyRateInput)}
-                  keyboardType="decimal-pad"
-                  returnKeyType="done"
-                  style={themedStyles.textField}
-                  placeholder="0.00"
-                  placeholderTextColor={colors.secondaryText}
-                />
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={themedStyles.section}>
-          <Text style={themedStyles.sectionHeader}>Haptics</Text>
-          <Text style={themedStyles.sectionDescription}>
-            Feel a tactile tap when you interact with buttons and toggles. Tune the intensity to
-            what feels best.
-          </Text>
-          <View style={themedStyles.row}>
-            <View style={styles.flex1}>
-              <Text style={themedStyles.rowLabel}>Enable haptic feedback</Text>
-              <Text style={themedStyles.rowCaption}>
-                Disabling this turns off vibration for buttons throughout the app.
-              </Text>
-            </View>
-            <Switch
-              value={settings.hapticsEnabled}
-              onValueChange={(value) => {
-                setHapticsEnabled(value);
-                triggerHaptic();
-              }}
-              thumbColor={settings.hapticsEnabled ? colors.accent : undefined}
-            />
-          </View>
-          <View>
-            <Text style={themedStyles.rowLabel}>Tap intensity</Text>
-            <Slider
-              minimumValue={0}
-              maximumValue={2}
-              step={1}
-              value={settings.hapticIntensity}
-              onValueChange={(value) => setHapticIntensity(value as 0 | 1 | 2)}
-              onSlidingComplete={() => triggerHaptic()}
-              minimumTrackTintColor={colors.accent}
-              maximumTrackTintColor={colors.border}
-              thumbTintColor={colors.accent}
-            />
-            <View style={themedStyles.sliderLabelRow}>
-              <Text style={themedStyles.sliderLabel}>Subtle</Text>
-              <Text style={[themedStyles.sliderLabel, themedStyles.sliderLabelActive]}>
-                {hapticLabel}
-              </Text>
-              <Text style={themedStyles.sliderLabel}>Bold</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={themedStyles.section}>
-          <Text style={themedStyles.sectionHeader}>General</Text>
-          <View style={themedStyles.row}>
-            <View style={styles.flex1}>
-              <Text style={themedStyles.rowLabel}>Email notifications</Text>
-              <Text style={themedStyles.rowCaption}>
-                Get a daily digest of new estimates and approvals.
-              </Text>
-            </View>
-            <Switch
-              value={settings.notificationsEnabled}
-              onValueChange={(value) => {
-                setNotificationsEnabled(value);
-                triggerHaptic();
-              }}
-              thumbColor={settings.notificationsEnabled ? colors.accent : undefined}
-            />
-          </View>
-          <View style={styles.rowSeparator} />
-          <View style={themedStyles.row}>
-            <View style={styles.flex1}>
-              <Text style={themedStyles.rowLabel}>Auto-sync data</Text>
-              <Text style={themedStyles.rowCaption}>
-                Automatically sync estimates when QuickQuote opens.
-              </Text>
-            </View>
-            <Switch
-              value={settings.autoSyncEnabled}
-              onValueChange={(value) => {
-                setAutoSyncEnabled(value);
-                triggerHaptic();
-              }}
-              thumbColor={settings.autoSyncEnabled ? colors.accent : undefined}
-            />
-          </View>
-        </View>
-
-        <View style={themedStyles.section}>
-          <Text style={themedStyles.sectionHeader}>Account</Text>
-          <Text style={themedStyles.sectionDescription}>You are signed in as</Text>
-          <Text style={[themedStyles.rowLabel, themedStyles.rowLabelLarge]}>
-            {user?.email ?? "Unknown"}
-          </Text>
-          <View style={themedStyles.footerActions}>
-            <Pressable
-              onPress={handleSavePreferences}
-              style={themedStyles.saveButton}
-              accessibilityRole="button"
-              accessibilityLabel="Save your QuickQuote preferences"
-            >
-              <Text style={themedStyles.saveText}>Save changes</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                triggerHaptic();
-                resetToDefaults();
-              }}
-              style={themedStyles.resetButton}
-              accessibilityRole="button"
-              accessibilityLabel="Reset all preferences"
-            >
-              <Text style={themedStyles.resetText}>Reset preferences</Text>
-            </Pressable>
-            <Pressable
+      <Card>
+        <Text style={styles.cardTitle}>Data & Sync</Text>
+        <ListItem
+          title="Sync status"
+          subtitle={
+            needsBootstrapRetry
+              ? "We couldn't refresh data automatically. Try again when you're back online."
+              : "Your workspace is up to date."
+          }
+          badge={
+            <Badge
               style={[
-                themedStyles.destructiveButton,
-                signOutLoading && themedStyles.buttonDisabled,
+                styles.badge,
+                needsBootstrapRetry ? styles.badgeWarning : styles.badgeSuccess,
               ]}
-              onPress={handleSignOut}
-              disabled={signOutLoading}
-              accessibilityRole="button"
-              accessibilityLabel="Sign out of QuickQuote"
+              textStyle={needsBootstrapRetry ? styles.badgeTextWarning : styles.badgeTextSuccess}
             >
-              <Text style={themedStyles.destructiveText}>
-                {signOutLoading ? "Signing out…" : "Sign out"}
-              </Text>
-            </Pressable>
-          </View>
+              {needsBootstrapRetry ? "Offline" : "Online"}
+            </Badge>
+          }
+          style={styles.listItem}
+        />
+        <View style={styles.listDivider} />
+        <ListItem
+          title="Backup now"
+          subtitle="Trigger a manual sync to Supabase."
+          onPress={() => Alert.alert("Coming soon", "Manual backups will arrive in a future update.")}
+          badge={<Badge style={styles.badge} textStyle={styles.badgeTextMuted}>TODO</Badge>}
+          style={styles.listItem}
+        />
+        <View style={styles.listDivider} />
+        <ListItem
+          title="Export data (PDF/CSV)"
+          subtitle="Create a report of your quotes and customers."
+          onPress={() => Alert.alert("Coming soon", "Exports are not yet implemented.")}
+          badge={<Badge style={styles.badge} textStyle={styles.badgeTextMuted}>TODO</Badge>}
+          style={styles.listItem}
+        />
+      </Card>
+
+      <Card>
+        <Text style={styles.cardTitle}>About QuickQuote</Text>
+        <View style={styles.aboutRow}>
+          <Text style={styles.aboutLabel}>Version</Text>
+          <Text style={styles.aboutValue}>{appVersion}</Text>
         </View>
-      </ScrollView>
-    </View>
+        <View style={styles.aboutRow}>
+          <Text style={styles.aboutLabel}>Build</Text>
+          <Text style={styles.aboutValue}>{buildNumber}</Text>
+        </View>
+        <View style={styles.aboutRow}>
+          <Text style={styles.aboutLabel}>Environment</Text>
+          <Text style={styles.aboutValue}>{environment}</Text>
+        </View>
+        <ListItem
+          title="Help & FAQ"
+          subtitle="Browse documentation, tips, and troubleshooting."
+          onPress={() => Alert.alert("Help center", "A dedicated help center is coming soon.")}
+          badge={<Badge style={styles.badge} textStyle={styles.badgeTextMuted}>TODO</Badge>}
+          style={styles.listItem}
+        />
+        <Text style={styles.mutedText}>
+          Need a hand right away? Email us at support@quickquote.com and we'll get back within one
+          business day.
+        </Text>
+      </Card>
+
+      <Card>
+        <Text style={styles.cardTitle}>Danger zone</Text>
+        <Button
+          label={signOutLoading ? "Signing out…" : "Sign out"}
+          variant="danger"
+          loading={signOutLoading}
+          onPress={handleSignOut}
+          accessibilityLabel="Sign out of QuickQuote"
+        />
+      </Card>
+    </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 16,
-  },
-  inputRow: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  fieldGroup: {
-    gap: 16,
-  },
-  fieldSpacer: {
-    height: 12,
-  },
-  textAreaTall: {
-    minHeight: 120,
-  },
-  currencyInputWrapper: {
-    flex: 0,
-    flexGrow: 1,
-  },
-  flex1: {
-    flex: 1,
-  },
-  rowSeparator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(148, 163, 184, 0.4)",
-    marginVertical: 4,
-  },
-});
+function createStyles(theme: ReturnType<typeof useTheme>["theme"]) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    contentContainer: {
+      padding: theme.spacing.xl,
+      gap: theme.spacing.xl,
+      paddingBottom: theme.spacing.xxl * 1.5,
+    },
+    loadingContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing.md,
+      backgroundColor: theme.colors.background,
+    },
+    loadingText: {
+      fontSize: 16,
+      color: theme.colors.textMuted,
+    },
+    cardTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: theme.colors.text,
+    },
+    accountHeader: {
+      flexDirection: "row",
+      gap: theme.spacing.lg,
+      alignItems: "center",
+    },
+    avatarShell: {
+      width: 56,
+      height: 56,
+      borderRadius: theme.radii.full,
+      backgroundColor: theme.colors.surfaceMuted,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+    },
+    avatarImage: {
+      width: 40,
+      height: 40,
+      resizeMode: "contain",
+    },
+    accountDetails: {
+      flex: 1,
+      gap: theme.spacing.xs,
+    },
+    accountName: {
+      fontSize: 17,
+      fontWeight: "700",
+      color: theme.colors.text,
+    },
+    accountEmail: {
+      fontSize: 15,
+      color: theme.colors.textMuted,
+    },
+    mutedText: {
+      fontSize: 14,
+      color: theme.colors.textMuted,
+    },
+    sectionDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.separator,
+    },
+    sectionHeading: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.text,
+    },
+    fieldGroup: {
+      gap: theme.spacing.md,
+    },
+    listGroup: {
+      borderRadius: theme.radii.md,
+      overflow: "hidden",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+    },
+    listItem: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 0,
+      paddingHorizontal: theme.spacing.xl,
+    },
+    listDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.border,
+      marginLeft: theme.spacing.xl,
+      marginRight: theme.spacing.xl,
+    },
+    sliderSection: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.md,
+      gap: theme.spacing.sm,
+    },
+    sliderLabel: {
+      fontSize: 13,
+      color: theme.colors.textMuted,
+    },
+    inputAdornment: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.textMuted,
+    },
+    inlineFieldGroup: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.md,
+    },
+    buttonRow: {
+      flexDirection: "column",
+      gap: theme.spacing.md,
+    },
+    badge: {
+      backgroundColor: theme.colors.surfaceMuted,
+    },
+    badgeSuccess: {
+      backgroundColor: theme.colors.successSoft,
+    },
+    badgeWarning: {
+      backgroundColor: theme.colors.warningSoft,
+    },
+    badgeTextMuted: {
+      color: theme.colors.textMuted,
+    },
+    badgeTextSuccess: {
+      color: theme.colors.success,
+    },
+    badgeTextWarning: {
+      color: theme.colors.warning,
+    },
+    aboutRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    aboutLabel: {
+      fontSize: 14,
+      color: theme.colors.textMuted,
+    },
+    aboutValue: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: theme.colors.text,
+    },
+  });
+}

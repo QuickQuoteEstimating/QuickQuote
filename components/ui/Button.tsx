@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useTheme } from "../../theme";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 type ButtonAlignment = "inline" | "full";
 
@@ -66,7 +66,11 @@ export function Button({
       <View style={[styles.content, contentStyle]}>
         {loading ? (
           <ActivityIndicator
-            color={variant === "primary" ? theme.colors.surface : theme.colors.primary}
+            color={
+              variant === "primary" || variant === "danger"
+                ? theme.colors.surface
+                : theme.colors.primary
+            }
           />
         ) : (
           <>
@@ -123,6 +127,12 @@ function createStyles(theme: ReturnType<typeof useTheme>["theme"]) {
     },
     ghostLabel: {
       color: theme.colors.primary,
+    },
+    danger: {
+      backgroundColor: theme.colors.danger,
+    },
+    dangerLabel: {
+      color: theme.colors.surface,
     },
     fullWidth: {
       alignSelf: "stretch",
