@@ -57,7 +57,7 @@ import {
   Title,
   type BadgeTone,
 } from "../../../components/ui";
-import { Theme } from "../../../theme";
+import { Theme, cardShadow } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
@@ -1552,9 +1552,9 @@ export default function EditEstimateScreen() {
 
               await Promise.all(
                 photoRows.map(async (photo) => {
-                  await deleteLocalPhoto(
-                    photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri) ?? undefined,
-                  );
+                  const fallbackLocalUri =
+                    photo.local_uri ?? (photo.uri ? deriveLocalPhotoUri(photo.id, photo.uri) : null);
+                  await deleteLocalPhoto(fallbackLocalUri ?? undefined);
                   await queueChange("photos", "delete", { id: photo.id });
                 }),
               );
