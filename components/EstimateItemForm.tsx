@@ -92,7 +92,7 @@ export default function EstimateItemForm({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     initialTemplateId ?? null,
   );
-  const [applyMarkup, setApplyMarkup] = useState<boolean>(initialValue?.apply_markup ?? true);
+  const [markupApplied, setMarkupApplied] = useState<boolean>(initialValue?.apply_markup ?? true);
   const [saveToLibrary, setSaveToLibrary] = useState<boolean>(showLibraryToggle);
   const [submitting, setSubmitting] = useState(false);
   const { theme } = useThemeContext();
@@ -105,7 +105,7 @@ export default function EstimateItemForm({
     setDescription(initialValue.description);
     setQuantityText(String(initialValue.quantity));
     setUnitPriceText(String(initialValue.unit_price));
-    setApplyMarkup(initialValue.apply_markup ?? true);
+    setMarkupApplied(initialValue.apply_markup ?? true);
   }, [initialValue]);
 
   useEffect(() => {
@@ -129,9 +129,9 @@ export default function EstimateItemForm({
     const quantity = parseQuantity(quantityText);
     const unitPrice = parseCurrency(unitPriceText);
     const raw = roundCurrency(quantity * unitPrice);
-    const result = applyMarkup(raw, markupRule, { apply: applyMarkup });
+    const result = applyMarkup(raw, markupRule, { apply: markupApplied });
     return { baseTotal: raw, finalTotal: result.total, markupAmount: result.markupAmount };
-  }, [applyMarkup, markupRule, quantityText, unitPriceText]);
+  }, [markupApplied, markupRule, quantityText, unitPriceText]);
 
   const applyTemplate = (templateId: string | null) => {
     if (!templateId) {
@@ -155,7 +155,7 @@ export default function EstimateItemForm({
     }
 
     if (template.default_markup_applicable !== undefined && template.default_markup_applicable !== null) {
-      setApplyMarkup(Boolean(template.default_markup_applicable));
+      setMarkupApplied(Boolean(template.default_markup_applicable));
     }
   };
 
@@ -179,7 +179,7 @@ export default function EstimateItemForm({
         description: trimmedDescription,
         quantity,
         unit_price: unitPrice,
-        apply_markup: applyMarkup,
+        apply_markup: markupApplied,
         base_total: baseTotal,
         total: finalTotal,
       },
@@ -260,10 +260,10 @@ export default function EstimateItemForm({
           <Text style={styles.switchHint}>Uses your material markup setting.</Text>
         </View>
         <Switch
-          value={applyMarkup}
-          onValueChange={setApplyMarkup}
+          value={markupApplied}
+          onValueChange={setMarkupApplied}
           trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }}
-          thumbColor={applyMarkup ? theme.colors.primary : undefined}
+          thumbColor={markupApplied ? theme.colors.primary : undefined}
         />
       </View>
 
@@ -274,7 +274,7 @@ export default function EstimateItemForm({
         </View>
         <Text style={styles.summaryValue}>{formatCurrency(baseTotal)}</Text>
       </View>
-      {applyMarkup && markupAmount > 0 ? (
+      {markupApplied && markupAmount > 0 ? (
         <View style={styles.summaryRow}>
           <View style={styles.summaryColumn}>
             <Text style={styles.summaryLabel}>Markup applied</Text>
