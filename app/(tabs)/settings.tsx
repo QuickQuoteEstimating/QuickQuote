@@ -15,15 +15,9 @@ import Slider from "@react-native-community/slider";
 import { Badge, Button, Card, Input, ListItem } from "../../components/ui";
 import LogoPicker from "../../components/LogoPicker";
 import { useAuth } from "../../context/AuthContext";
-import { type ThemePreference, useSettings } from "../../context/SettingsContext";
+import { useSettings } from "../../context/SettingsContext";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
-
-const THEME_OPTIONS = [
-  { label: "Light", value: "light" },
-  { label: "Dark", value: "dark" },
-  { label: "System", value: "system" },
-] as const satisfies Array<{ label: string; value: ThemePreference }>;
 
 const HAPTIC_LABELS = ["Subtle", "Balanced", "Bold"];
 
@@ -33,7 +27,6 @@ export default function Settings() {
   const {
     settings,
     isHydrated,
-    setThemePreference,
     setMaterialMarkup,
     setLaborMarkup,
     setHourlyRate,
@@ -107,13 +100,6 @@ export default function Settings() {
     [setHourlyRate],
   );
 
-  const handleCycleTheme = useCallback(() => {
-    const currentIndex = THEME_OPTIONS.findIndex((option) => option.value === settings.themePreference);
-    const nextIndex = (currentIndex + 1) % THEME_OPTIONS.length;
-    triggerHaptic();
-    setThemePreference(THEME_OPTIONS[nextIndex]!.value);
-  }, [setThemePreference, settings.themePreference, triggerHaptic]);
-
   const handleSavePreferences = useCallback(() => {
     triggerHaptic();
     Alert.alert("Preferences saved", "Your settings have been updated.");
@@ -128,11 +114,6 @@ export default function Settings() {
     triggerHaptic();
     void signOut();
   }, [signOut, triggerHaptic]);
-
-  const selectedThemeLabel = useMemo(() => {
-    const match = THEME_OPTIONS.find((option) => option.value === settings.themePreference);
-    return match ? match.label : "System";
-  }, [settings.themePreference]);
 
   const accountName =
     (user?.user_metadata as { full_name?: string } | null)?.full_name ??
@@ -227,14 +208,6 @@ export default function Settings() {
       <Card>
         <Text style={styles.cardTitle}>Preferences</Text>
         <View style={styles.listGroup}>
-          <ListItem
-            title="Appearance"
-            subtitle="Cycle through light, dark, or follow system."
-            onPress={handleCycleTheme}
-            badge={<Badge style={styles.badge} textStyle={styles.badgeTextMuted}>{selectedThemeLabel}</Badge>}
-            style={styles.listItem}
-          />
-          <View style={styles.listDivider} />
           <ListItem
             title="Haptic feedback"
             subtitle={settings.hapticsEnabled ? `Intensity: ${hapticLabel}` : "Currently disabled"}
