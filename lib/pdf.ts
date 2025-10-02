@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
+import * as ImageManipulator from "expo-image-manipulator";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const PHOTO_BUCKET = process.env.EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "estimate-photos";
@@ -121,6 +122,31 @@ async function resolvePhotoSource(photo: EstimatePdfPhoto): Promise<string | nul
       return null;
     }
 
+    try {
+      const manipulated = await ImageManipulator.manipulateAsync(
+        candidate,
+        [{ resize: { width: 1200 } }],
+        {
+          compress: 0.7,
+          format: ImageManipulator.SaveFormat.JPEG,
+          base64: true,
+        },
+      );
+
+      if (manipulated.base64) {
+        return `data:image/jpeg;base64,${manipulated.base64}`;
+      }
+
+      if (manipulated.uri && manipulated.uri !== candidate) {
+        const fallback = await FileSystem.readAsStringAsync(manipulated.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        return `data:image/jpeg;base64,${fallback}`;
+      }
+    } catch (error) {
+      console.warn("Failed to optimize photo for PDF", error);
+    }
+
     const base64 = await FileSystem.readAsStringAsync(candidate, {
       encoding: FileSystem.EncodingType.Base64,
     });
@@ -197,14 +223,6 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
   const coerceCurrency = (value: number | null | undefined) =>
     typeof value === "number" && Number.isFinite(value) ? value : 0;
   const laborTotal = coerceCurrency(estimate.laborTotal);
-  const safeLaborHours =
-    typeof estimate.laborHours === "number" && Number.isFinite(estimate.laborHours)
-      ? Math.max(0, estimate.laborHours)
-      : 0;
-  const safeLaborRate =
-    typeof estimate.laborRate === "number" && Number.isFinite(estimate.laborRate)
-      ? Math.max(0, estimate.laborRate)
-      : 0;
   const taxTotal = coerceCurrency(estimate.taxTotal);
   const subtotal = coerceCurrency(estimate.subtotal);
   const materialTotal = (() => {
@@ -226,6 +244,8 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
     })),
   );
 
+  const visiblePhotos = photoSources.filter((photo) => photo.source);
+
   const rows = items
     .map((item, index) => {
       const safeDescription = escapeHtml(item.description);
@@ -241,8 +261,7 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
     })
     .join("");
 
-  const photoGrid = photoSources
-    .filter((photo) => photo.source)
+  const photoGrid = visiblePhotos
     .map((photo) => {
       const caption = photo.description
         ? `<div class=\"caption\">${escapeHtml(photo.description)}</div>`
@@ -255,6 +274,28 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
       `;
     })
     .join("");
+
+  const hasPhotos = visiblePhotos.length > 0;
+  const hasTax = taxTotal > 0.0001;
+  const taxRowHtml = hasTax
+    ? `<div class=\"total-row\"><span>Tax</span><strong>${formatCurrency(taxTotal)}</strong></div>`
+    : "";
+  const taxCardHtml = hasTax
+    ? `
+                  <div class=\"totals-card\">
+                    <div class=\"label\">Tax</div>
+                    <div class=\"value\">${formatCurrency(taxTotal)}</div>
+                  </div>`
+    : "";
+  const lineItemTotalsHtml = `
+    <div class=\"line-item-totals\">
+      <div class=\"total-row\"><span>Line items</span><strong>${formatCurrency(materialTotal)}</strong></div>
+      <div class=\"total-row\"><span>Labor charge</span><strong>${formatCurrency(laborTotal)}</strong></div>
+      <div class=\"total-row\"><span>Subtotal</span><strong>${formatCurrency(subtotalDisplay)}</strong></div>
+      ${taxRowHtml}
+      <div class=\"total-row grand\"><span>Total due</span><strong>${formatCurrency(total)}</strong></div>
+    </div>
+  `;
 
   const renderAddressBlock = (address: string | null | undefined) => {
     if (!address || !address.trim()) {
@@ -279,8 +320,6 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
       estimate.jobAddress.trim() !== estimate.billingAddress.trim(),
   );
   const customerAddressHtml = renderAddressBlock(customer.address ?? null);
-  const laborHoursLabel =
-    safeLaborHours % 1 === 0 ? safeLaborHours.toFixed(0) : safeLaborHours.toFixed(2);
   const jobDetailNotes = estimate.jobDetails ?? estimate.notes ?? null;
 
   const termsHtml = renderTerms(termsAndConditions ?? null);
@@ -314,11 +353,13 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
           .section { margin-bottom: 36px; }
           .section-title { background: #005BBB; color: #FFFFFF; padding: 12px 18px; font-weight: 600; letter-spacing: 0.08em; font-size: 13px; text-transform: uppercase; border-radius: 14px 14px 0 0; }
           .section-body { border: 1px solid #C8CFD8; border-top: none; border-radius: 0 0 14px 14px; padding: 20px; font-size: 14px; line-height: 1.6; background: #FFFFFF; }
-          .totals-grid { display: flex; flex-wrap: wrap; gap: 18px; }
-          .totals-card { flex: 1 1 160px; border: 1px solid #C8CFD8; border-radius: 16px; padding: 18px; background: #EEF5FF; }
+          .totals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
+          .totals-card { border: 1px solid #C8CFD8; border-radius: 16px; padding: 18px; background: #EEF5FF; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
           .totals-card .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #4B5563; font-weight: 600; }
           .totals-card .value { margin-top: 8px; font-size: 20px; font-weight: 700; color: #1F2933; }
-          .totals-card .meta { margin-top: 8px; font-size: 12px; color: #4B5563; }
+          .totals-card.total-accent { background: linear-gradient(135deg, #005BBB, #1B74E4); color: #FFFFFF; border-color: rgba(255, 255, 255, 0.4); }
+          .totals-card.total-accent .label { color: rgba(255, 255, 255, 0.9); }
+          .totals-card.total-accent .value { color: #FFFFFF; }
           .line-items { width: 100%; border-collapse: collapse; }
           .line-items th { background: #EEF5FF; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #1F2933; padding: 10px 12px; border-bottom: 1px solid #C8CFD8; text-align: left; }
           .line-items td { padding: 10px 12px; border-bottom: 1px solid #E3E6EA; font-size: 13px; color: #1F2933; }
@@ -326,10 +367,16 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
           .line-items td:nth-child(4), .line-items td:nth-child(5) { text-align: right; font-variant-numeric: tabular-nums; }
           .line-items tr:last-child td { border-bottom: none; }
           .line-items .empty { text-align: center; color: #9AA1AB; padding: 18px 12px; font-style: italic; }
-          .photo-grid { display: flex; flex-wrap: wrap; gap: 18px; }
-          .photo-card { flex: 1 1 280px; border: 1px solid #C8CFD8; border-radius: 16px; overflow: hidden; background: #FFFFFF; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); }
-          .photo-card img { display: block; width: 100%; height: auto; object-fit: cover; }
-          .photo-card .caption { padding: 12px 14px; font-size: 12px; color: #4B5563; background: #F5F6F7; }
+          .line-item-totals { margin-top: 24px; border: 1px solid #D4DBE6; border-radius: 16px; padding: 18px 20px; background: #F8FAFF; max-width: 360px; margin-left: auto; display: grid; gap: 12px; }
+          .line-item-totals .total-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; color: #1F2933; }
+          .line-item-totals .total-row strong { font-size: 14px; font-weight: 700; color: #111827; font-variant-numeric: tabular-nums; }
+          .line-item-totals .total-row.grand { border-top: 1px solid #C8CFD8; margin-top: 4px; padding-top: 12px; }
+          .line-item-totals .total-row.grand span { color: #005BBB; }
+          .line-item-totals .total-row.grand strong { color: #005BBB; font-size: 18px; }
+          .photo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+          .photo-card { border: 1px solid #C8CFD8; border-radius: 16px; overflow: hidden; background: #FFFFFF; box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08); }
+          .photo-card img { display: block; width: 100%; height: 180px; object-fit: cover; background: #F3F4F6; }
+          .photo-card .caption { padding: 10px 14px; font-size: 12px; color: #4B5563; background: #F8FAFC; border-top: 1px solid #E5E7EB; }
           .static-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
           .static-notes .section-body { min-height: 180px; }
           .list { margin: 0; padding-left: 18px; }
@@ -406,22 +453,20 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
               <div class=\"section-body\">
                 <div class=\"totals-grid\">
                   <div class=\"totals-card\">
-                    <div class=\"label\">Materials</div>
+                    <div class=\"label\">Line items</div>
                     <div class=\"value\">${formatCurrency(materialTotal)}</div>
                   </div>
                   <div class=\"totals-card\">
-                    <div class=\"label\">Labor</div>
+                    <div class=\"label\">Labor charge</div>
                     <div class=\"value\">${formatCurrency(laborTotal)}</div>
-                    <div class=\"meta\">Hours: ${laborHoursLabel} • Rate: ${formatCurrency(
-                      safeLaborRate,
-                    )}</div>
                   </div>
                   <div class=\"totals-card\">
                     <div class=\"label\">Subtotal</div>
                     <div class=\"value\">${formatCurrency(subtotalDisplay)}</div>
                   </div>
-                  <div class=\"totals-card\">
-                    <div class=\"label\">Total Due</div>
+                  ${taxCardHtml}
+                  <div class=\"totals-card total-accent\">
+                    <div class=\"label\">Total due</div>
                     <div class=\"value\">${formatCurrency(total)}</div>
                   </div>
                 </div>
@@ -445,21 +490,19 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
                     ${rows || `<tr><td class=\"empty\" colspan=\"5\">No line items recorded.</td></tr>`}
                   </tbody>
                 </table>
+                ${lineItemTotalsHtml}
               </div>
             </section>
+
+            ${
+              hasPhotos
+                ? `<section class=\\"section\\"><div class=\\"section-title\\">Estimate Photos</div><div class=\\"section-body\\"><div class=\\"photo-grid\\">${photoGrid}</div></div></section>`
+                : ""
+            }
 
             <section class=\"section\">
               <div class=\"section-title\">Project Notes</div>
               <div class=\"section-body\">${renderNotes(jobDetailNotes)}</div>
-            </section>
-
-            <section class=\"section\">
-              <div class=\"section-title\">Estimate Photos</div>
-              <div class=\"section-body\">${
-                photoGrid
-                  ? `<div class=\\"photo-grid\\">${photoGrid}</div>`
-                  : '<p class=\\"muted\\">No photos attached.</p>'
-              }</div>
             </section>
 
             <div class=\"static-notes\">

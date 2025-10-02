@@ -73,6 +73,12 @@ npm test
 
 Jest runs in watch mode by default; press `q` to quit once the suite passes. Always ensure tests complete successfully before committing.
 
+## Estimate builder highlights
+
+- **Saved line items:** While editing an estimate you can store frequently used line items in the Saved Items library. The picker in the line item editor lets you quickly drop those templates into new estimates, and updating a saved entry keeps it available across every job.
+- **Labor charge summary:** The generated PDF now rolls up labor into a single "Labor charge" row within the totals stack so clients focus on the grand total without wading through hourly math.
+- **Photo exports:** Any photos you attach to an estimate are embedded in the PDF at the end of the document, organized in a responsive grid and compressed for a reasonable file size.
+
 ## Useful resources
 
 - [Expo documentation](https://docs.expo.dev/)

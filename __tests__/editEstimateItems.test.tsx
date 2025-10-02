@@ -51,9 +51,9 @@ jest.mock("../context/SettingsContext", () => ({
   }),
 }));
 
-jest.mock("../lib/itemCatalog", () => ({
-  listItemCatalog: jest.fn().mockResolvedValue([]),
-  upsertItemCatalog: jest.fn(),
+jest.mock("../lib/savedItems", () => ({
+  listSavedItems: jest.fn().mockResolvedValue([]),
+  upsertSavedItem: jest.fn(),
 }));
 
 jest.mock("../lib/storage", () => ({
@@ -199,7 +199,7 @@ describe("EditEstimateScreen - item editing", () => {
   });
 
   it("adds a new item to the estimate when the editor submits", async () => {
-    const { findByText, getByText } = render(<EditEstimateScreen />);
+    const { findByText, getByText, getAllByText } = render(<EditEstimateScreen />);
 
     await act(async () => {});
     await findByText("Estimate items");
@@ -225,7 +225,8 @@ describe("EditEstimateScreen - item editing", () => {
 
     await waitFor(() => {
       expect(getByText("Service Call")).toBeTruthy();
-      expect(getByText(/Line Total: \$100.00/)).toBeTruthy();
+      expect(getByText("Qty: 2 @ $50.00")).toBeTruthy();
+      expect(getAllByText("$100.00").length).toBeGreaterThan(0);
     });
 
     expect(mockDb.runAsync).toHaveBeenCalled();

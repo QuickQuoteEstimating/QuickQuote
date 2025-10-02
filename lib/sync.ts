@@ -48,9 +48,14 @@ export async function runSync() {
 
   for (const change of changes) {
     if (
-      ["customers", "estimates", "estimate_items", "photos", "item_catalog"].includes(
-        change.table_name,
-      )
+      [
+        "customers",
+        "estimates",
+        "estimate_items",
+        "photos",
+        "saved_items",
+        "item_catalog",
+      ].includes(change.table_name)
     ) {
       await processChange(change);
     } else {

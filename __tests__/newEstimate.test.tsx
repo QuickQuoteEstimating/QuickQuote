@@ -55,8 +55,19 @@ jest.mock("react-native-safe-area-context", () => {
 });
 
 const mockRunAsync = jest.fn();
+const mockGetAllAsync = jest.fn();
+const mockExecAsync = jest.fn();
+const sampleCustomer = {
+  id: "cust-123",
+  name: "Acme Industries",
+  email: "hello@acme.test",
+  phone: "555-0100",
+  address: "123 Market St",
+};
 const mockOpenDbResult = {
   runAsync: mockRunAsync,
+  getAllAsync: mockGetAllAsync,
+  execAsync: mockExecAsync,
 };
 
 jest.mock("../lib/sqlite", () => ({
@@ -77,6 +88,8 @@ describe("NewEstimateScreen", () => {
   beforeEach(() => {
     alertSpy.mockClear();
     mockRunAsync.mockReset();
+    mockGetAllAsync.mockReset().mockResolvedValue([sampleCustomer]);
+    mockExecAsync.mockReset().mockResolvedValue(undefined);
     (openDB as jest.Mock).mockResolvedValue(mockOpenDbResult);
     (queueChange as jest.Mock).mockClear();
     (runSync as jest.Mock).mockClear().mockResolvedValue(undefined);
@@ -91,18 +104,22 @@ describe("NewEstimateScreen", () => {
     mockRunAsync.mockResolvedValue(undefined);
 
     const screen = render(<NewEstimateScreen />);
-    const { getByText } = screen;
+    const { getByText, findByText } = screen;
 
     const jobTitleInput = await waitFor(() => {
       const inputs = screen.UNSAFE_getAllByType(TextInput);
-      const match = inputs.find((input) => input.props.placeholder === "Describe the job");
+      const match = inputs.find(
+        (input) => input.props.placeholder === "Describe the work, schedule, and important details",
+      );
       if (!match) {
         throw new Error("Job title input not found");
       }
       return match;
     });
     fireEvent.changeText(jobTitleInput, "Kitchen Remodel");
-    fireEvent.press(getByText("Save & Preview"));
+    const customerRow = await findByText("Acme Industries");
+    fireEvent.press(customerRow);
+    fireEvent.press(getByText("Save Draft"));
 
     await waitFor(() => {
       expect(mockRunAsync).toHaveBeenCalled();
@@ -119,13 +136,7 @@ describe("NewEstimateScreen", () => {
       );
     });
 
-    expect(mockRouter.replace).toHaveBeenCalledWith(
-      expect.objectContaining({
-        pathname: "/(tabs)/estimates/[id]",
-        params: { id: expect.any(String) },
-      }),
-    );
-
+    expect(mockRouter.replace).not.toHaveBeenCalled();
     expect(alertSpy).not.toHaveBeenCalledWith(
       "Estimate",
       "We couldn't save your estimate. Please try again.",
@@ -141,14 +152,18 @@ describe("NewEstimateScreen", () => {
 
     const jobTitleInput = await waitFor(() => {
       const inputs = screen.UNSAFE_getAllByType(TextInput);
-      const match = inputs.find((input) => input.props.placeholder === "Describe the job");
+      const match = inputs.find(
+        (input) => input.props.placeholder === "Describe the work, schedule, and important details",
+      );
       if (!match) {
         throw new Error("Job title input not found");
       }
       return match;
     });
     fireEvent.changeText(jobTitleInput, "Roof repair");
-    fireEvent.press(getByText("Save & Preview"));
+    const customerRow = await findByText("Acme Industries");
+    fireEvent.press(customerRow);
+    fireEvent.press(getByText("Save Draft"));
 
     expect(await findByText("We couldn't save your estimate. Please try again.")).toBeTruthy();
     expect(alertSpy).toHaveBeenCalledWith(
@@ -168,14 +183,18 @@ describe("NewEstimateScreen", () => {
 
     const jobTitleInput = await waitFor(() => {
       const inputs = screen.UNSAFE_getAllByType(TextInput);
-      const match = inputs.find((input) => input.props.placeholder === "Describe the job");
+      const match = inputs.find(
+        (input) => input.props.placeholder === "Describe the work, schedule, and important details",
+      );
       if (!match) {
         throw new Error("Job title input not found");
       }
       return match;
     });
     fireEvent.changeText(jobTitleInput, "Landscaping");
-    fireEvent.press(getByText("Save & Preview"));
+    const customerRow = await findByText("Acme Industries");
+    fireEvent.press(customerRow);
+    fireEvent.press(getByText("Save Draft"));
 
     expect(await findByText("You need to be signed in to create a new estimate.")).toBeTruthy();
     expect(alertSpy).toHaveBeenCalledWith(

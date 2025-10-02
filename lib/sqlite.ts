@@ -4,7 +4,13 @@ import { v4 as uuidv4 } from "uuid";
 
 export type Change = {
   id: number;
-  table_name: "customers" | "estimates" | "estimate_items" | "photos" | "item_catalog";
+  table_name:
+    | "customers"
+    | "estimates"
+    | "estimate_items"
+    | "photos"
+    | "saved_items"
+    | "item_catalog";
   op: "insert" | "update" | "delete";
   payload: string; // JSON string
   created_at: string;
@@ -180,6 +186,36 @@ export async function initLocalDB(): Promise<void> {
       deleted_at TEXT
     );
   `);
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS saved_items (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      default_quantity INTEGER DEFAULT 1,
+      default_unit_price REAL NOT NULL,
+      version INTEGER DEFAULT 1,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
+    );
+  `);
+
+  const savedItemColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(saved_items)");
+  if (!savedItemColumns.some((column) => column.name === "default_unit_price")) {
+    await db.execAsync("ALTER TABLE saved_items ADD COLUMN default_unit_price REAL NOT NULL DEFAULT 0");
+  }
+  if (!savedItemColumns.some((column) => column.name === "default_quantity")) {
+    await db.execAsync("ALTER TABLE saved_items ADD COLUMN default_quantity INTEGER DEFAULT 1");
+  }
+
+  const legacyCatalogColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(item_catalog)");
+  if (legacyCatalogColumns.length) {
+    await db.execAsync(`
+      INSERT OR IGNORE INTO saved_items (id, user_id, name, default_quantity, default_unit_price, version, updated_at, deleted_at)
+      SELECT id, user_id, description AS name, default_quantity, unit_price AS default_unit_price, version, updated_at, deleted_at
+      FROM item_catalog
+    `);
+  }
 
   const photoColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(photos)");
   if (!photoColumns.some((column) => column.name === "local_uri")) {
