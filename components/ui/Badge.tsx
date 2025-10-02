@@ -1,6 +1,7 @@
 import { PropsWithChildren, useMemo } from "react";
 import { StyleProp, StyleSheet, Text, TextStyle, View, ViewStyle } from "react-native";
-import { useTheme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 export type BadgeTone = "info" | "warning" | "success" | "danger" | "muted";
 
@@ -11,7 +12,7 @@ export interface BadgeProps {
 }
 
 export function Badge({ children, style, textStyle }: PropsWithChildren<BadgeProps>) {
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
@@ -21,7 +22,7 @@ export function Badge({ children, style, textStyle }: PropsWithChildren<BadgePro
   );
 }
 
-function createStyles(theme: ReturnType<typeof useTheme>["theme"]) {
+function createStyles(theme: Theme) {
   return StyleSheet.create({
     container: {
       alignSelf: "flex-start",

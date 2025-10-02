@@ -1,7 +1,9 @@
-import { useCallback } from "react";
-import { Alert, Image, Pressable, StyleSheet, Text, useColorScheme, View } from "react-native";
+import { useCallback, useMemo } from "react";
+import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import BrandLogo from "./BrandLogo";
+import { Theme } from "../theme";
+import { useThemeContext } from "../theme/ThemeProvider";
 
 type LogoPickerProps = {
   label?: string;
@@ -9,9 +11,74 @@ type LogoPickerProps = {
   onChange: (uri: string | null) => void;
 };
 
+function createStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      gap: 8,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.text,
+    },
+    previewRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 16,
+    },
+    previewContainer: {
+      width: 88,
+      height: 88,
+      borderRadius: 18,
+      borderWidth: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+      backgroundColor: theme.colors.surface,
+      borderColor: theme.colors.border,
+    },
+    previewImage: {
+      width: "100%",
+      height: "100%",
+    },
+    placeholderLogo: {
+      opacity: 0.7,
+    },
+    actions: {
+      flex: 1,
+      gap: 8,
+    },
+    button: {
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      alignItems: "center",
+    },
+    buttonText: {
+      textAlign: "center",
+      fontWeight: "600",
+    },
+    primaryButton: {
+      backgroundColor: theme.colors.primary,
+      borderColor: theme.colors.primary,
+    },
+    primaryButtonText: {
+      color: theme.colors.surface,
+    },
+    secondaryButton: {
+      backgroundColor: theme.colors.surface,
+      borderColor: theme.colors.border,
+    },
+    secondaryButtonText: {
+      color: theme.colors.primaryText,
+    },
+  });
+}
+
 export function LogoPicker({ label = "Company logo", value, onChange }: LogoPickerProps) {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { theme } = useThemeContext();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const handlePick = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -44,24 +111,11 @@ export function LogoPicker({ label = "Company logo", value, onChange }: LogoPick
     onChange(null);
   }, [onChange]);
 
-  const palette = {
-    text: isDark ? "#e2e8f0" : "#1f2937",
-    muted: isDark ? "#94a3b8" : "#475569",
-    surface: isDark ? "#1e293b" : "#f8fafc",
-    border: isDark ? "#334155" : "#cbd5f5",
-    accent: "#1e40af",
-  };
-
   return (
     <View style={styles.container}>
-      <Text style={[styles.label, { color: palette.text }]}>{label}</Text>
+      <Text style={styles.label}>{label}</Text>
       <View style={styles.previewRow}>
-        <View
-          style={[
-            styles.previewContainer,
-            { backgroundColor: palette.surface, borderColor: palette.border },
-          ]}
-        >
+        <View style={styles.previewContainer}>
           {value ? (
             <Image source={{ uri: value }} resizeMode="contain" style={styles.previewImage} />
           ) : (
@@ -69,27 +123,14 @@ export function LogoPicker({ label = "Company logo", value, onChange }: LogoPick
           )}
         </View>
         <View style={styles.actions}>
-          <Pressable
-            style={[
-              styles.button,
-              styles.primaryButton,
-              { backgroundColor: palette.accent, borderColor: palette.accent },
-            ]}
-            onPress={handlePick}
-          >
+          <Pressable style={[styles.button, styles.primaryButton]} onPress={handlePick}>
             <Text style={[styles.buttonText, styles.primaryButtonText]}>
               {value ? "Replace logo" : "Upload logo"}
             </Text>
           </Pressable>
           {value ? (
-            <Pressable
-              style={[
-                styles.button,
-                { backgroundColor: palette.surface, borderColor: palette.border },
-              ]}
-              onPress={handleRemove}
-            >
-              <Text style={[styles.buttonText, { color: palette.text }]}>Remove logo</Text>
+            <Pressable style={[styles.button, styles.secondaryButton]} onPress={handleRemove}>
+              <Text style={[styles.buttonText, styles.secondaryButtonText]}>Remove logo</Text>
             </Pressable>
           ) : null}
         </View>
@@ -97,57 +138,5 @@ export function LogoPicker({ label = "Company logo", value, onChange }: LogoPick
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  previewRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  previewContainer: {
-    width: 88,
-    height: 88,
-    borderRadius: 18,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  previewImage: {
-    width: "100%",
-    height: "100%",
-  },
-  placeholderLogo: {
-    opacity: 0.7,
-  },
-  actions: {
-    flex: 1,
-    gap: 8,
-  },
-  button: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  buttonText: {
-    textAlign: "center",
-    fontWeight: "600",
-  },
-  primaryButton: {
-    backgroundColor: "#1e40af",
-    borderColor: "#1e40af",
-  },
-  primaryButtonText: {
-    color: "#fff",
-  },
-});
 
 export default LogoPicker;

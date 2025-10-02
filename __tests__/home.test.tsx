@@ -10,15 +10,14 @@ jest.mock("expo-router", () => {
   };
 });
 
-jest.mock("../theme", () => {
-  const actual = jest.requireActual("../theme");
+jest.mock("../theme/ThemeProvider", () => {
+  const actualTheme = jest.requireActual("../theme");
   return {
-    ...actual,
-    useTheme: () => ({
-      mode: "light" as const,
-      theme: actual.light,
-      setMode: jest.fn(),
-      toggleMode: jest.fn(),
+    ...jest.requireActual("../theme/ThemeProvider"),
+    useThemeContext: () => ({
+      theme: actualTheme.light,
+      isDark: false,
+      toggleTheme: jest.fn(),
     }),
   };
 });

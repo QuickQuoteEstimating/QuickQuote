@@ -12,7 +12,8 @@ import { sanitizeEstimateForQueue } from "../../../lib/estimates";
 import { calculateEstimateTotals } from "../../../lib/estimateMath";
 import { openDB, queueChange } from "../../../lib/sqlite";
 import { runSync } from "../../../lib/sync";
-import { useTheme, type Theme } from "../../../theme";
+import { Theme } from "../../../theme";
+import { useThemeContext } from "../../../theme/ThemeProvider";
 import type { EstimateItemFormSubmit } from "../../../components/EstimateItemForm";
 
 const CURRENCY_FORMATTER = new Intl.NumberFormat("en-US", {
@@ -162,7 +163,7 @@ function createStyles(theme: Theme) {
 export default function NewEstimateScreen() {
   const { user, session } = useAuth();
   const { settings } = useSettings();
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useRouter();
   const insets = useSafeAreaInsets();

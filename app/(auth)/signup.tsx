@@ -6,7 +6,8 @@ import { BrandLogo } from "../../components/BrandLogo";
 import LogoPicker from "../../components/LogoPicker";
 import { useSettings } from "../../context/SettingsContext";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
-import { useTheme, type Theme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 export default function SignupScreen() {
   const [email, setEmail] = useState("");
@@ -20,7 +21,7 @@ export default function SignupScreen() {
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { settings, setCompanyProfile } = useSettings();
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { PropsWithChildren, useMemo } from "react";
 import { StyleProp, StyleSheet, Text, TextProps, TextStyle } from "react-native";
-import { useTheme, type Theme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 
 type TypographyProps = TextProps & {
   style?: StyleProp<TextStyle>;
@@ -30,7 +31,7 @@ function createStyles(theme: Theme) {
 }
 
 export function Title({ style, children, ...props }: PropsWithChildren<TypographyProps>) {
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
@@ -41,7 +42,7 @@ export function Title({ style, children, ...props }: PropsWithChildren<Typograph
 }
 
 export function Subtitle({ style, children, ...props }: PropsWithChildren<TypographyProps>) {
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
@@ -52,7 +53,7 @@ export function Subtitle({ style, children, ...props }: PropsWithChildren<Typogr
 }
 
 export function Body({ style, children, ...props }: PropsWithChildren<TypographyProps>) {
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (

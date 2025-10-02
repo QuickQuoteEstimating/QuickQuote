@@ -12,7 +12,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomerForm from "../../components/CustomerForm";
 import { Badge, Button, Card, FAB, Input, ListItem } from "../../components/ui";
-import { useTheme, type Theme } from "../../theme";
+import { Theme } from "../../theme";
+import { useThemeContext } from "../../theme/ThemeProvider";
 import { openDB, queueChange } from "../../lib/sqlite";
 import { runSync } from "../../lib/sync";
 
@@ -36,7 +37,7 @@ type EditCustomerFormProps = {
 };
 
 function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps) {
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createEditStyles(theme), [theme]);
   const [name, setName] = useState(customer.name);
   const [phone, setPhone] = useState(customer.phone ?? "");
@@ -161,7 +162,7 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
 }
 
 export default function Customers() {
-  const { theme } = useTheme();
+  const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loading, setLoading] = useState(true);
