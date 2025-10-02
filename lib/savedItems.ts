@@ -9,6 +9,7 @@ export type SavedItemRecord = {
   default_unit_price: number;
   default_markup_applicable: number;
   version: number;
+  created_at: string;
   updated_at: string;
   deleted_at: string | null;
 };
@@ -16,7 +17,7 @@ export type SavedItemRecord = {
 export async function listSavedItems(userId: string): Promise<SavedItemRecord[]> {
   const db = await openDB();
   const rows = await db.getAllAsync<SavedItemRecord>(
-    `SELECT id, user_id, name, default_quantity, default_unit_price, default_markup_applicable, version, updated_at, deleted_at
+    `SELECT id, user_id, name, default_quantity, default_unit_price, default_markup_applicable, version, created_at, updated_at, deleted_at
        FROM saved_items
        WHERE deleted_at IS NULL AND user_id = ?
        ORDER BY name COLLATE NOCASE ASC`,
@@ -48,7 +49,7 @@ export async function upsertSavedItem(input: UpsertSavedItemInput): Promise<Save
 
   if (input.id) {
     const rows = await db.getAllAsync<SavedItemRecord>(
-      `SELECT id, user_id, name, default_quantity, default_unit_price, default_markup_applicable, version, updated_at, deleted_at
+      `SELECT id, user_id, name, default_quantity, default_unit_price, default_markup_applicable, version, created_at, updated_at, deleted_at
          FROM saved_items
          WHERE id = ?
          LIMIT 1`,
@@ -64,6 +65,7 @@ export async function upsertSavedItem(input: UpsertSavedItemInput): Promise<Save
       default_unit_price: normalizedPrice,
       default_markup_applicable: normalizedMarkup,
       version: nextVersion,
+      created_at: existing?.created_at ?? now,
       updated_at: now,
       deleted_at: null,
     };
@@ -95,13 +97,14 @@ export async function upsertSavedItem(input: UpsertSavedItemInput): Promise<Save
     default_unit_price: normalizedPrice,
     default_markup_applicable: normalizedMarkup,
     version: 1,
+    created_at: now,
     updated_at: now,
     deleted_at: null,
   };
 
   await db.runAsync(
-    `INSERT INTO saved_items (id, user_id, name, default_quantity, default_unit_price, default_markup_applicable, version, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+    `INSERT INTO saved_items (id, user_id, name, default_quantity, default_unit_price, default_markup_applicable, version, created_at, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
     [
       record.id,
       record.user_id,
@@ -110,6 +113,7 @@ export async function upsertSavedItem(input: UpsertSavedItemInput): Promise<Save
       record.default_unit_price,
       record.default_markup_applicable,
       record.version,
+      record.created_at,
       record.updated_at,
     ],
   );
@@ -122,7 +126,7 @@ export async function softDeleteSavedItem(id: string): Promise<void> {
   const db = await openDB();
   const now = new Date().toISOString();
   const rows = await db.getAllAsync<SavedItemRecord>(
-    `SELECT id, user_id, name, default_quantity, default_unit_price, default_markup_applicable, version, updated_at, deleted_at
+    `SELECT id, user_id, name, default_quantity, default_unit_price, default_markup_applicable, version, created_at, updated_at, deleted_at
        FROM saved_items
        WHERE id = ?
        LIMIT 1`,
