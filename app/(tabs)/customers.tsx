@@ -428,7 +428,7 @@ export default function Customers() {
                 previousCustomersRef.current = null;
               }
             })();
-          },
+          
         },
       );
     },
