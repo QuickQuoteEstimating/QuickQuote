@@ -10,8 +10,6 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
@@ -59,7 +57,7 @@ import {
   Title,
   type BadgeTone,
 } from "../../../components/ui";
-import { cardShadow, useTheme, type Theme } from "../../../theme";
+import { useTheme, type Theme } from "../../../theme";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
 
@@ -818,7 +816,7 @@ export default function EditEstimateScreen() {
         <ListItem
           title={item.description}
           subtitle={`Qty: ${item.quantity} @ ${formatCurrency(item.unit_price)}`}
-          rightContent={<Text style={styles.lineItemTotal}>{formatCurrency(item.total)}</Text>}
+          rightContent={<Body style={styles.lineItemTotal}>{formatCurrency(item.total)}</Body>}
           style={styles.lineItem}
         />
         <View style={styles.lineItemActions}>
@@ -1735,7 +1733,7 @@ export default function EditEstimateScreen() {
             subtitleStyle={styles.headerSubtitle}
           />
           <View style={styles.headerField}>
-            <Subtitle style={styles.headerLabel}>Customer</Subtitle>
+            <Body style={styles.headerLabel}>Customer</Body>
             <CustomerPicker selectedCustomer={customerId} onSelect={(id) => setCustomerId(id)} />
           </View>
           <Input
@@ -1749,14 +1747,14 @@ export default function EditEstimateScreen() {
 
         <Card style={styles.photosCard}>
           <View style={styles.photosHeader}>
-            <Text style={styles.sectionTitle}>Photos</Text>
-            <Text style={styles.sectionSubtitle}>
+            <Title style={styles.sectionTitle}>Photos</Title>
+            <Subtitle style={styles.sectionSubtitle}>
               Give your crew context with job site reference shots.
-            </Text>
+            </Subtitle>
           </View>
           {photos.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>No photos attached yet.</Text>
+              <Body style={styles.emptyText}>No photos attached yet.</Body>
             </View>
           ) : (
             <View style={styles.photosList}>
@@ -1775,9 +1773,9 @@ export default function EditEstimateScreen() {
                       />
                     ) : (
                       <View style={styles.photoPlaceholder}>
-                        <Text style={styles.photoPlaceholderText}>
+                        <Body style={styles.photoPlaceholderText}>
                           Photo unavailable offline. Use sync to restore the local copy.
-                        </Text>
+                        </Body>
                       </View>
                     )}
                     <Input
@@ -1831,10 +1829,10 @@ export default function EditEstimateScreen() {
 
         <Card style={styles.lineItemsCard}>
           <View style={styles.lineItemsHeader}>
-            <Text style={styles.sectionTitle}>Estimate items</Text>
-            <Text style={styles.sectionSubtitle}>
+            <Title style={styles.sectionTitle}>Estimate items</Title>
+            <Subtitle style={styles.sectionSubtitle}>
               Track the work you&apos;re quoting. Saved items help you move fast.
-            </Text>
+            </Subtitle>
           </View>
           <FlatList
             data={items}
@@ -1845,7 +1843,7 @@ export default function EditEstimateScreen() {
             contentContainerStyle={styles.lineItemsList}
             ListEmptyComponent={
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No items added yet.</Text>
+                <Body style={styles.emptyText}>No items added yet.</Body>
               </View>
             }
           />
@@ -1865,7 +1863,7 @@ export default function EditEstimateScreen() {
         </Card>
 
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Labor &amp; tax</Text>
+          <Title style={styles.sectionTitle}>Labor &amp; tax</Title>
           <Input
             label="Project hours"
             placeholder="0"
@@ -1879,7 +1877,7 @@ export default function EditEstimateScreen() {
             value={hourlyRateText}
             onChangeText={setHourlyRateText}
             keyboardType="decimal-pad"
-            leftElement={<Text style={styles.inputAdornment}>$</Text>}
+            leftElement={<Body style={styles.inputAdornment}>$</Body>}
             caption={`Labor total (not shown to customers): ${formatCurrency(totals.laborTotal)}`}
           />
           <Input
@@ -1888,36 +1886,36 @@ export default function EditEstimateScreen() {
             value={taxRateText}
             onChangeText={setTaxRateText}
             keyboardType="decimal-pad"
-            rightElement={<Text style={styles.inputAdornment}>%</Text>}
+            rightElement={<Body style={styles.inputAdornment}>%</Body>}
           />
         </Card>
 
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Estimate summary</Text>
+          <Title style={styles.sectionTitle}>Estimate summary</Title>
           <View style={styles.summaryList}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Materials</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(totals.materialTotal)}</Text>
+              <Body style={styles.summaryLabel}>Materials</Body>
+              <Body style={styles.summaryValue}>{formatCurrency(totals.materialTotal)}</Body>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Labor</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(totals.laborTotal)}</Text>
+              <Body style={styles.summaryLabel}>Labor</Body>
+              <Body style={styles.summaryValue}>{formatCurrency(totals.laborTotal)}</Body>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Tax</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(totals.taxTotal)}</Text>
+              <Body style={styles.summaryLabel}>Tax</Body>
+              <Body style={styles.summaryValue}>{formatCurrency(totals.taxTotal)}</Body>
             </View>
             <View style={[styles.summaryRow, styles.summaryTotalRow]}>
-              <Text style={styles.summaryTotalLabel}>Project total</Text>
-              <Text style={styles.summaryTotalValue}>{formatCurrency(totals.grandTotal)}</Text>
+              <Subtitle style={styles.summaryTotalLabel}>Project total</Subtitle>
+              <Title style={styles.summaryTotalValue}>{formatCurrency(totals.grandTotal)}</Title>
             </View>
           </View>
         </Card>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Status &amp; notes</Text>
+        <Card style={styles.card}>
+          <Title style={styles.sectionTitle}>Status &amp; notes</Title>
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Status</Text>
+            <Body style={styles.fieldLabel}>Status</Body>
             <View style={styles.pickerShell}>
               <Picker selectedValue={status} onValueChange={(value) => setStatus(value)}>
                 {STATUS_OPTIONS.map((option) => (
@@ -1927,18 +1925,18 @@ export default function EditEstimateScreen() {
             </View>
           </View>
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Internal notes</Text>
-            <TextInput
+            <Input
+              label="Internal notes"
               placeholder="Add private notes for your team"
-              placeholderTextColor={colors.textMuted}
               value={notes}
               onChangeText={setNotes}
               multiline
               numberOfLines={4}
-              style={styles.textArea}
+              textAlignVertical="top"
+              inputStyle={styles.notesInput}
             />
           </View>
-        </View>
+        </Card>
         <View style={previewStyles.previewSection}>
           <Title style={previewStyles.previewTitle}>Send to client preview</Title>
           <Subtitle style={previewStyles.previewSubtitle}>
@@ -2196,9 +2194,9 @@ function createStyles(theme: Theme) {
       backgroundColor: colors.background,
     },
     content: {
-      padding: 20,
-      gap: 20,
-      paddingBottom: 220,
+      padding: spacing.xl,
+      gap: spacing.xl,
+      paddingBottom: spacing.xxl * 7,
     },
     headerCard: {
       gap: spacing.xl,
@@ -2227,52 +2225,24 @@ function createStyles(theme: Theme) {
       color: colors.textMuted,
     },
     card: {
-      backgroundColor: colors.surface,
-      borderRadius: 22,
-      padding: 20,
-      gap: 16,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      ...cardShadow(16, theme.mode),
+      gap: spacing.lg,
     },
     sectionTitle: {
-      fontSize: 18,
-      fontWeight: "700",
       color: colors.primaryText,
+      fontSize: 20,
     },
     sectionSubtitle: {
-      fontSize: 14,
       color: colors.textMuted,
-      lineHeight: 20,
     },
     fieldGroup: {
-      gap: 8,
+      gap: spacing.sm,
     },
     fieldLabel: {
+      color: colors.textMuted,
       fontWeight: "600",
-      color: colors.primaryText,
     },
-    input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 16,
-      color: colors.primaryText,
-      backgroundColor: colors.surfaceMuted,
-    },
-    textArea: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 12,
-      fontSize: 16,
-      color: colors.primaryText,
-      minHeight: 100,
-      textAlignVertical: "top",
-      backgroundColor: colors.surfaceMuted,
+    notesInput: {
+      minHeight: spacing.xxl * 4,
     },
     photosCard: {
       gap: spacing.lg,
@@ -2303,11 +2273,11 @@ function createStyles(theme: Theme) {
     },
     photoImage: {
       width: "100%",
-      height: 180,
+      height: spacing.xxl * 5 + spacing.xl,
       borderRadius: radii.sm,
     },
     photoPlaceholder: {
-      minHeight: 180,
+      minHeight: spacing.xxl * 5 + spacing.xl,
       borderRadius: radii.sm,
       alignItems: "center",
       justifyContent: "center",
@@ -2374,9 +2344,9 @@ function createStyles(theme: Theme) {
       color: colors.textMuted,
     },
     pickerShell: {
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
-      borderRadius: 12,
+      borderRadius: radii.md,
       overflow: "hidden",
       backgroundColor: colors.surfaceMuted,
     },
@@ -2405,19 +2375,17 @@ function createStyles(theme: Theme) {
       borderTopColor: colors.border,
     },
     summaryTotalLabel: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: colors.primaryText,
+      color: colors.textMuted,
+      fontWeight: "600",
     },
     summaryTotalValue: {
-      fontSize: 18,
-      fontWeight: "700",
       color: colors.primaryText,
+      fontSize: 22,
     },
     footerButtons: {
       flexDirection: "row",
-      gap: 12,
-      paddingBottom: 16,
+      gap: spacing.md,
+      paddingBottom: spacing.lg,
     },
     footerButton: {
       flex: 1,
