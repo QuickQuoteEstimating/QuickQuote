@@ -217,6 +217,7 @@ export default function EditEstimateScreen() {
   const [photoSyncing, setPhotoSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [pdfWorking, setPdfWorking] = useState(false);
   const [smsSending, setSmsSending] = useState(false);
   const [sendSuccessMessage, setSendSuccessMessage] = useState<string | null>(null);
@@ -1508,6 +1509,81 @@ export default function EditEstimateScreen() {
     }
   };
 
+  const handleDeleteEstimate = useCallback(() => {
+    const currentEstimate = estimateRef.current;
+    const targetEstimateId = currentEstimate?.id ?? estimateId;
+    if (!targetEstimateId || deleting) {
+      return;
+    }
+
+    Alert.alert("Delete estimate", "Are you sure you want to delete this estimate?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          void (async () => {
+            setDeleting(true);
+            try {
+              const db = await openDB();
+
+              const [itemRows, photoRows] = await Promise.all([
+                db.getAllAsync<{ id: string }>(
+                  `SELECT id FROM estimate_items WHERE estimate_id = ?`,
+                  [targetEstimateId],
+                ),
+                db.getAllAsync<{ id: string; uri: string; local_uri: string | null }>(
+                  `SELECT id, uri, local_uri FROM photos WHERE estimate_id = ?`,
+                  [targetEstimateId],
+                ),
+              ]);
+
+              await db.execAsync("BEGIN TRANSACTION");
+              try {
+                await db.runAsync(`DELETE FROM estimate_items WHERE estimate_id = ?`, [targetEstimateId]);
+                await db.runAsync(`DELETE FROM photos WHERE estimate_id = ?`, [targetEstimateId]);
+                await db.runAsync(`DELETE FROM delivery_logs WHERE estimate_id = ?`, [targetEstimateId]);
+                await db.runAsync(`DELETE FROM estimates WHERE id = ?`, [targetEstimateId]);
+                await db.execAsync("COMMIT");
+              } catch (transactionError) {
+                await db.execAsync("ROLLBACK");
+                throw transactionError;
+              }
+
+              await Promise.all(
+                photoRows.map(async (photo) => {
+                  await deleteLocalPhoto(
+                    photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri) ?? undefined,
+                  );
+                  await queueChange("photos", "delete", { id: photo.id });
+                }),
+              );
+
+              await Promise.all(
+                itemRows.map((item) => queueChange("estimate_items", "delete", { id: item.id })),
+              );
+
+              await queueChange("estimates", "delete", { id: targetEstimateId });
+
+              clearEstimateFormDraft(targetEstimateId);
+
+              await runSync().catch((syncError) => {
+                console.error("Failed to sync estimate deletion", syncError);
+              });
+
+              router.replace("/(tabs)/estimates");
+            } catch (error) {
+              console.error("Failed to delete estimate", error);
+              Alert.alert("Error", "Unable to delete this estimate. Please try again.");
+            } finally {
+              setDeleting(false);
+            }
+          })();
+        },
+      },
+    ]);
+  }, [deleting, estimateId]);
+
   const saveEstimate = useCallback(async (): Promise<EstimateListItem | null> => {
     if (!estimate || saving) {
       return null;
@@ -2011,18 +2087,26 @@ export default function EditEstimateScreen() {
             variant="secondary"
             alignment="inline"
             onPress={handleCancel}
-            disabled={saving}
+            disabled={saving || deleting}
             style={styles.footerButton}
           />
           <Button
             label={saving ? "Saving…" : "Save Draft"}
             alignment="inline"
             onPress={handleSaveDraft}
-            disabled={saving}
+            disabled={saving || deleting}
             loading={saving}
             style={styles.footerButton}
           />
         </View>
+        <Button
+          label={deleting ? "Deleting…" : "Delete Estimate"}
+          variant="danger"
+          onPress={handleDeleteEstimate}
+          disabled={saving || deleting}
+          loading={deleting}
+          style={styles.deleteButton}
+        />
       </ScrollView>
       <View style={previewStyles.bottomBar}>
         <Button
@@ -2385,11 +2469,15 @@ function createStyles(theme: Theme) {
     },
     footerButtons: {
       flexDirection: "row",
+      flexWrap: "wrap",
       gap: spacing.md,
       paddingBottom: spacing.lg,
     },
     footerButton: {
-      flex: 1,
+      flexGrow: 0,
+    },
+    deleteButton: {
+      alignSelf: "flex-start",
     },
   });
 }

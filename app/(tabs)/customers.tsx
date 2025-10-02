@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,6 +17,7 @@ import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
 import { openDB, queueChange } from "../../lib/sqlite";
 import { runSync } from "../../lib/sync";
+import { deleteLocalPhoto, deriveLocalPhotoUri } from "../../lib/storage";
 
 export type CustomerRecord = {
   id: string;
@@ -34,9 +36,10 @@ type EditCustomerFormProps = {
   customer: CustomerRecord;
   onCancel: () => void;
   onSaved: (customer: CustomerRecord) => void;
+  onDelete: (customer: CustomerRecord) => void;
 };
 
-function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps) {
+function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustomerFormProps) {
   const { theme } = useThemeContext();
   const styles = useMemo(() => createEditStyles(theme), [theme]);
   const [name, setName] = useState(customer.name);
@@ -154,9 +157,30 @@ function EditCustomerForm({ customer, onCancel, onSaved }: EditCustomerFormProps
         multiline
       />
       <View style={styles.actions}>
-        <Button label="Cancel" variant="secondary" onPress={onCancel} disabled={saving} />
-        <Button label="Save changes" onPress={saveChanges} loading={saving} disabled={saving} />
+        <Button
+          label="Cancel"
+          variant="secondary"
+          onPress={onCancel}
+          disabled={saving}
+          alignment="inline"
+          style={styles.actionButton}
+        />
+        <Button
+          label={saving ? "Saving…" : "Save changes"}
+          onPress={saveChanges}
+          loading={saving}
+          disabled={saving}
+          alignment="inline"
+          style={styles.actionButton}
+        />
       </View>
+      <Button
+        label="Delete customer"
+        variant="danger"
+        onPress={() => onDelete(customer)}
+        disabled={saving}
+        style={styles.deleteButton}
+      />
     </Card>
   );
 }
@@ -295,28 +319,80 @@ export default function Customers() {
 
               try {
                 const db = await openDB();
-                const deletedAt = new Date().toISOString();
-                const nextVersion = (customer.version ?? 1) + 1;
 
-                await db.runAsync(
-                  `UPDATE customers
-                     SET deleted_at = ?, updated_at = ?, version = ?
-                     WHERE id = ?`,
-                  [deletedAt, deletedAt, nextVersion, customer.id],
+                const estimateRows = await db.getAllAsync<{ id: string }>(
+                  `SELECT id FROM estimates WHERE customer_id = ?`,
+                  [customer.id],
+                );
+                const estimateIds = estimateRows.map((row) => row.id);
+                const placeholders = estimateIds.map(() => "?").join(", ");
+
+                const itemRows = estimateIds.length
+                  ? await db.getAllAsync<{ id: string }>(
+                      `SELECT id FROM estimate_items WHERE estimate_id IN (${placeholders})`,
+                      estimateIds,
+                    )
+                  : [];
+
+                const photoRows = estimateIds.length
+                  ? await db.getAllAsync<{ id: string; uri: string; local_uri: string | null }>(
+                      `SELECT id, uri, local_uri FROM photos WHERE estimate_id IN (${placeholders})`,
+                      estimateIds,
+                    )
+                  : [];
+
+                await db.execAsync("BEGIN TRANSACTION");
+                try {
+                  if (estimateIds.length) {
+                    await db.runAsync(
+                      `DELETE FROM estimate_items WHERE estimate_id IN (${placeholders})`,
+                      estimateIds,
+                    );
+                    await db.runAsync(
+                      `DELETE FROM photos WHERE estimate_id IN (${placeholders})`,
+                      estimateIds,
+                    );
+                    await db.runAsync(
+                      `DELETE FROM delivery_logs WHERE estimate_id IN (${placeholders})`,
+                      estimateIds,
+                    );
+                    await db.runAsync(
+                      `DELETE FROM estimates WHERE id IN (${placeholders})`,
+                      estimateIds,
+                    );
+                  }
+
+                  await db.runAsync(`DELETE FROM customers WHERE id = ?`, [customer.id]);
+                  await db.execAsync("COMMIT");
+                } catch (transactionError) {
+                  await db.execAsync("ROLLBACK");
+                  throw transactionError;
+                }
+
+                await Promise.all(
+                  photoRows.map(async (photo) => {
+                    await deleteLocalPhoto(
+                      photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri) ?? undefined,
+                    );
+                    await queueChange("photos", "delete", { id: photo.id });
+                  }),
                 );
 
-                const deletedCustomer: CustomerRecord = {
-                  ...customer,
-                  deleted_at: deletedAt,
-                  updated_at: deletedAt,
-                  version: nextVersion,
-                };
+                await Promise.all(
+                  itemRows.map((item) => queueChange("estimate_items", "delete", { id: item.id })),
+                );
 
-                await queueChange("customers", "update", deletedCustomer);
+                await Promise.all(
+                  estimateIds.map((estimateId) => queueChange("estimates", "delete", { id: estimateId })),
+                );
+
+                await queueChange("customers", "delete", { id: customer.id });
+
                 await runSync().catch((syncError) => {
                   console.error("Failed to sync customer deletion", syncError);
                 });
 
+                router.replace("/(tabs)/customers");
                 await reloadCustomers();
               } catch (deleteError) {
                 console.error("Failed to delete customer", deleteError);
@@ -505,6 +581,7 @@ export default function Customers() {
                     setSelectedCustomerId(updated.id);
                     void reloadCustomers();
                   }}
+                  onDelete={handleDelete}
                 />
               ) : null}
             </View>
@@ -690,7 +767,14 @@ function createEditStyles(theme: Theme) {
     },
     actions: {
       flexDirection: "row",
+      flexWrap: "wrap",
       gap: theme.spacing.sm,
+    },
+    actionButton: {
+      flexGrow: 0,
+    },
+    deleteButton: {
+      alignSelf: "flex-start",
     },
   });
 }
