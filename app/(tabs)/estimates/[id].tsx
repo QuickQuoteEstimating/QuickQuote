@@ -24,6 +24,7 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import { useSettings } from "../../../context/SettingsContext";
 import { useItemEditor, type ItemEditorConfig } from "../../../context/ItemEditorContext";
+import { confirmDelete } from "../../../lib/confirmDelete";
 import { logEstimateDelivery, openDB, queueChange } from "../../../lib/sqlite";
 import { sanitizeEstimateForQueue } from "../../../lib/estimates";
 import { runSync } from "../../../lib/sync";
@@ -85,33 +86,6 @@ type PhotoRecord = {
   updated_at: string;
   deleted_at: string | null;
 };
-
-type AlertWithConfirmation = typeof Alert & {
-  confirmation?: (
-    title: string,
-    message?: string,
-    buttons?: Parameters<typeof Alert.alert>[2],
-    options?: Parameters<typeof Alert.alert>[3],
-  ) => void;
-};
-
-function showDeletionConfirmation(entityLabel: string, onConfirm: () => void) {
-  const title = `Delete this ${entityLabel}?`;
-  const message =
-    "This action cannot be undone. This will permanently delete this record and all related data. Are you sure?";
-  const alertModule = Alert as AlertWithConfirmation;
-  if (alertModule.confirmation) {
-    alertModule.confirmation(title, message, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: onConfirm },
-    ]);
-  } else {
-    Alert.alert(title, message, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: onConfirm },
-    ]);
-  }
-}
 
 type CustomerRecord = {
   id: string;
@@ -1546,60 +1520,63 @@ export default function EditEstimateScreen() {
       return;
     }
 
-    showDeletionConfirmation("Estimate", () => {
+    confirmDelete(
+      "Delete this Estimate?",
+      "This action cannot be undone. This will permanently delete this record and all related data. Are you sure?",
+      () => {
         void (async () => {
-            setDeleting(true);
+          setDeleting(true);
+          try {
+            const db = await openDB();
+
+            await db.execAsync("BEGIN TRANSACTION");
             try {
-              const db = await openDB();
-
-              await db.execAsync("BEGIN TRANSACTION");
-              try {
-                await db.runAsync(
-                  `UPDATE estimates
-                   SET deleted_at = CURRENT_TIMESTAMP,
-                       updated_at = CURRENT_TIMESTAMP,
-                       version = COALESCE(version, 0) + 1
-                   WHERE id = ?`,
-                  [targetEstimateId],
-                );
-                await db.runAsync(
-                  `UPDATE estimate_items
-                   SET deleted_at = CURRENT_TIMESTAMP,
-                       updated_at = CURRENT_TIMESTAMP,
-                       version = COALESCE(version, 0) + 1
-                   WHERE estimate_id = ?`,
-                  [targetEstimateId],
-                );
-                await db.runAsync(
-                  `UPDATE photos
-                   SET deleted_at = CURRENT_TIMESTAMP,
-                       updated_at = CURRENT_TIMESTAMP,
-                       version = COALESCE(version, 0) + 1
-                   WHERE estimate_id = ?`,
-                  [targetEstimateId],
-                );
-                await db.execAsync("COMMIT");
-              } catch (transactionError) {
-                await db.execAsync("ROLLBACK");
-                throw transactionError;
-              }
-
-              await queueChange("estimates", "delete", { id: targetEstimateId });
-
-              clearEstimateFormDraft(targetEstimateId);
-
-              await runSync().catch((syncError) => {
-                console.error("Failed to sync estimate deletion", syncError);
-              });
-
-              router.replace("/(tabs)/estimates");
-            } catch (error) {
-              console.error("Failed to delete estimate", error);
-              Alert.alert("Error", "Unable to delete this estimate. Please try again.");
-            } finally {
-              setDeleting(false);
+              await db.runAsync(
+                `UPDATE estimates
+                 SET deleted_at = CURRENT_TIMESTAMP,
+                     updated_at = CURRENT_TIMESTAMP,
+                     version = COALESCE(version, 0) + 1
+                 WHERE id = ?`,
+                [targetEstimateId],
+              );
+              await db.runAsync(
+                `UPDATE estimate_items
+                 SET deleted_at = CURRENT_TIMESTAMP,
+                     updated_at = CURRENT_TIMESTAMP,
+                     version = COALESCE(version, 0) + 1
+                 WHERE estimate_id = ?`,
+                [targetEstimateId],
+              );
+              await db.runAsync(
+                `UPDATE photos
+                 SET deleted_at = CURRENT_TIMESTAMP,
+                     updated_at = CURRENT_TIMESTAMP,
+                     version = COALESCE(version, 0) + 1
+                 WHERE estimate_id = ?`,
+                [targetEstimateId],
+              );
+              await db.execAsync("COMMIT");
+            } catch (transactionError) {
+              await db.execAsync("ROLLBACK");
+              throw transactionError;
             }
-          })();
+
+            await queueChange("estimates", "delete", { id: targetEstimateId });
+
+            clearEstimateFormDraft(targetEstimateId);
+
+            await runSync().catch((syncError) => {
+              console.error("Failed to sync estimate deletion", syncError);
+            });
+
+            router.replace("/(tabs)/estimates");
+          } catch (error) {
+            console.error("Failed to delete estimate", error);
+            Alert.alert("Error", "Unable to delete this estimate. Please try again.");
+          } finally {
+            setDeleting(false);
+          }
+        })();
       },
     );
   }, [deleting, estimateId]);

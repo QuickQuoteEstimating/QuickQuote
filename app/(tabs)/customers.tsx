@@ -15,6 +15,7 @@ import CustomerForm from "../../components/CustomerForm";
 import { Badge, Button, Card, FAB, Input, ListItem } from "../../components/ui";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
+import { confirmDelete } from "../../lib/confirmDelete";
 import { openDB, queueChange } from "../../lib/sqlite";
 import { runSync } from "../../lib/sync";
 
@@ -37,33 +38,6 @@ type EditCustomerFormProps = {
   onSaved: (customer: CustomerRecord) => void;
   onDelete: (customer: CustomerRecord) => void;
 };
-
-type AlertWithConfirmation = typeof Alert & {
-  confirmation?: (
-    title: string,
-    message?: string,
-    buttons?: Parameters<typeof Alert.alert>[2],
-    options?: Parameters<typeof Alert.alert>[3],
-  ) => void;
-};
-
-function showDeletionConfirmation(entityLabel: string, onConfirm: () => void) {
-  const title = `Delete this ${entityLabel}?`;
-  const message =
-    "This action cannot be undone. This will permanently delete this record and all related data. Are you sure?";
-  const alertModule = Alert as AlertWithConfirmation;
-  if (alertModule.confirmation) {
-    alertModule.confirmation(title, message, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: onConfirm },
-    ]);
-  } else {
-    Alert.alert(title, message, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: onConfirm },
-    ]);
-  }
-}
 
 function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustomerFormProps) {
   const { theme } = useThemeContext();
@@ -331,107 +305,111 @@ export default function Customers() {
 
   const handleDelete = useCallback(
     (customer: CustomerRecord) => {
-      showDeletionConfirmation("Customer", () => {
-        void (async () => {
-          previousCustomersRef.current = customers;
-          let estimateIds: string[] = [];
-          let transactionStarted = false;
-
-          try {
-            const db = await openDB();
-
-            await db.execAsync("BEGIN");
-            transactionStarted = true;
+      confirmDelete(
+        "Delete this Customer?",
+        "This action cannot be undone. This will permanently delete this record and all related data. Are you sure?",
+        () => {
+          void (async () => {
+            previousCustomersRef.current = customers;
+            let estimateIds: string[] = [];
+            let transactionStarted = false;
 
             try {
-              const estimateRows = await db.getAllAsync<{ id: string }>(
-                `SELECT id FROM estimates WHERE customer_id = ? AND deleted_at IS NULL`,
-                [customer.id],
-              );
-              estimateIds = estimateRows.map((row) => row.id);
+              const db = await openDB();
 
-              await db.runAsync(
-                `UPDATE customers
-                 SET deleted_at = CURRENT_TIMESTAMP,
-                     updated_at = CURRENT_TIMESTAMP,
-                     version = COALESCE(version, 0) + 1
-                 WHERE id = ?`,
-                [customer.id],
-              );
+              await db.execAsync("BEGIN");
+              transactionStarted = true;
 
-              await db.runAsync(
-                `UPDATE estimates
-                 SET deleted_at = CURRENT_TIMESTAMP,
-                     updated_at = CURRENT_TIMESTAMP,
-                     version = COALESCE(version, 0) + 1
-                 WHERE customer_id = ?
-                   AND deleted_at IS NULL`,
-                [customer.id],
-              );
-
-              if (estimateIds.length) {
-                const placeholders = estimateIds.map(() => "?").join(", ");
+              try {
+                const estimateRows = await db.getAllAsync<{ id: string }>(
+                  `SELECT id FROM estimates WHERE customer_id = ? AND deleted_at IS NULL`,
+                  [customer.id],
+                );
+                estimateIds = estimateRows.map((row) => row.id);
 
                 await db.runAsync(
-                  `UPDATE estimate_items
+                  `UPDATE customers
                    SET deleted_at = CURRENT_TIMESTAMP,
                        updated_at = CURRENT_TIMESTAMP,
                        version = COALESCE(version, 0) + 1
-                   WHERE estimate_id IN (${placeholders})
-                     AND deleted_at IS NULL`,
-                  estimateIds,
+                   WHERE id = ?`,
+                  [customer.id],
                 );
 
                 await db.runAsync(
-                  `UPDATE photos
+                  `UPDATE estimates
                    SET deleted_at = CURRENT_TIMESTAMP,
                        updated_at = CURRENT_TIMESTAMP,
                        version = COALESCE(version, 0) + 1
-                   WHERE estimate_id IN (${placeholders})
+                   WHERE customer_id = ?
                      AND deleted_at IS NULL`,
-                  estimateIds,
+                  [customer.id],
                 );
-              }
 
-              await db.execAsync("COMMIT");
-              transactionStarted = false;
-            } catch (transactionError) {
-              if (transactionStarted) {
-                await db.execAsync("ROLLBACK");
+                if (estimateIds.length) {
+                  const placeholders = estimateIds.map(() => "?").join(", ");
+
+                  await db.runAsync(
+                    `UPDATE estimate_items
+                     SET deleted_at = CURRENT_TIMESTAMP,
+                         updated_at = CURRENT_TIMESTAMP,
+                         version = COALESCE(version, 0) + 1
+                     WHERE estimate_id IN (${placeholders})
+                       AND deleted_at IS NULL`,
+                    estimateIds,
+                  );
+
+                  await db.runAsync(
+                    `UPDATE photos
+                     SET deleted_at = CURRENT_TIMESTAMP,
+                         updated_at = CURRENT_TIMESTAMP,
+                         version = COALESCE(version, 0) + 1
+                     WHERE estimate_id IN (${placeholders})
+                       AND deleted_at IS NULL`,
+                    estimateIds,
+                  );
+                }
+
+                await db.execAsync("COMMIT");
                 transactionStarted = false;
+              } catch (transactionError) {
+                if (transactionStarted) {
+                  await db.execAsync("ROLLBACK");
+                  transactionStarted = false;
+                }
+                throw transactionError;
               }
-              throw transactionError;
+
+              await queueChange("customers", "delete", { id: customer.id });
+              await Promise.all(
+                estimateIds.map((estimateId) => queueChange("estimates", "delete", { id: estimateId })),
+              );
+
+              try {
+                await runSync();
+              } catch (syncError) {
+                console.error("Failed to sync customer deletion", syncError);
+              }
+
+              setCustomers((current) => current.filter((existing) => existing.id !== customer.id));
+              setEditingCustomer((current) => (current?.id === customer.id ? null : current));
+              setSelectedCustomerId((current) => (current === customer.id ? null : current));
+
+              router.replace("/(tabs)/customers");
+              await reloadCustomers();
+            } catch (deleteError) {
+              console.error("Failed to delete customer", deleteError);
+              Alert.alert("Error", "Unable to delete customer. Please try again.");
+              if (previousCustomersRef.current) {
+                setCustomers(previousCustomersRef.current);
+              }
+              await reloadCustomers();
+            } finally {
+              previousCustomersRef.current = null;
             }
-
-            await queueChange("customers", "delete", { id: customer.id });
-            await Promise.all(
-              estimateIds.map((estimateId) => queueChange("estimates", "delete", { id: estimateId })),
-            );
-
-            try {
-              await runSync();
-            } catch (syncError) {
-              console.error("Failed to sync customer deletion", syncError);
-            }
-
-            setCustomers((current) => current.filter((existing) => existing.id !== customer.id));
-            setEditingCustomer((current) => (current?.id === customer.id ? null : current));
-            setSelectedCustomerId((current) => (current === customer.id ? null : current));
-
-            router.replace("/(tabs)/customers");
-            await reloadCustomers();
-          } catch (deleteError) {
-            console.error("Failed to delete customer", deleteError);
-            Alert.alert("Error", "Unable to delete customer. Please try again.");
-            if (previousCustomersRef.current) {
-              setCustomers(previousCustomersRef.current);
-            }
-            await reloadCustomers();
-          } finally {
-            previousCustomersRef.current = null;
-          }
-        })();
-      });
+          })();
+        },
+      );
     },
     [customers, reloadCustomers],
   );
