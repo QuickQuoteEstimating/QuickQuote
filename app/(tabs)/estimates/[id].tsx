@@ -2070,7 +2070,7 @@ export default function EditEstimateScreen() {
             onChangeText={setHourlyRateText}
             keyboardType="decimal-pad"
             leftElement={<Body style={styles.inputAdornment}>$</Body>}
-            caption={`Labor total (not shown to customers): ${formatCurrency(totals.laborTotal)}`}
+            caption={`Labor charge (not shown to customers): ${formatCurrency(totals.laborTotal)}`}
           />
           <Input
             label="Tax rate"
@@ -2090,7 +2090,7 @@ export default function EditEstimateScreen() {
               <Body style={styles.summaryValue}>{formatCurrency(totals.materialTotal)}</Body>
             </View>
             <View style={styles.summaryRow}>
-              <Body style={styles.summaryLabel}>Labor</Body>
+              <Body style={styles.summaryLabel}>Labor charge</Body>
               <Body style={styles.summaryValue}>{formatCurrency(totals.laborTotal)}</Body>
             </View>
             <View style={styles.summaryRow}>

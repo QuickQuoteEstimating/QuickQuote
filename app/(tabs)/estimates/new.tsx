@@ -40,7 +40,7 @@ import {
   deleteLocalPhoto,
   persistLocalPhotoCopy,
 } from "../../../lib/storage";
-import { listSavedItems, type SavedItemRecord } from "../../../lib/savedItems";
+import { listSavedItems, upsertSavedItem, type SavedItemRecord } from "../../../lib/savedItems";
 import { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 
@@ -265,7 +265,9 @@ function createStyles(theme: Theme) {
     },
     inlineActions: {
       flexDirection: "row",
+      flexWrap: "wrap",
       gap: theme.spacing.md,
+      alignItems: "center",
     },
     toggleRow: {
       flexDirection: "row",
@@ -514,6 +516,7 @@ export default function NewEstimateScreen() {
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([]);
   const [savedItems, setSavedItems] = useState<SavedItemRecord[]>([]);
   const [selectedSavedItemId, setSelectedSavedItemId] = useState<string>("");
+  const [savingLibraryItemIds, setSavingLibraryItemIds] = useState<string[]>([]);
 
   const [photoDrafts, setPhotoDrafts] = useState<PhotoDraft[]>([]);
   const [pendingPhotoDeletes, setPendingPhotoDeletes] = useState<PhotoDraft[]>([]);
@@ -845,6 +848,80 @@ export default function NewEstimateScreen() {
       setSelectedSavedItemId("");
     },
     [savedItems],
+  );
+
+  const handleSaveLineItemToLibrary = useCallback(
+    async (itemId: string) => {
+      const draft = lineItems.find((item) => item.id === itemId);
+      if (!draft) {
+        return;
+      }
+
+      const trimmedName = draft.name.trim();
+      const quantityValue = parseDecimal(draft.quantity);
+      const unitPriceValue = parseDecimal(draft.unitPrice);
+
+      if (!trimmedName || quantityValue === null || unitPriceValue === null) {
+        Alert.alert(
+          "Saved items",
+          "Enter a name, quantity, and unit price before saving this item to your library.",
+        );
+        return;
+      }
+
+      if (!userId) {
+        Alert.alert(
+          "Saved items",
+          "You need to be signed in to save items to your library.",
+        );
+        return;
+      }
+
+      const normalizedQuantity = Math.max(1, Math.round(quantityValue));
+      const normalizedUnitPrice = Math.max(0, Math.round(unitPriceValue * 100) / 100);
+
+      setSavingLibraryItemIds((current) =>
+        current.includes(itemId) ? current : [...current, itemId],
+      );
+
+      try {
+        const record = await upsertSavedItem({
+          id: draft.templateId ?? undefined,
+          userId,
+          name: trimmedName,
+          unitPrice: normalizedUnitPrice,
+          defaultQuantity: normalizedQuantity,
+          markupApplicable: draft.applyMarkup,
+        });
+
+        setSavedItems((current) => {
+          const next = [...current];
+          const existingIndex = next.findIndex((item) => item.id === record.id);
+          if (existingIndex >= 0) {
+            next[existingIndex] = record;
+          } else {
+            next.push(record);
+          }
+          next.sort((a, b) => a.name.localeCompare(b.name));
+          return next;
+        });
+
+        setLineItems((current) =>
+          current.map((item) => (item.id === itemId ? { ...item, templateId: record.id } : item)),
+        );
+
+        Alert.alert("Saved items", "This line item was saved to your library.");
+      } catch (error) {
+        console.error("Failed to save line item to library", error);
+        Alert.alert(
+          "Saved items",
+          "We couldn't save this item to your library. Please try again.",
+        );
+      } finally {
+        setSavingLibraryItemIds((current) => current.filter((value) => value !== itemId));
+      }
+    },
+    [lineItems, userId],
   );
 
   const handleAddPhoto = useCallback(async () => {
@@ -1784,13 +1861,16 @@ export default function NewEstimateScreen() {
                   </Text>
                 </View>
               ) : (
-                computedLineItems.map((item) => (
-                  <View key={item.id} style={styles.lineItemCard}>
-                    <Input
-                      label="Item name"
-                      placeholder="Describe the work"
-                      value={item.name}
-                      onChangeText={(value) => handleLineItemChange(item.id, "name", value)}
+                computedLineItems.map((item) => {
+                  const isSaving = savingLibraryItemIds.includes(item.id);
+                  const saveLabel = item.templateId ? "Update saved item" : "Save to library";
+                  return (
+                    <View key={item.id} style={styles.lineItemCard}>
+                      <Input
+                        label="Item name"
+                        placeholder="Describe the work"
+                        value={item.name}
+                        onChangeText={(value) => handleLineItemChange(item.id, "name", value)}
                     />
                     <View style={styles.lineItemRow}>
                       <Input
@@ -1849,6 +1929,14 @@ export default function NewEstimateScreen() {
                     </View>
                     <View style={styles.inlineActions}>
                       <Button
+                        label={saveLabel}
+                        variant="secondary"
+                        alignment="inline"
+                        onPress={() => handleSaveLineItemToLibrary(item.id)}
+                        loading={isSaving}
+                        disabled={isSaving}
+                      />
+                      <Button
                         label="Remove"
                         variant="ghost"
                         alignment="inline"
@@ -1856,7 +1944,8 @@ export default function NewEstimateScreen() {
                       />
                     </View>
                   </View>
-                ))
+                  );
+                })
               )}
             </View>
             {formErrors.lineItems ? (
@@ -1874,7 +1963,7 @@ export default function NewEstimateScreen() {
                 <Text style={styles.summaryValue}>{formatCurrency(totals.materialTotal)}</Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Labor</Text>
+                <Text style={styles.summaryLabel}>Labor charge</Text>
                 <Text style={styles.summaryValue}>{formatCurrency(totals.laborTotal)}</Text>
               </View>
               <View style={styles.summaryRow}>
@@ -1921,11 +2010,11 @@ export default function NewEstimateScreen() {
             </View>
             <View style={styles.summaryCard}>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Calculated labor total</Text>
+                <Text style={styles.summaryLabel}>Labor charge</Text>
                 <Text style={styles.summaryValue}>{formatCurrency(totals.laborTotal)}</Text>
               </View>
               <Text style={styles.caption}>
-                Labor totals automatically feed into your estimate grand total.
+                The labor charge automatically feeds into your estimate grand total.
               </Text>
             </View>
           </Card>

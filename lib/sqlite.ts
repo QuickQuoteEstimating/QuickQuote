@@ -205,6 +205,7 @@ export async function initLocalDB(): Promise<void> {
       default_unit_price REAL NOT NULL,
       default_markup_applicable INTEGER NOT NULL DEFAULT 1,
       version INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT
     );
@@ -222,12 +223,17 @@ export async function initLocalDB(): Promise<void> {
       "ALTER TABLE saved_items ADD COLUMN default_markup_applicable INTEGER NOT NULL DEFAULT 1",
     );
   }
+  if (!savedItemColumns.some((column) => column.name === "created_at")) {
+    await db.execAsync(
+      "ALTER TABLE saved_items ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP",
+    );
+  }
 
   const legacyCatalogColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(item_catalog)");
   if (legacyCatalogColumns.length) {
     await db.execAsync(`
-      INSERT OR IGNORE INTO saved_items (id, user_id, name, default_quantity, default_unit_price, default_markup_applicable, version, updated_at, deleted_at)
-      SELECT id, user_id, description AS name, default_quantity, unit_price AS default_unit_price, 1, version, updated_at, deleted_at
+      INSERT OR IGNORE INTO saved_items (id, user_id, name, default_quantity, default_unit_price, default_markup_applicable, version, created_at, updated_at, deleted_at)
+      SELECT id, user_id, description AS name, default_quantity, unit_price AS default_unit_price, 1, version, COALESCE(updated_at, CURRENT_TIMESTAMP), updated_at, deleted_at
       FROM item_catalog
     `);
   }

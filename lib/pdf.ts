@@ -223,13 +223,28 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
   const rows = items
     .map((item, index) => {
       const safeDescription = escapeHtml(item.description);
+      const rawQuantity =
+        typeof item.quantity === "number" && Number.isFinite(item.quantity) ? item.quantity : 0;
+      const normalizedQuantity = Math.max(0, Math.round(rawQuantity * 1000) / 1000);
+      const quantityDisplay =
+        Number.isInteger(normalizedQuantity) && normalizedQuantity <= Number.MAX_SAFE_INTEGER
+          ? normalizedQuantity.toFixed(0)
+          : normalizedQuantity.toString();
+      const rawTotal =
+        typeof item.total === "number" && Number.isFinite(item.total) ? item.total : 0;
+      const normalizedTotal = Math.max(0, Math.round(rawTotal * 100) / 100);
+      const unitPriceDisplay =
+        normalizedQuantity > 0
+          ? Math.round((normalizedTotal / normalizedQuantity) * 100) / 100
+          : normalizedTotal;
+
       return `
         <tr>
           <td>${index + 1}</td>
           <td>${safeDescription}</td>
-          <td>${item.quantity}</td>
-          <td>${formatCurrency(item.unitPrice)}</td>
-          <td>${formatCurrency(item.total)}</td>
+          <td>${quantityDisplay}</td>
+          <td>${formatCurrency(unitPriceDisplay)}</td>
+          <td>${formatCurrency(normalizedTotal)}</td>
         </tr>
       `;
     })
