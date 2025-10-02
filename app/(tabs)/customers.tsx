@@ -334,18 +334,22 @@ export default function Customers() {
       showDeletionConfirmation("Customer", () => {
         void (async () => {
           previousCustomersRef.current = customers;
+          let estimateIds: string[] = [];
+          let transactionStarted = false;
 
           try {
             const db = await openDB();
 
-            const estimateRows = await db.getAllAsync<{ id: string }>(
-              `SELECT id FROM estimates WHERE customer_id = ? AND deleted_at IS NULL`,
-              [customer.id],
-            );
-            const estimateIds = estimateRows.map((row) => row.id);
-
             await db.execAsync("BEGIN");
+            transactionStarted = true;
+
             try {
+              const estimateRows = await db.getAllAsync<{ id: string }>(
+                `SELECT id FROM estimates WHERE customer_id = ? AND deleted_at IS NULL`,
+                [customer.id],
+              );
+              estimateIds = estimateRows.map((row) => row.id);
+
               await db.runAsync(
                 `UPDATE customers
                  SET deleted_at = CURRENT_TIMESTAMP,
@@ -355,38 +359,47 @@ export default function Customers() {
                 [customer.id],
               );
 
+              await db.runAsync(
+                `UPDATE estimates
+                 SET deleted_at = CURRENT_TIMESTAMP,
+                     updated_at = CURRENT_TIMESTAMP,
+                     version = COALESCE(version, 0) + 1
+                 WHERE customer_id = ?
+                   AND deleted_at IS NULL`,
+                [customer.id],
+              );
+
               if (estimateIds.length) {
                 const placeholders = estimateIds.map(() => "?").join(", ");
 
-                await db.runAsync(
-                  `UPDATE estimates
-                   SET deleted_at = CURRENT_TIMESTAMP,
-                       updated_at = CURRENT_TIMESTAMP,
-                       version = COALESCE(version, 0) + 1
-                   WHERE id IN (${placeholders})`,
-                  estimateIds,
-                );
                 await db.runAsync(
                   `UPDATE estimate_items
                    SET deleted_at = CURRENT_TIMESTAMP,
                        updated_at = CURRENT_TIMESTAMP,
                        version = COALESCE(version, 0) + 1
-                   WHERE estimate_id IN (${placeholders})`,
+                   WHERE estimate_id IN (${placeholders})
+                     AND deleted_at IS NULL`,
                   estimateIds,
                 );
+
                 await db.runAsync(
                   `UPDATE photos
                    SET deleted_at = CURRENT_TIMESTAMP,
                        updated_at = CURRENT_TIMESTAMP,
                        version = COALESCE(version, 0) + 1
-                   WHERE estimate_id IN (${placeholders})`,
+                   WHERE estimate_id IN (${placeholders})
+                     AND deleted_at IS NULL`,
                   estimateIds,
                 );
               }
 
               await db.execAsync("COMMIT");
+              transactionStarted = false;
             } catch (transactionError) {
-              await db.execAsync("ROLLBACK");
+              if (transactionStarted) {
+                await db.execAsync("ROLLBACK");
+                transactionStarted = false;
+              }
               throw transactionError;
             }
 
@@ -395,9 +408,11 @@ export default function Customers() {
               estimateIds.map((estimateId) => queueChange("estimates", "delete", { id: estimateId })),
             );
 
-            await runSync().catch((syncError) => {
+            try {
+              await runSync();
+            } catch (syncError) {
               console.error("Failed to sync customer deletion", syncError);
-            });
+            }
 
             setCustomers((current) => current.filter((existing) => existing.id !== customer.id));
             setEditingCustomer((current) => (current?.id === customer.id ? null : current));

@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -48,6 +48,13 @@ export function Button({
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const isDisabled = disabled || loading;
+  const handlePress = useCallback(() => {
+    if (isDisabled || typeof onPress !== "function") {
+      return;
+    }
+
+    onPress();
+  }, [isDisabled, onPress]);
 
   return (
     <Pressable
@@ -55,7 +62,7 @@ export function Button({
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       disabled={isDisabled}
-      onPress={onPress}
+      onPress={handlePress}
       style={({ pressed }) => [
         styles.base,
         styles[variant],
