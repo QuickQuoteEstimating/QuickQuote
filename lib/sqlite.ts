@@ -82,6 +82,9 @@ export async function initLocalDB(): Promise<void> {
       tax_rate REAL DEFAULT 0,
       tax_total REAL DEFAULT 0,
       notes TEXT,
+      billing_address TEXT,
+      job_address TEXT,
+      job_details TEXT,
       status TEXT DEFAULT 'draft',
       version INTEGER DEFAULT 1,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -114,6 +117,15 @@ export async function initLocalDB(): Promise<void> {
   }
   if (!estimateColumns.some((column) => column.name === "tax_total")) {
     await db.execAsync("ALTER TABLE estimates ADD COLUMN tax_total REAL DEFAULT 0");
+  }
+  if (!estimateColumns.some((column) => column.name === "billing_address")) {
+    await db.execAsync("ALTER TABLE estimates ADD COLUMN billing_address TEXT");
+  }
+  if (!estimateColumns.some((column) => column.name === "job_address")) {
+    await db.execAsync("ALTER TABLE estimates ADD COLUMN job_address TEXT");
+  }
+  if (!estimateColumns.some((column) => column.name === "job_details")) {
+    await db.execAsync("ALTER TABLE estimates ADD COLUMN job_details TEXT");
   }
 
   // Estimate Items

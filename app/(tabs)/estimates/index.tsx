@@ -1,14 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Badge, Button, Card, FAB, Input, ListItem } from "../../../components/ui";
 import { openDB } from "../../../lib/sqlite";
@@ -33,6 +26,9 @@ type EstimateListItem = {
   tax_rate: number | null;
   tax_total: number | null;
   notes: string | null;
+  billing_address: string | null;
+  job_address: string | null;
+  job_details: string | null;
   status: string | null;
   version: number | null;
   updated_at: string;
@@ -105,6 +101,7 @@ export default function EstimatesScreen() {
       const rows = await db.getAllAsync<EstimateListItem>(
         `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.notes, e.status, e.version, e.updated_at, e.deleted_at,
                 e.material_total, e.labor_hours, e.labor_rate, e.labor_total, e.subtotal, e.tax_rate, e.tax_total,
+                e.billing_address, e.job_address, e.job_details,
                 c.name AS customer_name,
                 c.email AS customer_email,
                 c.phone AS customer_phone,
@@ -237,20 +234,20 @@ export default function EstimatesScreen() {
                   {STATUS_FILTERS.map((filter) => {
                     const isSelected = statusFilter === filter.key;
                     return (
-                    <Button
-                      key={filter.key}
-                      label={filter.label}
-                      variant={isSelected ? "primary" : "ghost"}
-                      alignment="inline"
-                      onPress={() => setStatusFilter(filter.key)}
-                      style={[styles.filterButton, isSelected ? styles.filterButtonActive : null]}
-                      textStyle={[styles.filterButtonLabel]}
-                      accessibilityLabel={`Filter estimates by status: ${filter.label}`}
-                    />
-                  );
-                })}
-              </View>
-            </Card>
+                      <Button
+                        key={filter.key}
+                        label={filter.label}
+                        variant={isSelected ? "primary" : "ghost"}
+                        alignment="inline"
+                        onPress={() => setStatusFilter(filter.key)}
+                        style={[styles.filterButton, isSelected ? styles.filterButtonActive : null]}
+                        textStyle={[styles.filterButtonLabel]}
+                        accessibilityLabel={`Filter estimates by status: ${filter.label}`}
+                      />
+                    );
+                  })}
+                </View>
+              </Card>
               {loading ? (
                 <Card style={styles.messageCard}>
                   <View style={styles.loadingRow}>

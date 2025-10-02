@@ -2,14 +2,17 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
 import * as Print from "expo-print";
 import * as SMS from "expo-sms";
 import { v4 as uuidv4 } from "uuid";
@@ -26,6 +29,11 @@ import {
   type EstimatePdfResult,
 } from "../../../lib/pdf";
 import { runSync } from "../../../lib/sync";
+import {
+  createPhotoStoragePath,
+  deleteLocalPhoto,
+  persistLocalPhotoCopy,
+} from "../../../lib/storage";
 import { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 
@@ -50,6 +58,14 @@ type LineItemDraft = {
   unitPrice: string;
 };
 
+type PhotoDraft = {
+  id: string;
+  storagePath: string;
+  localUri: string;
+  version: number;
+  persisted: boolean;
+};
+
 type PersistedEstimateRecord = {
   id: string;
   user_id: string;
@@ -68,6 +84,9 @@ type PersistedEstimateRecord = {
   version: number;
   updated_at: string;
   deleted_at: string | null;
+  billing_address: string | null;
+  job_address: string | null;
+  job_details: string | null;
 };
 
 type PersistedEstimateItem = {
@@ -87,8 +106,12 @@ type SavedEstimateContext = {
   estimate: PersistedEstimateRecord;
   items: PersistedEstimateItem[];
   customer: CustomerOption;
-  jobLocation: string | null;
-  jobDescription: string | null;
+  billingAddress: string | null;
+  jobAddress: string | null;
+  jobDetails: string | null;
+  laborHours: number;
+  laborRate: number;
+  photos: { id: string; localUri: string | null; remoteUri: string | null }[];
 };
 
 type FormErrors = {
@@ -129,20 +152,24 @@ function computeLineItemTotal(item: LineItemDraft): number {
   return Math.round(quantity * unitPrice * 100) / 100;
 }
 
-function buildNotes(jobLocation: string | null, jobDescription: string | null): string | null {
-  const parts: string[] = [];
-  if (jobLocation) {
-    parts.push(`Job location: ${jobLocation}`);
-  }
-  if (jobDescription) {
-    parts.push(jobDescription);
-  }
-
-  if (parts.length === 0) {
-    return null;
-  }
-
-  return parts.join("\n\n");
+function toPhotoQueuePayload(photo: {
+  id: string;
+  estimate_id: string;
+  uri: string;
+  description: string | null;
+  version: number;
+  updated_at: string;
+  deleted_at: string | null;
+}) {
+  return {
+    id: photo.id,
+    estimate_id: photo.estimate_id,
+    uri: photo.uri,
+    description: photo.description,
+    version: photo.version,
+    updated_at: photo.updated_at,
+    deleted_at: photo.deleted_at,
+  };
 }
 
 function createStyles(theme: Theme) {
@@ -158,7 +185,7 @@ function createStyles(theme: Theme) {
     content: {
       paddingHorizontal: theme.spacing.xl,
       paddingTop: theme.spacing.xl,
-      paddingBottom: theme.spacing.xxl * 2,
+      paddingBottom: theme.spacing.xxxl,
       gap: theme.spacing.xl,
     },
     sectionHeader: {
@@ -223,8 +250,24 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       gap: theme.spacing.md,
     },
-    jobSection: {
+    toggleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       gap: theme.spacing.lg,
+    },
+    toggleLabelGroup: {
+      flex: 1,
+    },
+    toggleLabel: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.primaryText,
+    },
+    toggleCaption: {
+      fontSize: 13,
+      color: theme.colors.textMuted,
+      marginTop: 2,
     },
     lineItemList: {
       gap: theme.spacing.lg,
@@ -260,6 +303,13 @@ function createStyles(theme: Theme) {
     },
     addItemButton: {
       alignSelf: "flex-start",
+    },
+    laborGrid: {
+      flexDirection: "row",
+      gap: theme.spacing.md,
+    },
+    laborColumn: {
+      flex: 1,
     },
     summaryCard: {
       borderRadius: theme.radii.lg,
@@ -309,8 +359,40 @@ function createStyles(theme: Theme) {
       fontSize: 12,
       color: theme.colors.textMuted,
     },
+    photoGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.md,
+    },
+    photoCard: {
+      width: "47%",
+      borderRadius: theme.radii.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      overflow: "hidden",
+    },
+    photoImage: {
+      width: "100%",
+      height: 140,
+    },
+    photoFooter: {
+      padding: theme.spacing.sm,
+      gap: theme.spacing.xs,
+    },
+    photoEmpty: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: theme.spacing.xl,
+    },
+    photoEmptyText: {
+      fontSize: 14,
+      color: theme.colors.textMuted,
+      textAlign: "center",
+    },
   });
 }
+
 export default function NewEstimateScreen() {
   const { user, session } = useAuth();
   const { settings } = useSettings();
@@ -328,6 +410,8 @@ export default function NewEstimateScreen() {
     return Math.round(rate * 100) / 100;
   }, [settings.taxRate]);
 
+  const draftEstimateIdRef = useRef<string>(uuidv4());
+
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null);
@@ -337,14 +421,26 @@ export default function NewEstimateScreen() {
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [newCustomerEmail, setNewCustomerEmail] = useState("");
+  const [newCustomerAddress, setNewCustomerAddress] = useState("");
   const [creatingCustomer, setCreatingCustomer] = useState(false);
 
-  const [jobLocation, setJobLocation] = useState("");
-  const [jobLocationEdited, setJobLocationEdited] = useState(false);
-  const [jobDescription, setJobDescription] = useState("");
-  const autoFilledJobLocationRef = useRef<string | null>(null);
+  const [billingAddress, setBillingAddress] = useState("");
+  const [jobAddress, setJobAddress] = useState("");
+  const [jobAddressSameAsBilling, setJobAddressSameAsBilling] = useState(true);
+  const jobCustomAddressRef = useRef("");
+
+  const [jobDetails, setJobDetails] = useState("");
+
+  const [laborRateInput, setLaborRateInput] = useState(
+    defaultLaborRate > 0 ? defaultLaborRate.toFixed(2) : "",
+  );
+  const [laborHoursInput, setLaborHoursInput] = useState("");
 
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([]);
+
+  const [photoDrafts, setPhotoDrafts] = useState<PhotoDraft[]>([]);
+  const [pendingPhotoDeletes, setPendingPhotoDeletes] = useState<PhotoDraft[]>([]);
+  const [addingPhoto, setAddingPhoto] = useState(false);
 
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -359,17 +455,28 @@ export default function NewEstimateScreen() {
 
   const taxRate = defaultTaxRate;
 
+  useEffect(() => {
+    if (jobAddressSameAsBilling) {
+      setJobAddress(billingAddress);
+    }
+  }, [billingAddress, jobAddressSameAsBilling]);
+
   const materialLineItems = useMemo(
     () => lineItems.map((item) => ({ total: computeLineItemTotal(item) })),
     [lineItems],
   );
 
+  const laborRateValue = useMemo(() => parseDecimal(laborRateInput) ?? 0, [laborRateInput]);
+  const laborHoursValue = useMemo(() => parseDecimal(laborHoursInput) ?? 0, [laborHoursInput]);
+
   const totals = useMemo(() => {
     return calculateEstimateTotals({
       materialLineItems,
+      laborHours: laborHoursValue,
+      laborRate: laborRateValue,
       taxRate,
     });
-  }, [materialLineItems, taxRate]);
+  }, [laborHoursValue, laborRateValue, materialLineItems, taxRate]);
 
   const fetchCustomers = useCallback(async (query: string) => {
     const db = await openDB();
@@ -440,35 +547,43 @@ export default function NewEstimateScreen() {
       clearTimeout(handle);
     };
   }, [customerQuery, fetchCustomers, selectedCustomer]);
-  const handleSelectCustomer = useCallback(
-    (customer: CustomerOption) => {
-      setSelectedCustomer(customer);
-      setCustomerQuery(customer.name ?? "");
-      setShowNewCustomerForm(false);
 
-      const trimmedAddress = customer.address?.trim();
-      if (trimmedAddress) {
-        const previousAuto = autoFilledJobLocationRef.current;
-        const currentValue = jobLocation.trim();
-        if (!jobLocationEdited || currentValue === "" || currentValue === previousAuto) {
-          autoFilledJobLocationRef.current = trimmedAddress;
-          setJobLocation(trimmedAddress);
-          setJobLocationEdited(false);
-        }
-      }
-    },
-    [jobLocation, jobLocationEdited],
-  );
+  const handleSelectCustomer = useCallback((customer: CustomerOption) => {
+    setSelectedCustomer(customer);
+    setCustomerQuery(customer.name ?? "");
+    setShowNewCustomerForm(false);
+
+    const trimmedAddress = customer.address?.trim() ?? "";
+    setBillingAddress(trimmedAddress);
+    setJobAddressSameAsBilling(true);
+    setJobAddress(trimmedAddress);
+    jobCustomAddressRef.current = "";
+  }, []);
 
   const handleClearCustomer = useCallback(() => {
     setSelectedCustomer(null);
     setCustomerQuery("");
+    setBillingAddress("");
+    setJobAddress("");
+    setJobAddressSameAsBilling(true);
   }, []);
 
-  const handleJobLocationChange = useCallback((value: string) => {
-    setJobLocation(value);
-    setJobLocationEdited(true);
-    autoFilledJobLocationRef.current = null;
+  const handleJobAddressToggle = useCallback(
+    (value: boolean) => {
+      setJobAddressSameAsBilling(value);
+      if (value) {
+        setJobAddress(billingAddress);
+      } else {
+        const previousCustom = jobCustomAddressRef.current.trim();
+        setJobAddress(previousCustom || billingAddress);
+      }
+    },
+    [billingAddress],
+  );
+
+  const handleJobAddressChange = useCallback((value: string) => {
+    setJobAddress(value);
+    jobCustomAddressRef.current = value;
   }, []);
 
   const handleCreateCustomer = useCallback(async () => {
@@ -493,7 +608,7 @@ export default function NewEstimateScreen() {
         name: trimmedName,
         phone: newCustomerPhone.trim() ? newCustomerPhone.trim() : null,
         email: newCustomerEmail.trim() ? newCustomerEmail.trim() : null,
-        address: null as string | null,
+        address: newCustomerAddress.trim() ? newCustomerAddress.trim() : null,
         notes: null as string | null,
         version: 1,
         updated_at: now,
@@ -536,14 +651,18 @@ export default function NewEstimateScreen() {
       setNewCustomerName("");
       setNewCustomerPhone("");
       setNewCustomerEmail("");
+      setNewCustomerAddress("");
       setCustomerResults((current) => [option, ...current.filter((row) => row.id !== option.id)]);
+      setBillingAddress(option.address ?? "");
+      setJobAddressSameAsBilling(true);
+      setJobAddress(option.address ?? "");
     } catch (error) {
       console.error("Failed to create customer", error);
       Alert.alert("Customer", "We couldn't save this customer. Please try again.");
     } finally {
       setCreatingCustomer(false);
     }
-  }, [newCustomerEmail, newCustomerName, newCustomerPhone, userId]);
+  }, [newCustomerAddress, newCustomerEmail, newCustomerName, newCustomerPhone, userId]);
 
   const handleAddLineItem = useCallback(() => {
     setLineItems((current) => [
@@ -564,6 +683,85 @@ export default function NewEstimateScreen() {
   const handleRemoveLineItem = useCallback((itemId: string) => {
     setLineItems((current) => current.filter((item) => item.id !== itemId));
   }, []);
+
+  const handleAddPhoto = useCallback(async () => {
+    if (addingPhoto) {
+      return;
+    }
+
+    try {
+      setAddingPhoto(true);
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== "granted") {
+        Alert.alert(
+          "Permission required",
+          "Photo library access is required to attach photos to this estimate.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.7,
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      const estimateId = persistedData?.estimate.id ?? draftEstimateIdRef.current;
+      const nextPhotos: PhotoDraft[] = [];
+      for (const asset of result.assets) {
+        if (!asset.uri) {
+          continue;
+        }
+        const photoId = uuidv4();
+        const storagePath = createPhotoStoragePath(estimateId, photoId, asset.uri);
+        const localUri = await persistLocalPhotoCopy(photoId, storagePath, asset.uri);
+        nextPhotos.push({
+          id: photoId,
+          storagePath,
+          localUri,
+          version: 1,
+          persisted: false,
+        });
+      }
+
+      if (nextPhotos.length > 0) {
+        setPhotoDrafts((current) => [...current, ...nextPhotos]);
+      }
+    } catch (error) {
+      console.error("Failed to add photo", error);
+      Alert.alert("Error", "Unable to add the selected photos. Please try again.");
+    } finally {
+      setAddingPhoto(false);
+    }
+  }, [addingPhoto, persistedData]);
+
+  const handleRemovePhoto = useCallback(
+    (photoId: string) => {
+      const photo = photoDrafts.find((item) => item.id === photoId);
+      if (!photo) {
+        return;
+      }
+
+      Alert.alert("Remove photo", "Remove this photo from the estimate?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            setPhotoDrafts((current) => current.filter((item) => item.id !== photoId));
+            if (photo.persisted) {
+              setPendingPhotoDeletes((current) => [...current, photo]);
+            }
+          },
+        },
+      ]);
+    },
+    [photoDrafts],
+  );
 
   const markEstimateSent = useCallback(
     async (context: SavedEstimateContext, channel: "email" | "sms") => {
@@ -659,17 +857,24 @@ export default function NewEstimateScreen() {
     setFormErrors({});
     setFormError(null);
 
-    const jobLocationValue = jobLocation.trim() ? jobLocation.trim() : null;
-    const jobDescriptionValue = jobDescription.trim() ? jobDescription.trim() : null;
+    const billingAddressValue = billingAddress.trim() ? billingAddress.trim() : null;
+    const jobAddressValue = jobAddressSameAsBilling
+      ? billingAddressValue
+      : jobAddress.trim()
+        ? jobAddress.trim()
+        : null;
+    const jobDetailsValue = jobDetails.trim() ? jobDetails.trim() : null;
 
     const estimateTotals = calculateEstimateTotals({
       materialLineItems: normalizedLineItems.map((item) => ({ total: item.total })),
+      laborHours: laborHoursValue,
+      laborRate: laborRateValue,
       taxRate,
     });
 
     const db = await openDB();
     const now = new Date().toISOString();
-    const estimateId = persistedData?.estimate.id ?? uuidv4();
+    const estimateId = persistedData?.estimate.id ?? draftEstimateIdRef.current;
     const baseStatus = persistedData?.estimate.status ?? "draft";
     const nextVersion = persistedData ? (persistedData.estimate.version ?? 1) + 1 : 1;
 
@@ -680,25 +885,28 @@ export default function NewEstimateScreen() {
       date: persistedData?.estimate.date ?? null,
       total: estimateTotals.grandTotal,
       material_total: estimateTotals.materialTotal,
-      labor_hours: 0,
-      labor_rate: defaultLaborRate,
+      labor_hours: estimateTotals.laborHours,
+      labor_rate: estimateTotals.laborRate,
       labor_total: estimateTotals.laborTotal,
       subtotal: estimateTotals.subtotal,
       tax_rate: estimateTotals.taxRate,
       tax_total: estimateTotals.taxTotal,
-      notes: buildNotes(jobLocationValue, jobDescriptionValue),
+      notes: jobDetailsValue,
       status: baseStatus,
       version: nextVersion,
       updated_at: now,
       deleted_at: null,
+      billing_address: billingAddressValue,
+      job_address: jobAddressValue,
+      job_details: jobDetailsValue,
     };
 
     try {
       if (!persistedData) {
         await db.runAsync(
           `INSERT OR REPLACE INTO estimates
-             (id, user_id, customer_id, date, total, material_total, labor_hours, labor_rate, labor_total, subtotal, tax_rate, tax_total, notes, status, version, updated_at, deleted_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, user_id, customer_id, date, total, material_total, labor_hours, labor_rate, labor_total, subtotal, tax_rate, tax_total, notes, status, version, updated_at, deleted_at, billing_address, job_address, job_details)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             newEstimate.id,
             newEstimate.user_id,
@@ -717,13 +925,16 @@ export default function NewEstimateScreen() {
             newEstimate.version,
             newEstimate.updated_at,
             newEstimate.deleted_at,
+            newEstimate.billing_address,
+            newEstimate.job_address,
+            newEstimate.job_details,
           ],
         );
         await queueChange("estimates", "insert", sanitizeEstimateForQueue(newEstimate));
       } else {
         await db.runAsync(
           `UPDATE estimates
-             SET customer_id = ?, date = ?, total = ?, material_total = ?, labor_hours = ?, labor_rate = ?, labor_total = ?, subtotal = ?, tax_rate = ?, tax_total = ?, notes = ?, status = ?, version = ?, updated_at = ?, deleted_at = NULL
+             SET customer_id = ?, date = ?, total = ?, material_total = ?, labor_hours = ?, labor_rate = ?, labor_total = ?, subtotal = ?, tax_rate = ?, tax_total = ?, notes = ?, status = ?, version = ?, updated_at = ?, deleted_at = NULL, billing_address = ?, job_address = ?, job_details = ?
              WHERE id = ?`,
           [
             newEstimate.customer_id,
@@ -740,6 +951,9 @@ export default function NewEstimateScreen() {
             newEstimate.status,
             newEstimate.version,
             newEstimate.updated_at,
+            newEstimate.billing_address,
+            newEstimate.job_address,
+            newEstimate.job_details,
             newEstimate.id,
           ],
         );
@@ -798,14 +1012,76 @@ export default function NewEstimateScreen() {
         insertedItems.push(record);
       }
 
+      const photosToInsert = photoDrafts.filter((photo) => !photo.persisted);
+      for (const photo of photosToInsert) {
+        const photoRecord = {
+          id: photo.id,
+          estimate_id: newEstimate.id,
+          uri: photo.storagePath,
+          local_uri: photo.localUri,
+          description: null as string | null,
+          version: photo.version,
+          updated_at: now,
+          deleted_at: null as string | null,
+        };
+
+        await db.runAsync(
+          `INSERT OR REPLACE INTO photos (id, estimate_id, uri, local_uri, description, version, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            photoRecord.id,
+            photoRecord.estimate_id,
+            photoRecord.uri,
+            photoRecord.local_uri,
+            photoRecord.description,
+            photoRecord.version,
+            photoRecord.updated_at,
+            photoRecord.deleted_at,
+          ],
+        );
+
+        await queueChange("photos", "insert", toPhotoQueuePayload(photoRecord));
+      }
+
+      for (const photo of pendingPhotoDeletes) {
+        const nextVersion = (photo.version ?? 1) + 1;
+        await db.runAsync(
+          `UPDATE photos
+             SET deleted_at = ?, updated_at = ?, version = ?
+             WHERE id = ?`,
+          [now, now, nextVersion, photo.id],
+        );
+        await queueChange("photos", "delete", { id: photo.id });
+        await deleteLocalPhoto(photo.localUri);
+      }
+
+      setPhotoDrafts((current) =>
+        current.map((photo) =>
+          photosToInsert.some((item) => item.id === photo.id)
+            ? { ...photo, persisted: true }
+            : photo,
+        ),
+      );
+      setPendingPhotoDeletes([]);
+
       setPersistedData({ estimate: newEstimate, items: insertedItems });
 
       const context: SavedEstimateContext = {
         estimate: newEstimate,
         items: insertedItems,
         customer: selectedCustomer,
-        jobLocation: jobLocationValue,
-        jobDescription: jobDescriptionValue,
+        billingAddress: billingAddressValue,
+        jobAddress: jobAddressValue,
+        jobDetails: jobDetailsValue,
+        laborHours: estimateTotals.laborHours,
+        laborRate: estimateTotals.laborRate,
+        photos: photoDrafts
+          .filter((photo) => !pendingPhotoDeletes.some((pending) => pending.id === photo.id))
+          .map((photo) => ({
+            id: photo.id,
+            localUri: photo.localUri,
+            remoteUri: photo.storagePath,
+          })),
       };
 
       void runSync().catch((error) => {
@@ -820,32 +1096,43 @@ export default function NewEstimateScreen() {
       return null;
     }
   }, [
-    defaultLaborRate,
-    jobDescription,
-    jobLocation,
+    billingAddress,
+    jobAddress,
+    jobAddressSameAsBilling,
+    jobDetails,
+    laborHoursValue,
+    laborRateValue,
     lineItems,
+    pendingPhotoDeletes,
     persistedData,
+    photoDrafts,
     selectedCustomer,
     taxRate,
     userId,
   ]);
+
   const buildPdfOptions = useCallback(
     (context: SavedEstimateContext): EstimatePdfOptions => ({
       estimate: {
         id: context.estimate.id,
         date: context.estimate.date,
         status: context.estimate.status,
-        notes: context.estimate.notes,
+        notes: context.jobDetails,
         total: context.estimate.total,
         materialTotal: context.estimate.material_total,
         laborTotal: context.estimate.labor_total,
         taxTotal: context.estimate.tax_total,
         subtotal: context.estimate.subtotal,
+        laborHours: context.laborHours,
+        laborRate: context.laborRate,
+        billingAddress: context.billingAddress,
+        jobAddress: context.jobAddress,
+        jobDetails: context.jobDetails,
         customer: {
           name: context.customer.name,
           email: context.customer.email,
           phone: context.customer.phone,
-          address: context.jobLocation ?? context.customer.address ?? null,
+          address: context.billingAddress ?? context.customer.address ?? null,
         },
       },
       items: context.items.map((item) => ({
@@ -855,7 +1142,11 @@ export default function NewEstimateScreen() {
         unitPrice: item.unit_price,
         total: item.total,
       })),
-      photos: [],
+      photos: context.photos.map((photo) => ({
+        id: photo.id,
+        localUri: photo.localUri ?? null,
+        remoteUri: photo.remoteUri ?? null,
+      })),
       termsAndConditions: settings.termsAndConditions,
       paymentDetails: settings.paymentDetails,
     }),
@@ -931,149 +1222,113 @@ export default function NewEstimateScreen() {
       if (!phone) {
         Alert.alert(
           "Missing phone",
-          "Add a mobile number for this customer to share the estimate.",
+          "Add a phone number for this customer to send the estimate via text.",
         );
         return;
       }
 
+      const isAvailable = await SMS.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert("Unavailable", "Text messaging isn't available on this device.");
+        return;
+      }
+
       try {
-        const available = await SMS.isAvailableAsync();
-        if (!available) {
-          Alert.alert("Unavailable", "SMS is not supported on this device.");
-          return;
-        }
+        const message = [
+          `Estimate ${context.estimate.id} total: ${formatCurrency(context.estimate.total)}`,
+          pdf.uri,
+        ].join("\n");
 
-        const message = `Estimate ${context.estimate.id} total ${formatCurrency(
-          context.estimate.total,
-        )}. PDF: ${pdf.uri}`;
-        let smsResponse;
-        try {
-          smsResponse = await SMS.sendSMSAsync(
-            [phone],
-            message,
-            pdf.uri
-              ? {
-                  attachments: [
-                    { uri: pdf.uri, mimeType: "application/pdf", filename: pdf.fileName },
-                  ],
-                }
-              : undefined,
-          );
-        } catch (error) {
-          console.warn("Failed to send SMS with attachment", error);
-          smsResponse = await SMS.sendSMSAsync([phone], message);
-        }
-
+        await SMS.sendSMSAsync([phone], message);
         await logEstimateDelivery({
           estimateId: context.estimate.id,
           channel: "sms",
           recipient: phone,
           messagePreview: message.length > 240 ? `${message.slice(0, 237)}...` : message,
-          metadata: { pdfUri: pdf.uri, smsResult: smsResponse?.result ?? null },
+          metadata: { pdfUri: pdf.uri },
         });
         await markEstimateSent(context, "sms");
       } catch (error) {
         console.error("Failed to share via SMS", error);
-        Alert.alert("Error", "Unable to share the estimate via SMS.");
+        Alert.alert("Error", "Unable to send the estimate via text.");
       }
     },
     [markEstimateSent],
   );
 
-  const presentShareOptions = useCallback(
-    async (context: SavedEstimateContext, pdfOptions: EstimatePdfOptions) => {
-      const hasEmail = Boolean(context.customer.email?.trim());
-      const hasPhone = Boolean(context.customer.phone?.trim());
-
-      if (!hasEmail && !hasPhone) {
-        Alert.alert(
-          "Add client contact",
-          "Add an email address or mobile number before sending this estimate.",
-        );
-        return;
-      }
-
-      const pdf = await renderEstimatePdf(pdfOptions);
-
-      await new Promise<void>((resolve) => {
-        const sendEmail = () => {
-          void (async () => {
-            await shareViaEmail(context, pdf);
-            resolve();
-          })();
-        };
-        const sendSms = () => {
-          void (async () => {
-            await shareViaSms(context, pdf);
-            resolve();
-          })();
-        };
-
-        if (hasEmail && hasPhone) {
-          Alert.alert("Send estimate", "Choose how you'd like to send the estimate.", [
-            { text: "Cancel", style: "cancel", onPress: () => resolve() },
-            { text: "Text message", onPress: sendSms },
-            { text: "Email", onPress: sendEmail },
-          ]);
-          return;
-        }
-
-        if (hasEmail) {
-          sendEmail();
-          return;
-        }
-
-        sendSms();
-      });
-    },
-    [shareViaEmail, shareViaSms],
-  );
-
   const handleSaveDraft = useCallback(async () => {
-    if (saving || sending) {
+    if (saving || sending || previewing) {
       return;
     }
-    setSaving(true);
+
     try {
-      const saved = await saveEstimate();
-      if (saved) {
-        Alert.alert("Draft saved", "Your estimate draft has been saved.");
+      setSaving(true);
+      const context = await saveEstimate();
+      if (!context) {
+        return;
       }
+      Alert.alert("Estimate saved", "Draft saved successfully.");
     } finally {
       setSaving(false);
     }
-  }, [saveEstimate, saving, sending]);
+  }, [previewing, saveEstimate, saving, sending]);
 
   const handleSaveAndSend = useCallback(async () => {
-    if (saving || sending) {
+    if (saving || sending || previewing) {
       return;
     }
-    setSending(true);
+
     try {
-      const saved = await saveEstimate();
-      if (!saved) {
+      setSending(true);
+      const context = await saveEstimate();
+      if (!context) {
         return;
       }
-      const options = buildPdfOptions(saved);
-      await presentShareOptions(saved, options);
+
+      const pdf = await renderEstimatePdf(buildPdfOptions(context));
+      if (Platform.OS === "ios" || Platform.OS === "android") {
+        Alert.alert("Send Estimate", "How would you like to share the estimate?", [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Email",
+            onPress: () => {
+              void shareViaEmail(context, pdf);
+            },
+          },
+          {
+            text: "Text message",
+            onPress: () => {
+              void shareViaSms(context, pdf);
+            },
+          },
+        ]);
+      } else {
+        await shareViaEmail(context, pdf);
+      }
+    } catch (error) {
+      console.error("Failed to send estimate", error);
+      Alert.alert("Estimate", "We couldn't send this estimate. Please try again.");
     } finally {
       setSending(false);
     }
-  }, [buildPdfOptions, presentShareOptions, saveEstimate, saving, sending]);
+  }, [buildPdfOptions, previewing, saveEstimate, saving, sending, shareViaEmail, shareViaSms]);
 
   const handlePreview = useCallback(async () => {
-    if (previewing || saving || sending) {
+    if (saving || sending || previewing) {
       return;
     }
-    setPreviewing(true);
+
     try {
-      const saved = await saveEstimate();
-      if (!saved) {
+      setPreviewing(true);
+      const context = await saveEstimate();
+      if (!context) {
         return;
       }
-      const pdf = await renderEstimatePdf(buildPdfOptions(saved));
+
+      const pdf = await renderEstimatePdf(buildPdfOptions(context));
+
       if (Platform.OS === "web") {
-        if (typeof window === "undefined") {
+        if (!pdf.html) {
           Alert.alert("Unavailable", "Preview is not supported in this environment.");
           return;
         }
@@ -1114,7 +1369,7 @@ export default function NewEstimateScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Customer</Text>
               <Text style={styles.sectionSubtitle}>
-                Search your contacts or add a new customer on the fly.
+                Search existing customers or create a new one without leaving this screen.
               </Text>
             </View>
             {selectedCustomer ? (
@@ -1198,6 +1453,13 @@ export default function NewEstimateScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
+                <Input
+                  label="Billing address"
+                  placeholder="123 Main St, Springfield"
+                  value={newCustomerAddress}
+                  onChangeText={setNewCustomerAddress}
+                  multiline
+                />
                 <View style={styles.inlineActions}>
                   <Button
                     label={creatingCustomer ? "Saving…" : "Save customer"}
@@ -1225,38 +1487,67 @@ export default function NewEstimateScreen() {
             ) : null}
           </Card>
 
-          <Card style={styles.jobSection}>
+          <Card style={{ gap: theme.spacing.lg }}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Job location & details</Text>
-              <Text style={styles.sectionSubtitle}>Give your crew and client the essentials.</Text>
+              <Text style={styles.sectionTitle}>Job Location & Billing</Text>
+              <Text style={styles.sectionSubtitle}>
+                Customize where work happens and where invoices are sent.
+              </Text>
             </View>
             <Input
-              label="Job location"
-              placeholder="Where is the job located?"
-              value={jobLocation}
-              onChangeText={handleJobLocationChange}
-              autoCapitalize="words"
-              autoCorrect={false}
-              caption={
-                selectedCustomer?.address && !jobLocationEdited
-                  ? "Defaulted to the customer's saved address."
-                  : undefined
-              }
-            />
-            <Input
-              label="Job description"
-              placeholder="Describe the job or add notes for your team"
-              value={jobDescription}
-              onChangeText={setJobDescription}
+              label="Billing address"
+              placeholder="Where should we send the bill?"
+              value={billingAddress}
+              onChangeText={setBillingAddress}
               multiline
+            />
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleLabelGroup}>
+                <Text style={styles.toggleLabel}>Job site same as billing</Text>
+                <Text style={styles.toggleCaption}>
+                  Turn off to enter a different service location.
+                </Text>
+              </View>
+              <Switch
+                value={jobAddressSameAsBilling}
+                onValueChange={handleJobAddressToggle}
+                trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }}
+                thumbColor={jobAddressSameAsBilling ? theme.colors.primary : undefined}
+              />
+            </View>
+            {!jobAddressSameAsBilling ? (
+              <Input
+                label="Job site address"
+                placeholder="Where is the work happening?"
+                value={jobAddress}
+                onChangeText={handleJobAddressChange}
+                multiline
+              />
+            ) : null}
+          </Card>
+
+          <Card style={{ gap: theme.spacing.lg }}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Job Details</Text>
+              <Text style={styles.sectionSubtitle}>
+                Include scope notes or instructions for your team and customer.
+              </Text>
+            </View>
+            <Input
+              label="Notes / Job description"
+              placeholder="Describe the work, schedule, and important details"
+              value={jobDetails}
+              onChangeText={setJobDetails}
+              multiline
+              numberOfLines={4}
             />
           </Card>
 
           <Card style={{ gap: theme.spacing.lg }}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Line items</Text>
+              <Text style={styles.sectionTitle}>Line Items</Text>
               <Text style={styles.sectionSubtitle}>
-                Add the materials, labor, and services for this estimate.
+                Add materials and services with inline totals.
               </Text>
             </View>
             <View style={styles.lineItemList}>
@@ -1323,6 +1614,14 @@ export default function NewEstimateScreen() {
             />
             <View style={styles.summaryCard}>
               <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Materials</Text>
+                <Text style={styles.summaryValue}>{formatCurrency(totals.materialTotal)}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Labor</Text>
+                <Text style={styles.summaryValue}>{formatCurrency(totals.laborTotal)}</Text>
+              </View>
+              <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Subtotal</Text>
                 <Text style={styles.summaryValue}>{formatCurrency(totals.subtotal)}</Text>
               </View>
@@ -1336,6 +1635,81 @@ export default function NewEstimateScreen() {
               </View>
               <Text style={styles.caption}>Tax rate comes from your account settings.</Text>
             </View>
+          </Card>
+
+          <Card style={{ gap: theme.spacing.lg }}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Labor</Text>
+              <Text style={styles.sectionSubtitle}>
+                Track crew time with an hourly rate and total hours.
+              </Text>
+            </View>
+            <View style={styles.laborGrid}>
+              <Input
+                label="Labor rate ($/hour)"
+                placeholder="0.00"
+                value={laborRateInput}
+                onChangeText={setLaborRateInput}
+                keyboardType="decimal-pad"
+                containerStyle={styles.laborColumn}
+                leftElement={<Text>$</Text>}
+              />
+              <Input
+                label="Labor hours"
+                placeholder="0"
+                value={laborHoursInput}
+                onChangeText={setLaborHoursInput}
+                keyboardType="decimal-pad"
+                containerStyle={styles.laborColumn}
+              />
+            </View>
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Calculated labor total</Text>
+                <Text style={styles.summaryValue}>{formatCurrency(totals.laborTotal)}</Text>
+              </View>
+              <Text style={styles.caption}>
+                Labor totals automatically feed into your estimate grand total.
+              </Text>
+            </View>
+          </Card>
+
+          <Card style={{ gap: theme.spacing.lg }}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Photos</Text>
+              <Text style={styles.sectionSubtitle}>
+                Attach visuals to help customers understand the work.
+              </Text>
+            </View>
+            {photoDrafts.length === 0 ? (
+              <View style={styles.photoEmpty}>
+                <Text style={styles.photoEmptyText}>No photos attached yet.</Text>
+              </View>
+            ) : (
+              <View style={styles.photoGrid}>
+                {photoDrafts.map((photo) => (
+                  <View key={photo.id} style={styles.photoCard}>
+                    <Image source={{ uri: photo.localUri }} style={styles.photoImage} />
+                    <View style={styles.photoFooter}>
+                      <Text style={styles.caption}>Photo #{photo.id.slice(0, 6)}</Text>
+                      <Button
+                        label="Remove"
+                        variant="ghost"
+                        alignment="inline"
+                        onPress={() => handleRemovePhoto(photo.id)}
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+            <Button
+              label={addingPhoto ? "Adding…" : "Attach photos"}
+              onPress={handleAddPhoto}
+              loading={addingPhoto}
+              disabled={addingPhoto}
+              variant="secondary"
+            />
           </Card>
         </ScrollView>
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, theme.spacing.lg) }]}>

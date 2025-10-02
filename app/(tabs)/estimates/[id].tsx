@@ -436,6 +436,9 @@ export default function EditEstimateScreen() {
     const isoDate = estimateDate ? new Date(estimateDate).toISOString() : estimate.date;
 
     const trimmedNotes = notes.trim();
+    const billingAddress =
+      estimate.billing_address ?? customerContact?.address ?? estimate.customer_address ?? null;
+    const jobAddress = estimate.job_address ?? billingAddress ?? null;
 
     return {
       estimate: {
@@ -448,11 +451,16 @@ export default function EditEstimateScreen() {
         laborTotal: totals.laborTotal,
         taxTotal: totals.taxTotal,
         subtotal: totals.subtotal,
+        laborHours: totals.laborHours,
+        laborRate: totals.laborRate,
+        billingAddress,
+        jobAddress,
+        jobDetails: trimmedNotes ? trimmedNotes : null,
         customer: {
           name: customerContact?.name ?? estimate.customer_name ?? "Customer",
           email: customerContact?.email ?? estimate.customer_email ?? null,
           phone: customerContact?.phone ?? estimate.customer_phone ?? null,
-          address: customerContact?.address ?? estimate.customer_address ?? null,
+          address: billingAddress,
         },
       },
       items: items.map((item) => ({
@@ -1376,6 +1384,7 @@ export default function EditEstimateScreen() {
         const db = await openDB();
         const rows = await db.getAllAsync<EstimateListItem>(
           `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.material_total, e.labor_hours, e.labor_rate, e.labor_total, e.subtotal, e.tax_rate, e.tax_total, e.notes, e.status, e.version, e.updated_at, e.deleted_at,
+                  e.billing_address, e.job_address, e.job_details,
                   c.name AS customer_name,
                   c.email AS customer_email,
                   c.phone AS customer_phone,
