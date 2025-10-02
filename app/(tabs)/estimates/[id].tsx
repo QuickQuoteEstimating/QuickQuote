@@ -49,7 +49,15 @@ import {
 } from "../../../lib/pdf";
 import { calculateEstimateTotals } from "../../../lib/estimateMath";
 import { formatPercentageInput } from "../../../lib/numberFormat";
-import { Badge, Button, Card, type BadgeTone } from "../../../components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  Input,
+  ListItem,
+  Subtitle,
+  type BadgeTone,
+} from "../../../components/ui";
 import { cardShadow, useTheme, type Theme } from "../../../theme";
 import type { EstimateListItem } from "./index";
 import { v4 as uuidv4 } from "uuid";
@@ -1725,26 +1733,26 @@ export default function EditEstimateScreen() {
   return (
     <View style={styles.screenContainer}>
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.card}>
-          <Text style={styles.pageTitle}>Edit Estimate</Text>
-          <Text style={styles.sectionSubtitle}>
-            Update pricing, attach photos, and send a polished quote in seconds.
-          </Text>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Customer</Text>
+        <Card style={styles.headerCard}>
+          <ListItem
+            title="Edit Estimate"
+            subtitle="Update pricing, attach photos, and send a polished quote in seconds."
+            style={styles.headerIntro}
+            titleStyle={styles.headerTitle}
+            subtitleStyle={styles.headerSubtitle}
+          />
+          <View style={styles.headerField}>
+            <Subtitle style={styles.headerLabel}>Customer</Subtitle>
             <CustomerPicker selectedCustomer={customerId} onSelect={(id) => setCustomerId(id)} />
           </View>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Date</Text>
-            <TextInput
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.textMuted}
-              value={estimateDate}
-              onChangeText={setEstimateDate}
-              style={styles.input}
-            />
-          </View>
-        </View>
+          <Input
+            label="Date"
+            placeholder="YYYY-MM-DD"
+            value={estimateDate}
+            onChangeText={setEstimateDate}
+            autoCapitalize="none"
+          />
+        </Card>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Photos</Text>
@@ -2196,7 +2204,7 @@ function createPreviewStyles(theme: Theme) {
 }
 
 function createStyles(theme: Theme) {
-  const { colors } = theme;
+  const { colors, spacing } = theme;
   return StyleSheet.create({
     loadingState: {
       flex: 1,
@@ -2217,6 +2225,32 @@ function createStyles(theme: Theme) {
       gap: 20,
       paddingBottom: 220,
     },
+    headerCard: {
+      gap: spacing.xl,
+    },
+    headerIntro: {
+      paddingHorizontal: 0,
+      paddingVertical: 0,
+      backgroundColor: "transparent",
+    },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: "700",
+      color: colors.primaryText,
+    },
+    headerSubtitle: {
+      fontSize: 14,
+      color: colors.textMuted,
+      lineHeight: 20,
+    },
+    headerField: {
+      gap: spacing.sm,
+    },
+    headerLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textMuted,
+    },
     card: {
       backgroundColor: colors.surface,
       borderRadius: 22,
@@ -2225,11 +2259,6 @@ function createStyles(theme: Theme) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
       ...cardShadow(16, theme.mode),
-    },
-    pageTitle: {
-      fontSize: 24,
-      fontWeight: "700",
-      color: colors.primaryText,
     },
     sectionTitle: {
       fontSize: 18,
