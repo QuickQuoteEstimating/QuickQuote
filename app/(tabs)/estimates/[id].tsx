@@ -2007,16 +2007,22 @@ export default function EditEstimateScreen() {
           </View>
         </View>
         <View style={styles.footerButtons}>
-          <View style={styles.buttonFlex}>
-            <Button label="Cancel" variant="secondary" onPress={handleCancel} disabled={saving} />
-          </View>
-          <View style={styles.buttonFlex}>
-            <Button
-              label={saving ? "Saving…" : "Save Draft"}
-              onPress={handleSaveDraft}
-              disabled={saving}
-            />
-          </View>
+          <Button
+            label="Cancel"
+            variant="secondary"
+            alignment="inline"
+            onPress={handleCancel}
+            disabled={saving}
+            style={styles.footerButton}
+          />
+          <Button
+            label={saving ? "Saving…" : "Save Draft"}
+            alignment="inline"
+            onPress={handleSaveDraft}
+            disabled={saving}
+            loading={saving}
+            style={styles.footerButton}
+          />
         </View>
       </ScrollView>
       <View style={previewStyles.bottomBar}>
@@ -2025,6 +2031,7 @@ export default function EditEstimateScreen() {
           onPress={handleSendToClient}
           disabled={sendingToClient}
           loading={sendingToClient}
+          alignment="full"
         />
       </View>
     </View>
@@ -2411,6 +2418,9 @@ function createStyles(theme: Theme) {
       flexDirection: "row",
       gap: 12,
       paddingBottom: 16,
+    },
+    footerButton: {
+      flex: 1,
     },
   });
 }
