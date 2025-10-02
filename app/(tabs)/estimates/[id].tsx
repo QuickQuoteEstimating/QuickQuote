@@ -1754,82 +1754,87 @@ export default function EditEstimateScreen() {
           />
         </Card>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Photos</Text>
-          <Text style={styles.sectionSubtitle}>
-            Give your crew context with job site reference shots.
-          </Text>
+        <Card style={styles.photosCard}>
+          <View style={styles.photosHeader}>
+            <Text style={styles.sectionTitle}>Photos</Text>
+            <Text style={styles.sectionSubtitle}>
+              Give your crew context with job site reference shots.
+            </Text>
+          </View>
           {photos.length === 0 ? (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyText}>No photos attached yet.</Text>
             </View>
           ) : (
-            photos.map((photo) => {
-              const draft = photoDrafts[photo.id] ?? "";
-              const isSaving = photoSavingId === photo.id;
-              const isDeleting = photoDeletingId === photo.id;
+            <View style={styles.photosList}>
+              {photos.map((photo) => {
+                const draft = photoDrafts[photo.id] ?? "";
+                const isSaving = photoSavingId === photo.id;
+                const isDeleting = photoDeletingId === photo.id;
 
-              return (
-                <View key={photo.id} style={styles.photoCard}>
-                  {photo.local_uri ? (
-                    <Image
-                      source={{ uri: photo.local_uri }}
-                      style={styles.photoImage}
-                      resizeMode="cover"
+                return (
+                  <Card key={photo.id} style={styles.photoCard} elevated={false}>
+                    {photo.local_uri ? (
+                      <Image
+                        source={{ uri: photo.local_uri }}
+                        style={styles.photoImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.photoPlaceholder}>
+                        <Text style={styles.photoPlaceholderText}>
+                          Photo unavailable offline. Use sync to restore the local copy.
+                        </Text>
+                      </View>
+                    )}
+                    <Input
+                      placeholder="Add a description"
+                      value={draft}
+                      onChangeText={(text) => handlePhotoDraftChange(photo.id, text)}
+                      multiline
+                      containerStyle={styles.photoInput}
                     />
-                  ) : (
-                    <View style={styles.photoPlaceholder}>
-                      <Text style={styles.photoPlaceholderText}>
-                        Photo unavailable offline. Use sync to restore the local copy.
-                      </Text>
-                    </View>
-                  )}
-                  <TextInput
-                    placeholder="Add a description"
-                    placeholderTextColor={colors.textMuted}
-                    value={draft}
-                    onChangeText={(text) => handlePhotoDraftChange(photo.id, text)}
-                    multiline
-                    numberOfLines={3}
-                    style={styles.textArea}
-                  />
-                  <View style={styles.inlineButtons}>
-                    <View style={styles.buttonFlex}>
-                      <RNButton
-                        title="Save"
-                        color={colors.primary}
+                    <View style={styles.photoButtonRow}>
+                      <Button
+                        label="Save"
+                        variant="secondary"
                         onPress={() => handleSavePhotoDescription(photo)}
                         disabled={isSaving}
+                        loading={isSaving}
+                        style={styles.photoButton}
+                        alignment="inline"
                       />
-                    </View>
-                    <View style={styles.buttonFlex}>
-                      <RNButton
-                        title="Remove"
-                        color={colors.danger}
+                      <Button
+                        label="Remove"
+                        variant="danger"
                         onPress={() => handleDeletePhoto(photo)}
                         disabled={isDeleting}
+                        loading={isDeleting}
+                        style={styles.photoButton}
+                        alignment="inline"
                       />
                     </View>
-                  </View>
-                </View>
-              );
-            })
+                  </Card>
+                );
+              })}
+            </View>
           )}
           {photos.length > 0 ? (
-            <RNButton
-              title={photoSyncing ? "Syncing photos..." : "Sync photos"}
+            <Button
+              label={photoSyncing ? "Syncing photos..." : "Sync photos"}
               onPress={handleRetryPhotoSync}
               disabled={photoSyncing}
-              color={colors.primary}
+              loading={photoSyncing}
+              variant="secondary"
             />
           ) : null}
-          <RNButton
-            title={addingPhoto ? "Adding photo..." : "Add Photo"}
+          <Button
+            label={addingPhoto ? "Adding photo..." : "Add Photo"}
             onPress={handleAddPhoto}
             disabled={addingPhoto}
-            color={colors.primary}
+            loading={addingPhoto}
           />
-        </View>
+        </Card>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Estimate items</Text>
@@ -2204,7 +2209,7 @@ function createPreviewStyles(theme: Theme) {
 }
 
 function createStyles(theme: Theme) {
-  const { colors, spacing } = theme;
+  const { colors, spacing, radii } = theme;
   return StyleSheet.create({
     loadingState: {
       flex: 1,
@@ -2299,47 +2304,60 @@ function createStyles(theme: Theme) {
       textAlignVertical: "top",
       backgroundColor: colors.surfaceMuted,
     },
-    inlineButtons: {
-      flexDirection: "row",
-      gap: 12,
+    photosCard: {
+      gap: spacing.lg,
     },
-    buttonFlex: {
-      flex: 1,
+    photosHeader: {
+      gap: spacing.xs,
+    },
+    photosList: {
+      gap: spacing.lg,
     },
     photoCard: {
-      gap: 12,
+      gap: spacing.md,
+      padding: spacing.lg,
+      borderRadius: radii.md,
       backgroundColor: colors.surfaceMuted,
-      padding: 14,
-      borderRadius: 18,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
-      ...cardShadow(8, theme.mode),
+    },
+    photoInput: {
+      gap: spacing.xs,
+    },
+    photoButtonRow: {
+      flexDirection: "row",
+      gap: spacing.md,
+    },
+    photoButton: {
+      flex: 1,
     },
     photoImage: {
       width: "100%",
       height: 180,
-      borderRadius: 12,
+      borderRadius: radii.sm,
     },
     photoPlaceholder: {
-      height: 180,
-      borderRadius: 12,
+      minHeight: 180,
+      borderRadius: radii.sm,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "#e2e8f0",
-      paddingHorizontal: 12,
+      backgroundColor: colors.surface,
+      paddingHorizontal: spacing.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
     },
     photoPlaceholderText: {
       textAlign: "center",
       color: colors.textMuted,
     },
     emptyCard: {
-      padding: 18,
-      borderRadius: 16,
+      padding: spacing.xl,
+      borderRadius: radii.md,
       alignItems: "center",
       borderWidth: StyleSheet.hairlineWidth,
       borderStyle: "dashed",
       borderColor: colors.border,
-      backgroundColor: colors.surfaceMuted,
+      backgroundColor: colors.surface,
     },
     emptyText: {
       color: colors.textMuted,
