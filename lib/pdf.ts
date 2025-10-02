@@ -37,6 +37,11 @@ export type EstimatePdfEstimate = {
   laborTotal?: number | null;
   taxTotal?: number | null;
   subtotal?: number | null;
+  laborHours?: number | null;
+  laborRate?: number | null;
+  billingAddress?: string | null;
+  jobAddress?: string | null;
+  jobDetails?: string | null;
   customer?: EstimatePdfCustomer;
 };
 
@@ -192,6 +197,14 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
   const coerceCurrency = (value: number | null | undefined) =>
     typeof value === "number" && Number.isFinite(value) ? value : 0;
   const laborTotal = coerceCurrency(estimate.laborTotal);
+  const safeLaborHours =
+    typeof estimate.laborHours === "number" && Number.isFinite(estimate.laborHours)
+      ? Math.max(0, estimate.laborHours)
+      : 0;
+  const safeLaborRate =
+    typeof estimate.laborRate === "number" && Number.isFinite(estimate.laborRate)
+      ? Math.max(0, estimate.laborRate)
+      : 0;
   const taxTotal = coerceCurrency(estimate.taxTotal);
   const subtotal = coerceCurrency(estimate.subtotal);
   const materialTotal = (() => {
@@ -243,12 +256,32 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
     })
     .join("");
 
-  const customerAddress = customer.address
-    ? customer.address
-        .split(/\r?\n/)
-        .map((line) => `<div>${escapeHtml(line)}</div>`)
-        .join("")
-    : "<div>Address not provided</div>";
+  const renderAddressBlock = (address: string | null | undefined) => {
+    if (!address || !address.trim()) {
+      return "<div>Address not provided</div>";
+    }
+
+    return address
+      .split(/\r?\n/)
+      .map((line) => `<div>${escapeHtml(line)}</div>`)
+      .join("");
+  };
+
+  const billingAddressHtml = renderAddressBlock(
+    estimate.billingAddress ?? customer.address ?? null,
+  );
+  const jobAddressSource =
+    estimate.jobAddress ?? estimate.billingAddress ?? customer.address ?? null;
+  const jobAddressHtml = renderAddressBlock(jobAddressSource);
+  const jobAddressesDiffer = Boolean(
+    estimate.jobAddress &&
+      estimate.billingAddress &&
+      estimate.jobAddress.trim() !== estimate.billingAddress.trim(),
+  );
+  const customerAddressHtml = renderAddressBlock(customer.address ?? null);
+  const laborHoursLabel =
+    safeLaborHours % 1 === 0 ? safeLaborHours.toFixed(0) : safeLaborHours.toFixed(2);
+  const jobDetailNotes = estimate.jobDetails ?? estimate.notes ?? null;
 
   const termsHtml = renderTerms(termsAndConditions ?? null);
   const paymentHtml = renderPaymentDetails(paymentDetails ?? null);
@@ -276,6 +309,7 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
           .card-body { padding: 18px 20px; font-size: 14px; line-height: 1.6; color: #1F2933; }
           .card-body div + div { margin-top: 6px; }
           .muted { color: #4B5563; }
+          .muted-small { color: #6B7280; font-size: 12px; margin-top: 8px; letter-spacing: 0.04em; text-transform: uppercase; }
           .notice { background: #E6F0FF; border: 1px solid rgba(0, 91, 187, 0.24); border-radius: 16px; padding: 16px 20px; margin-bottom: 36px; color: #1F2933; font-size: 13px; font-weight: 500; text-align: center; letter-spacing: 0.04em; }
           .section { margin-bottom: 36px; }
           .section-title { background: #005BBB; color: #FFFFFF; padding: 12px 18px; font-weight: 600; letter-spacing: 0.08em; font-size: 13px; text-transform: uppercase; border-radius: 14px 14px 0 0; }
@@ -284,6 +318,7 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
           .totals-card { flex: 1 1 160px; border: 1px solid #C8CFD8; border-radius: 16px; padding: 18px; background: #EEF5FF; }
           .totals-card .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #4B5563; font-weight: 600; }
           .totals-card .value { margin-top: 8px; font-size: 20px; font-weight: 700; color: #1F2933; }
+          .totals-card .meta { margin-top: 8px; font-size: 12px; color: #4B5563; }
           .line-items { width: 100%; border-collapse: collapse; }
           .line-items th { background: #EEF5FF; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #1F2933; padding: 10px 12px; border-bottom: 1px solid #C8CFD8; text-align: left; }
           .line-items td { padding: 10px 12px; border-bottom: 1px solid #E3E6EA; font-size: 13px; color: #1F2933; }
@@ -337,18 +372,29 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
                 <div class=\"card-title\">Customer</div>
                 <div class=\"card-body\">
                   <div><strong>${escapeHtml(customer.name ?? "No name on file")}</strong></div>
-                  ${customerAddress}
+                  ${customerAddressHtml}
                   <div>Email: ${escapeHtml(customer.email ?? "N/A")}</div>
                   <div>Phone: ${escapeHtml(customer.phone ?? "N/A")}</div>
                 </div>
               </div>
               <div class=\"info-card\">
-                <div class=\"card-title\">Service Location</div>
+                <div class=\"card-title\">Billing Address</div>
                 <div class=\"card-body\">
-                  ${customerAddress}
-                  <div class=\"muted\">Service contact: ${escapeHtml(
+                  ${billingAddressHtml}
+                  <div class=\"muted-small\">Primary billing contact: ${escapeHtml(
                     customer.name ?? "Not provided",
                   )}</div>
+                </div>
+              </div>
+              <div class=\"info-card\">
+                <div class=\"card-title\">Job Site</div>
+                <div class=\"card-body\">
+                  ${jobAddressHtml}
+                  <div class=\"muted-small\">${
+                    jobAddressesDiffer
+                      ? "Different from billing address"
+                      : "Matches billing address"
+                  }</div>
                 </div>
               </div>
             </div>
@@ -366,6 +412,9 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
                   <div class=\"totals-card\">
                     <div class=\"label\">Labor</div>
                     <div class=\"value\">${formatCurrency(laborTotal)}</div>
+                    <div class=\"meta\">Hours: ${laborHoursLabel} • Rate: ${formatCurrency(
+                      safeLaborRate,
+                    )}</div>
                   </div>
                   <div class=\"totals-card\">
                     <div class=\"label\">Subtotal</div>
@@ -401,7 +450,7 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
 
             <section class=\"section\">
               <div class=\"section-title\">Project Notes</div>
-              <div class=\"section-body\">${renderNotes(estimate.notes ?? null)}</div>
+              <div class=\"section-body\">${renderNotes(jobDetailNotes)}</div>
             </section>
 
             <section class=\"section\">
