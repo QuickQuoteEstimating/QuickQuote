@@ -21,6 +21,7 @@ import { type EstimateItemFormSubmit, type EstimateItemTemplate } from "../../..
 import { Button, Card, Input, ListItem } from "../../../components/ui";
 import { useAuth } from "../../../context/AuthContext";
 import { useItemEditor, type ItemEditorConfig } from "../../../context/ItemEditorContext";
+import type { EstimateItemRecord } from "../../../types/estimates";
 import { useSettings } from "../../../context/SettingsContext";
 import { sanitizeEstimateForQueue } from "../../../lib/estimates";
 import {
@@ -96,20 +97,7 @@ type PersistedEstimateRecord = {
   job_details: string | null;
 };
 
-type PersistedEstimateItem = {
-  id: string;
-  estimate_id: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  base_total: number;
-  total: number;
-  apply_markup: number | null;
-  catalog_item_id: string | null;
-  version: number;
-  updated_at: string;
-  deleted_at: string | null;
-};
+type PersistedEstimateItem = EstimateItemRecord;
 
 type SavedEstimateContext = {
   estimate: PersistedEstimateRecord;

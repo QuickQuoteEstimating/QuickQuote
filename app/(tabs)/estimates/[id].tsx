@@ -66,6 +66,7 @@ import {
   type BadgeTone,
 } from "../../../components/ui";
 import type { CustomerRecord } from "../../../types/customers";
+import type { EstimateItemRecord } from "../../../types/estimates";
 
 type CustomerContact = Pick<
   CustomerRecord,
@@ -75,21 +76,6 @@ import { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 import type { EstimateListItem, EstimateRecord } from "./index";
 import { v4 as uuidv4 } from "uuid";
-
-type EstimateItemRecord = {
-  id: string;
-  estimate_id: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  base_total: number;
-  total: number;
-  apply_markup: number;
-  catalog_item_id: string | null;
-  version: number;
-  updated_at: string;
-  deleted_at: string | null;
-};
 
 type PhotoRecord = {
   id: string;
