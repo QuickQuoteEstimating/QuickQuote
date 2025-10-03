@@ -1,11 +1,5 @@
 import { Redirect, Stack } from "expo-router";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 
 export default function AuthLayout() {
@@ -24,25 +18,17 @@ export default function AuthLayout() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.select({ ios: "padding", android: "height" })}
-      style={styles.keyboardAvoider}
-    >
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          presentation: "card",
-          keyboardHandlingEnabled: true,
-        }}
-      />
-    </KeyboardAvoidingView>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        presentation: "card",
+        keyboardHandlingEnabled: true,
+      }}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardAvoider: {
-    flex: 1,
-  },
   loadingContainer: {
     alignItems: "center",
     flex: 1,
