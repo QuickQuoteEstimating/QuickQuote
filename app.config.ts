@@ -18,6 +18,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
   },
   android: {
+    package: "com.quickquote.app", // 👈 REQUIRED
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#ffffff",
@@ -33,5 +34,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   experiments: {
     ...(config.experiments ?? {}),
     typedRoutes: true,
+  },
+  extra: {
+    ...(config.extra ?? {}),
+    eas: {
+      projectId: "c054357c-4a4c-4f27-8cf3-f17dba5914be",
+    },
   },
 });

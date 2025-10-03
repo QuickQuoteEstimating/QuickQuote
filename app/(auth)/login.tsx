@@ -3,13 +3,13 @@ import { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Keyboard,
-  ScrollView,
   StyleSheet,
   TextInput,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
@@ -51,10 +51,11 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+          enableOnAndroid={true}
+          extraScrollHeight={24}
         >
           <Card style={styles.card}>
             <View style={styles.logoContainer}>
@@ -88,7 +89,7 @@ export default function LoginScreen() {
               value={password}
               onChangeText={setPassword}
               returnKeyType="done"
-              blurOnSubmit={false}
+              blurOnSubmit={true}
               onSubmitEditing={handleLogin}
             />
             <Button
@@ -106,7 +107,7 @@ export default function LoginScreen() {
               </Link>
             </View>
           </Card>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </TouchableWithoutFeedback>
     </SafeAreaView>
   );
