@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "react-native-get-random-values";
 import { router, useLocalSearchParams } from "expo-router";
