@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import {
@@ -38,7 +37,7 @@ import {
   persistLocalPhotoCopy,
 } from "../../../lib/storage";
 import { listSavedItems, upsertSavedItem, type SavedItemRecord } from "../../../lib/savedItems";
-import { Theme } from "../../../theme";
+import type { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 import type { CustomerRecord } from "../../../types/customers";
 
@@ -199,7 +198,7 @@ function createStyles(theme: Theme) {
     content: {
       paddingHorizontal: theme.spacing.xl,
       paddingTop: theme.spacing.xl,
-      paddingBottom: theme.spacing.xxxl,
+      paddingBottom: theme.spacing.xxl,
       gap: theme.spacing.xl,
     },
     sectionHeader: {
@@ -978,25 +977,6 @@ export default function NewEstimateScreen() {
     );
   }, []);
 
-  const handleSaveAndContinue = useCallback(async () => {
-    if (saving) {
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const context = await saveEstimate();
-      if (!context) {
-        return;
-      }
-      if (typeof navigation.replace === "function") {
-        navigation.replace(`/(tabs)/estimates/${context.estimate.id}`);
-      }
-    } finally {
-      setSaving(false);
-    }
-  }, [navigation, saveEstimate, saving]);
-
   const handleCancel = useCallback(() => {
     Alert.alert("Discard estimate?", "Your current changes will be lost.", [
       { text: "Keep editing", style: "cancel" },
@@ -1345,6 +1325,25 @@ export default function NewEstimateScreen() {
     taxRateValue,
     userId,
   ]);
+
+  const handleSaveAndContinue = useCallback(async () => {
+    if (saving) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const context = await saveEstimate();
+      if (!context) {
+        return;
+      }
+      if (typeof navigation.replace === "function") {
+        navigation.replace(`/(tabs)/estimates/${context.estimate.id}`);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [navigation, saveEstimate, saving]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
