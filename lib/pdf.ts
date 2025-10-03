@@ -2,8 +2,13 @@ import { Platform } from "react-native";
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
 
+import { supabase } from "./supabase";
+
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const PHOTO_BUCKET = process.env.EXPO_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "estimate-photos";
+const DOCUMENT_BUCKET =
+  process.env.EXPO_PUBLIC_SUPABASE_DOCUMENT_BUCKET ?? PHOTO_BUCKET ?? "estimate-photos";
+const DOCUMENT_PREFIX = "pdfs";
 
 export type EstimatePdfItem = {
   id: string;
@@ -57,6 +62,13 @@ export type EstimatePdfResult = {
   uri: string;
   html: string;
   fileName: string;
+  storagePath?: string | null;
+  publicUrl?: string | null;
+};
+
+export type EstimatePdfUploadResult = {
+  storagePath: string;
+  publicUrl: string | null;
 };
 
 function formatCurrency(value: number): string {
@@ -74,14 +86,22 @@ function encodeStoragePath(path: string): string {
     .join("/");
 }
 
-function buildPublicPhotoUrl(path: string | null | undefined): string | null {
+function buildPublicAssetUrl(bucket: string, path: string | null | undefined): string | null {
   if (!path || !SUPABASE_URL) {
     return null;
   }
 
   const normalized = path.replace(/^\/+/, "");
   const encoded = encodeStoragePath(normalized);
-  return `${SUPABASE_URL}/storage/v1/object/public/${PHOTO_BUCKET}/${encoded}`;
+  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${encoded}`;
+}
+
+function buildPublicPhotoUrl(path: string | null | undefined): string | null {
+  return buildPublicAssetUrl(PHOTO_BUCKET, path);
+}
+
+function buildPublicPdfUrl(path: string | null | undefined): string | null {
+  return buildPublicAssetUrl(DOCUMENT_BUCKET, path);
 }
 
 function escapeHtml(value: string): string {
@@ -138,6 +158,121 @@ async function resolvePhotoSource(photo: EstimatePdfPhoto): Promise<string | nul
     console.warn("Failed to embed photo in PDF", error);
     return null;
   }
+}
+
+async function getSupabaseAccessToken(): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      console.warn("Failed to obtain Supabase session", error);
+      return null;
+    }
+    return data.session?.access_token ?? null;
+  } catch (error) {
+    console.warn("Failed to resolve Supabase session", error);
+    return null;
+  }
+}
+
+function sanitizeStorageSegment(segment: string): string {
+  const fallback = "segment";
+  if (!segment) {
+    return fallback;
+  }
+  const normalized = segment.replace(/[^A-Za-z0-9_-]+/g, "-");
+  return normalized || fallback;
+}
+
+function sanitizeStorageFileName(fileName: string): string {
+  if (!fileName) {
+    return "estimate.pdf";
+  }
+  const withExtension = fileName.toLowerCase().endsWith(".pdf") ? fileName : `${fileName}.pdf`;
+  const normalized = withExtension.replace(/[^A-Za-z0-9._-]+/g, "-");
+  return normalized || "estimate.pdf";
+}
+
+function deriveRemotePdfPath(estimateId: string, fileName: string): string {
+  const safeEstimate = sanitizeStorageSegment(estimateId);
+  const safeFileName = sanitizeStorageFileName(fileName);
+  return `${DOCUMENT_PREFIX}/${safeEstimate}/${safeFileName}`;
+}
+
+async function uploadPdfBinary(localUri: string, remotePath: string): Promise<string | null> {
+  if (Platform.OS === "web") {
+    return null;
+  }
+
+  if (!SUPABASE_URL) {
+    console.warn("Supabase URL is not configured; skipping PDF upload");
+    return null;
+  }
+
+  try {
+    const info = await FileSystem.getInfoAsync(localUri);
+    if (!info.exists) {
+      console.warn("PDF file missing for upload", localUri);
+      return null;
+    }
+  } catch (error) {
+    console.warn("Failed to inspect PDF before upload", error);
+    return null;
+  }
+
+  const accessToken = await getSupabaseAccessToken();
+  if (!accessToken) {
+    return null;
+  }
+
+  const encodedPath = encodeStoragePath(remotePath);
+  const url = `${SUPABASE_URL}/storage/v1/object/${DOCUMENT_BUCKET}/${encodedPath}`;
+
+  try {
+    const result = await FileSystem.uploadAsync(url, localUri, {
+      httpMethod: "POST",
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/pdf",
+        "x-upsert": "true",
+      },
+    });
+
+    if (result.status >= 400) {
+      throw new Error(`Upload failed: ${result.status} ${result.body}`);
+    }
+  } catch (error) {
+    console.warn("Failed to upload estimate PDF", error);
+    return null;
+  }
+
+  return buildPublicPdfUrl(remotePath);
+}
+
+export async function uploadEstimatePdfToStorage(
+  pdf: EstimatePdfResult,
+  estimateId: string,
+): Promise<EstimatePdfUploadResult | null> {
+  if (!estimateId || !pdf?.uri || !pdf.fileName || Platform.OS === "web") {
+    return null;
+  }
+
+  if (!pdf.uri.startsWith("file://")) {
+    console.warn("PDF does not reference a local file; skipping upload");
+    return null;
+  }
+
+  const remotePath = deriveRemotePdfPath(estimateId, pdf.fileName);
+  const publicUrl = await uploadPdfBinary(pdf.uri, remotePath);
+
+  if (!publicUrl && !SUPABASE_URL) {
+    return null;
+  }
+
+  return {
+    storagePath: remotePath,
+    publicUrl,
+  };
 }
 
 function renderNotes(notes: string | null | undefined): string {
@@ -265,17 +400,16 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
     .join("");
 
   const hasPhotos = visiblePhotos.length > 0;
-  const hasTax = taxTotal > 0.0001;
-  const taxRowHtml = hasTax
-    ? `<div class=\"total-row\"><span>Tax</span><strong>${formatCurrency(taxTotal)}</strong></div>`
-    : "";
-  const taxCardHtml = hasTax
-    ? `
-                  <div class=\"totals-card\">
+  const taxRowClass = taxTotal > 0.0001 ? "" : " muted";
+  const taxRowHtml = `<div class=\"total-row${taxRowClass}\"><span>Tax</span><strong>${formatCurrency(
+    taxTotal,
+  )}</strong></div>`;
+  const taxCardClass = taxTotal > 0.0001 ? "" : " totals-card-muted";
+  const taxCardHtml = `
+                  <div class=\"totals-card${taxCardClass}\">
                     <div class=\"label\">Tax</div>
                     <div class=\"value\">${formatCurrency(taxTotal)}</div>
-                  </div>`
-    : "";
+                  </div>`;
   const lineItemTotalsHtml = `
     <div class=\"line-item-totals\">
       <div class=\"total-row\"><span>Line items</span><strong>${formatCurrency(materialTotal)}</strong></div>
@@ -349,6 +483,9 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
           .totals-card.total-accent { background: linear-gradient(135deg, #005BBB, #1B74E4); color: #FFFFFF; border-color: rgba(255, 255, 255, 0.4); }
           .totals-card.total-accent .label { color: rgba(255, 255, 255, 0.9); }
           .totals-card.total-accent .value { color: #FFFFFF; }
+          .totals-card.totals-card-muted { background: #F8FAFF; color: #6B7280; border-color: #E5E7EB; box-shadow: none; }
+          .totals-card.totals-card-muted .label { color: #6B7280; }
+          .totals-card.totals-card-muted .value { color: #4B5563; }
           .line-items { width: 100%; border-collapse: collapse; }
           .line-items th { background: #EEF5FF; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #1F2933; padding: 10px 12px; border-bottom: 1px solid #C8CFD8; text-align: left; }
           .line-items td { padding: 10px 12px; border-bottom: 1px solid #E3E6EA; font-size: 13px; color: #1F2933; }
@@ -359,6 +496,7 @@ async function createHtml(options: EstimatePdfOptions): Promise<string> {
           .line-item-totals { margin-top: 24px; border: 1px solid #D4DBE6; border-radius: 16px; padding: 18px 20px; background: #F8FAFF; max-width: 360px; margin-left: auto; display: grid; gap: 12px; }
           .line-item-totals .total-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; color: #1F2933; }
           .line-item-totals .total-row strong { font-size: 14px; font-weight: 700; color: #111827; font-variant-numeric: tabular-nums; }
+          .line-item-totals .total-row.muted span, .line-item-totals .total-row.muted strong { color: #4B5563; }
           .line-item-totals .total-row.grand { border-top: 1px solid #C8CFD8; margin-top: 4px; padding-top: 12px; }
           .line-item-totals .total-row.grand span { color: #005BBB; }
           .line-item-totals .total-row.grand strong { color: #005BBB; font-size: 18px; }
@@ -536,12 +674,12 @@ export async function renderEstimatePdf(options: EstimatePdfOptions): Promise<Es
     if (typeof Blob !== "undefined" && typeof URL !== "undefined") {
       const blob = new Blob([html], { type: "text/html" });
       const uri = URL.createObjectURL(blob);
-      return { uri, html, fileName };
+      return { uri, html, fileName, storagePath: null, publicUrl: null };
     }
 
     const base64 = btoa(unescape(encodeURIComponent(html)));
     const uri = `data:text/html;base64,${base64}`;
-    return { uri, html, fileName };
+    return { uri, html, fileName, storagePath: null, publicUrl: null };
   }
 
   const html = await createHtml(options);
@@ -562,5 +700,5 @@ export async function renderEstimatePdf(options: EstimatePdfOptions): Promise<Es
 
   await FileSystem.copyAsync({ from: uri, to: destination });
 
-  return { uri: destination, html, fileName };
+  return { uri: destination, html, fileName, storagePath: null, publicUrl: null };
 }

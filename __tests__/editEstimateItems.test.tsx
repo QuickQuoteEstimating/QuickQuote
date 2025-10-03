@@ -93,7 +93,16 @@ jest.mock("../lib/storage", () => ({
 }));
 
 jest.mock("../lib/pdf", () => ({
-  renderEstimatePdf: jest.fn().mockResolvedValue({ html: "<html />", uri: "file:///estimate.pdf" }),
+  renderEstimatePdf: jest
+    .fn()
+    .mockResolvedValue({
+      html: "<html />",
+      uri: "file:///estimate.pdf",
+      fileName: "estimate.pdf",
+      storagePath: null,
+      publicUrl: null,
+    }),
+  uploadEstimatePdfToStorage: jest.fn().mockResolvedValue(null),
 }));
 
 jest.mock("expo-image-picker", () => ({
