@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "react-native-get-random-values";
 import { router, useLocalSearchParams } from "expo-router";
@@ -14,6 +13,7 @@ import {
   StyleSheet,
   Switch,
   View,
+  type ListRenderItem,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import * as ImagePicker from "expo-image-picker";
@@ -73,7 +73,7 @@ type CustomerContact = Pick<
 >;
 import { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
-import type { EstimateListItem } from "./index";
+import type { EstimateListItem, EstimateRecord } from "./index";
 import { v4 as uuidv4 } from "uuid";
 
 type EstimateItemRecord = {
@@ -84,9 +84,9 @@ type EstimateItemRecord = {
   unit_price: number;
   base_total: number;
   total: number;
-  apply_markup: number | null;
+  apply_markup: number;
   catalog_item_id: string | null;
-  version: number | null;
+  version: number;
   updated_at: string;
   deleted_at: string | null;
 };
@@ -116,6 +116,95 @@ type EstimateFormDraftState = {
   taxRateText: string;
   photoDrafts: Record<string, string>;
 };
+
+type EstimateRecordRow = Omit<
+  EstimateRecord,
+  | "total"
+  | "material_total"
+  | "labor_hours"
+  | "labor_rate"
+  | "labor_total"
+  | "subtotal"
+  | "tax_rate"
+  | "tax_total"
+  | "status"
+  | "version"
+> & {
+  total: number | null;
+  material_total: number | null;
+  labor_hours: number | null;
+  labor_rate: number | null;
+  labor_total: number | null;
+  subtotal: number | null;
+  tax_rate: number | null;
+  tax_total: number | null;
+  status: string | null;
+  version: number | null;
+};
+
+type EstimateListItemRow = EstimateRecordRow & {
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  customer_address: string | null;
+};
+
+type EstimateItemRecordRow = Omit<EstimateItemRecord, "base_total" | "total" | "apply_markup" | "version"> & {
+  base_total: number | null;
+  total: number | null;
+  apply_markup: number | null;
+  version: number | null;
+};
+
+function coerceEstimateNumber(value: number | null | undefined): number {
+  if (typeof value !== "number" || Number.isNaN(value) || !Number.isFinite(value)) {
+    return 0;
+  }
+  return value;
+}
+
+function normalizeEstimateRecordRow(row: EstimateRecordRow): EstimateRecord {
+  return {
+    ...row,
+    total: coerceEstimateNumber(row.total),
+    material_total: coerceEstimateNumber(row.material_total),
+    labor_hours: coerceEstimateNumber(row.labor_hours),
+    labor_rate: coerceEstimateNumber(row.labor_rate),
+    labor_total: coerceEstimateNumber(row.labor_total),
+    subtotal: coerceEstimateNumber(row.subtotal),
+    tax_rate: coerceEstimateNumber(row.tax_rate),
+    tax_total: coerceEstimateNumber(row.tax_total),
+    status: row.status?.trim() ? row.status.trim() : "draft",
+    version: typeof row.version === "number" && Number.isFinite(row.version) ? row.version : 1,
+  };
+}
+
+function normalizeEstimateListItemRow(row: EstimateListItemRow): EstimateListItem {
+  const record = normalizeEstimateRecordRow(row);
+  return {
+    ...record,
+    customer_name: row.customer_name ?? null,
+    customer_email: row.customer_email ?? null,
+    customer_phone: row.customer_phone ?? null,
+    customer_address: row.customer_address ?? null,
+  };
+}
+
+function normalizeEstimateItemRow(row: EstimateItemRecordRow): EstimateItemRecord {
+  const total = coerceEstimateNumber(row.total);
+  const baseTotal =
+    typeof row.base_total === "number" && Number.isFinite(row.base_total)
+      ? row.base_total
+      : total;
+
+  return {
+    ...row,
+    base_total: baseTotal,
+    total,
+    apply_markup: row.apply_markup === 0 ? 0 : 1,
+    version: typeof row.version === "number" && Number.isFinite(row.version) ? row.version : 1,
+  };
+}
 
 const estimateDraftStore = new Map<string, EstimateFormDraftState>();
 
@@ -170,7 +259,11 @@ const STATUS_OPTIONS = [
   { label: "Declined", value: "declined" },
 ];
 
-function getStatusTone(status: string | null): BadgeTone {
+type EstimateRouteParams = {
+  id?: string | string[];
+};
+
+function getStatusTone(status: string | null | undefined): BadgeTone {
   const normalized = status?.toLowerCase();
   switch (normalized) {
     case "accepted":
@@ -185,8 +278,8 @@ function getStatusTone(status: string | null): BadgeTone {
 }
 
 export default function EditEstimateScreen() {
-  const params = useLocalSearchParams<{ id?: string }>();
-  const estimateId = params.id ?? "";
+  const params = useLocalSearchParams<EstimateRouteParams>();
+  const estimateId = Array.isArray(params.id) ? params.id[0] ?? "" : params.id ?? "";
   const { user, session } = useAuth();
   const { settings } = useSettings();
   const { theme } = useThemeContext();
@@ -284,6 +377,137 @@ export default function EditEstimateScreen() {
     return option?.label ?? "Draft";
   }, [status]);
   const statusBadgeTone = useMemo(() => getStatusTone(status), [status]);
+  const parseNumericInput = useCallback((value: string, fallback = 0): number => {
+    const normalized = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
+    if (Number.isNaN(normalized)) {
+      return fallback;
+    }
+    return normalized;
+  }, []);
+
+  const laborHours = useMemo(() => {
+    return Math.max(0, parseNumericInput(laborHoursText, estimate?.labor_hours ?? 0));
+  }, [estimate?.labor_hours, laborHoursText, parseNumericInput]);
+
+  const hourlyRate = useMemo(() => {
+    const fallback = estimate?.labor_rate ?? settings.hourlyRate;
+    const parsed = parseNumericInput(hourlyRateText, fallback);
+    return Math.max(0, Math.round(parsed * 100) / 100);
+  }, [estimate?.labor_rate, hourlyRateText, parseNumericInput, settings.hourlyRate]);
+
+  const taxRate = useMemo(() => {
+    const fallback = estimate?.tax_rate ?? settings.taxRate;
+    const parsed = parseNumericInput(taxRateText, fallback);
+    return Math.max(0, Math.round(parsed * 100) / 100);
+  }, [estimate?.tax_rate, parseNumericInput, settings.taxRate, taxRateText]);
+
+  const totals = useMemo(() => {
+    const materialLineItems = items.map((item) => ({
+      baseTotal: item.base_total,
+      applyMarkup: item.apply_markup !== 0,
+    }));
+
+    return calculateEstimateTotals({
+      materialLineItems,
+      materialMarkup: {
+        mode: settings.materialMarkupMode,
+        value: settings.materialMarkup,
+      },
+      laborHours,
+      laborRate: hourlyRate,
+      laborMarkup: {
+        mode: settings.laborMarkupMode,
+        value: settings.laborMarkup,
+      },
+      taxRate,
+    });
+  }, [
+    hourlyRate,
+    items,
+    laborHours,
+    settings.laborMarkup,
+    settings.laborMarkupMode,
+    settings.materialMarkup,
+    settings.materialMarkupMode,
+    taxRate,
+  ]);
+  const pdfOptions = useMemo<EstimatePdfOptions | null>(() => {
+    if (!estimate) {
+      return null;
+    }
+
+    const isoDate = estimateDate ? new Date(estimateDate).toISOString() : estimate.date;
+
+    const trimmedNotes = notes.trim();
+    const billingAddressValue = billingAddress.trim() ? billingAddress.trim() : null;
+    const jobAddressValue = jobAddressSameAsBilling
+      ? billingAddressValue
+      : jobAddress.trim()
+          ? jobAddress.trim()
+          : null;
+
+    return {
+      estimate: {
+        id: estimate.id,
+        date: isoDate,
+        status,
+        notes: trimmedNotes ? trimmedNotes : null,
+        total: totals.grandTotal,
+        materialTotal: totals.materialTotal,
+        laborTotal: totals.laborTotal,
+        taxTotal: totals.taxTotal,
+        subtotal: totals.subtotal,
+        laborHours: totals.laborHours,
+        laborRate: totals.laborRate,
+        billingAddress: billingAddressValue,
+        jobAddress: jobAddressValue,
+        jobDetails: trimmedNotes ? trimmedNotes : null,
+        customer: {
+          name: customerContact?.name ?? estimate.customer_name ?? "Customer",
+          email: customerContact?.email ?? estimate.customer_email ?? null,
+          phone: customerContact?.phone ?? estimate.customer_phone ?? null,
+          address:
+            billingAddressValue ?? customerContact?.address ?? estimate.customer_address ?? null,
+        },
+      },
+      items: items.map((item) => ({
+        id: item.id,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice:
+          item.quantity > 0
+            ? Math.round((item.total / item.quantity) * 100) / 100
+            : Math.round(item.total * 100) / 100,
+        total: Math.round(item.total * 100) / 100,
+      })),
+      photos: photos.map((photo) => ({
+        id: photo.id,
+        description: photo.description,
+        localUri: photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri),
+        remoteUri: photo.uri,
+      })),
+      termsAndConditions: settings.termsAndConditions,
+      paymentDetails: settings.paymentDetails,
+    };
+  }, [
+    billingAddress,
+    customerContact,
+    estimate,
+    estimateDate,
+    items,
+    jobAddress,
+    jobAddressSameAsBilling,
+    notes,
+    photos,
+    status,
+    totals.grandTotal,
+    totals.laborTotal,
+    totals.materialTotal,
+    totals.subtotal,
+    totals.taxTotal,
+    settings.paymentDetails,
+    settings.termsAndConditions,
+  ]);
   const previewEstimateNumber = useMemo(() => {
     const identifier = pdfOptions?.estimate.id ?? estimate?.id ?? null;
     if (!identifier) {
@@ -431,61 +655,6 @@ export default function EditEstimateScreen() {
     loadSavedItems();
   }, [loadSavedItems]);
 
-  const parseNumericInput = useCallback((value: string, fallback = 0) => {
-    const normalized = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
-    if (Number.isNaN(normalized)) {
-      return fallback;
-    }
-    return normalized;
-  }, []);
-
-  const laborHours = useMemo(() => {
-    return Math.max(0, parseNumericInput(laborHoursText, estimate?.labor_hours ?? 0));
-  }, [estimate?.labor_hours, laborHoursText, parseNumericInput]);
-
-  const hourlyRate = useMemo(() => {
-    const fallback = estimate?.labor_rate ?? settings.hourlyRate;
-    const parsed = parseNumericInput(hourlyRateText, fallback);
-    return Math.max(0, Math.round(parsed * 100) / 100);
-  }, [estimate?.labor_rate, hourlyRateText, parseNumericInput, settings.hourlyRate]);
-
-  const taxRate = useMemo(() => {
-    const fallback = estimate?.tax_rate ?? settings.taxRate;
-    const parsed = parseNumericInput(taxRateText, fallback);
-    return Math.max(0, Math.round(parsed * 100) / 100);
-  }, [estimate?.tax_rate, parseNumericInput, settings.taxRate, taxRateText]);
-
-  const totals = useMemo(() => {
-    const materialLineItems = items.map((item) => ({
-      baseTotal: typeof item.base_total === "number" ? item.base_total : item.total,
-      applyMarkup: item.apply_markup !== 0,
-    }));
-
-    return calculateEstimateTotals({
-      materialLineItems,
-      materialMarkup: {
-        mode: settings.materialMarkupMode,
-        value: settings.materialMarkup,
-      },
-      laborHours,
-      laborRate: hourlyRate,
-      laborMarkup: {
-        mode: settings.laborMarkupMode,
-        value: settings.laborMarkup,
-      },
-      taxRate,
-    });
-  }, [
-    hourlyRate,
-    items,
-    laborHours,
-    settings.laborMarkup,
-    settings.laborMarkupMode,
-    settings.materialMarkup,
-    settings.materialMarkupMode,
-    taxRate,
-  ]);
-
   const savedItemTemplates = useMemo<EstimateItemTemplate[]>(
     () =>
       savedItems.map((item) => ({
@@ -493,7 +662,7 @@ export default function EditEstimateScreen() {
         description: item.name,
         unit_price: item.default_unit_price,
         default_quantity: item.default_quantity,
-        default_markup_applicable: item.default_markup_applicable,
+        default_markup_applicable: item.default_markup_applicable !== 0,
       })),
     [savedItems],
   );
@@ -593,83 +762,6 @@ export default function EditEstimateScreen() {
     applyPhotoState(activePhotos);
   }, [estimateId, applyPhotoState]);
 
-  const pdfOptions = useMemo<EstimatePdfOptions | null>(() => {
-    if (!estimate) {
-      return null;
-    }
-
-    const isoDate = estimateDate ? new Date(estimateDate).toISOString() : estimate.date;
-
-    const trimmedNotes = notes.trim();
-    const billingAddressValue = billingAddress.trim() ? billingAddress.trim() : null;
-    const jobAddressValue = jobAddressSameAsBilling
-      ? billingAddressValue
-      : jobAddress.trim()
-          ? jobAddress.trim()
-          : null;
-
-    return {
-      estimate: {
-        id: estimate.id,
-        date: isoDate,
-        status,
-        notes: trimmedNotes ? trimmedNotes : null,
-        total: totals.grandTotal,
-        materialTotal: totals.materialTotal,
-        laborTotal: totals.laborTotal,
-        taxTotal: totals.taxTotal,
-        subtotal: totals.subtotal,
-        laborHours: totals.laborHours,
-        laborRate: totals.laborRate,
-        billingAddress: billingAddressValue,
-        jobAddress: jobAddressValue,
-        jobDetails: trimmedNotes ? trimmedNotes : null,
-        customer: {
-          name: customerContact?.name ?? estimate.customer_name ?? "Customer",
-          email: customerContact?.email ?? estimate.customer_email ?? null,
-          phone: customerContact?.phone ?? estimate.customer_phone ?? null,
-          address:
-            billingAddressValue ?? customerContact?.address ?? estimate.customer_address ?? null,
-        },
-      },
-      items: items.map((item) => ({
-        id: item.id,
-        description: item.description,
-        quantity: item.quantity,
-        unitPrice:
-          item.quantity > 0
-            ? Math.round((item.total / item.quantity) * 100) / 100
-            : Math.round(item.total * 100) / 100,
-        total: Math.round(item.total * 100) / 100,
-      })),
-      photos: photos.map((photo) => ({
-        id: photo.id,
-        description: photo.description,
-        localUri: photo.local_uri ?? deriveLocalPhotoUri(photo.id, photo.uri),
-        remoteUri: photo.uri,
-      })),
-      termsAndConditions: settings.termsAndConditions,
-      paymentDetails: settings.paymentDetails,
-    };
-  }, [
-    billingAddress,
-    customerContact,
-    estimate,
-    estimateDate,
-    items,
-    jobAddress,
-    jobAddressSameAsBilling,
-    notes,
-    photos,
-    status,
-    totals.grandTotal,
-    totals.laborTotal,
-    totals.materialTotal,
-    totals.subtotal,
-    totals.taxTotal,
-    settings.paymentDetails,
-    settings.termsAndConditions,
-  ]);
 
   useEffect(() => {
     lastPdfRef.current = null;
@@ -721,8 +813,8 @@ export default function EditEstimateScreen() {
       }
 
       const normalizedTotal = Math.round(nextTotals.grandTotal * 100) / 100;
-      const compare = (incoming: number | null | undefined, next: number) => {
-        const currentValue = typeof incoming === "number" ? Math.round(incoming * 100) / 100 : 0;
+      const compare = (incoming: number, next: number) => {
+        const currentValue = Math.round(incoming * 100) / 100;
         return Math.abs(currentValue - next) >= 0.005;
       };
 
@@ -732,9 +824,9 @@ export default function EditEstimateScreen() {
         compare(current.labor_total, nextTotals.laborTotal) ||
         compare(current.subtotal, nextTotals.subtotal) ||
         compare(current.tax_total, nextTotals.taxTotal) ||
-        Math.abs((current.labor_hours ?? 0) - nextTotals.laborHours) >= 0.005 ||
-        Math.abs((current.labor_rate ?? 0) - nextTotals.laborRate) >= 0.005 ||
-        Math.abs((current.tax_rate ?? 0) - nextTotals.taxRate) >= 0.005;
+        Math.abs(current.labor_hours - nextTotals.laborHours) >= 0.005 ||
+        Math.abs(current.labor_rate - nextTotals.laborRate) >= 0.005 ||
+        Math.abs(current.tax_rate - nextTotals.taxRate) >= 0.005;
 
       if (!shouldUpdate) {
         return false;
@@ -742,7 +834,7 @@ export default function EditEstimateScreen() {
 
       try {
         const now = new Date().toISOString();
-        const nextVersion = (current.version ?? 1) + 1;
+        const nextVersion = current.version + 1;
         const db = await openDB();
         await db.runAsync(
           `UPDATE estimates
@@ -836,7 +928,7 @@ export default function EditEstimateScreen() {
           let nextItems: EstimateItemRecord[] = [];
 
           if (existingItem) {
-            const nextVersion = (existingItem.version ?? 1) + 1;
+            const nextVersion = existingItem.version + 1;
             const updatedItem: EstimateItemRecord = {
               ...existingItem,
               description: values.description,
@@ -920,7 +1012,7 @@ export default function EditEstimateScreen() {
 
           const nextTotals = calculateEstimateTotals({
             materialLineItems: nextItems.map((item) => ({
-              baseTotal: typeof item.base_total === "number" ? item.base_total : item.total,
+              baseTotal: item.base_total,
               applyMarkup: item.apply_markup !== 0,
             })),
             materialMarkup: {
@@ -965,14 +1057,20 @@ export default function EditEstimateScreen() {
           onPress: () => {
             const previousItems = items;
             const previousTotals = calculateEstimateTotals({
-              materialLineItems: previousItems,
+              materialLineItems: previousItems.map((existing) => ({
+                baseTotal: existing.base_total,
+                applyMarkup: existing.apply_markup !== 0,
+              })),
               laborHours,
               laborRate: hourlyRate,
               taxRate,
             });
             const nextItems = items.filter((existing) => existing.id !== item.id);
             const nextTotals = calculateEstimateTotals({
-              materialLineItems: nextItems,
+              materialLineItems: nextItems.map((existing) => ({
+                baseTotal: existing.base_total,
+                applyMarkup: existing.apply_markup !== 0,
+              })),
               laborHours,
               laborRate: hourlyRate,
               taxRate,
@@ -983,7 +1081,7 @@ export default function EditEstimateScreen() {
             (async () => {
               const db = await openDB();
               const now = new Date().toISOString();
-              const nextVersion = (item.version ?? 1) + 1;
+              const nextVersion = item.version + 1;
 
               try {
                 await db.runAsync(
@@ -1015,7 +1113,7 @@ export default function EditEstimateScreen() {
                     `UPDATE estimate_items
                        SET deleted_at = NULL, updated_at = ?, version = ?
                        WHERE id = ?`,
-                    [item.updated_at, item.version ?? 1, item.id],
+                    [item.updated_at, item.version, item.id],
                   );
                 } catch (recoveryError) {
                   console.error("Failed to revert local item deletion", recoveryError);
@@ -1029,8 +1127,8 @@ export default function EditEstimateScreen() {
     [hourlyRate, items, laborHours, persistEstimateTotals, taxRate],
   );
 
-  const renderItem = useCallback(
-    ({ item }: { item: EstimateItemRecord }) => {
+  const renderItem = useCallback<ListRenderItem<EstimateItemRecord>>(
+    ({ item }) => {
       const quantity = item.quantity || 0;
       const normalizedTotal = Math.round(item.total * 100) / 100;
       const unitDisplay =
@@ -1418,7 +1516,7 @@ export default function EditEstimateScreen() {
 
       try {
         const now = new Date().toISOString();
-        const nextVersion = (current.version ?? 1) + 1;
+        const nextVersion = current.version + 1;
         const db = await openDB();
         await db.runAsync(
           `UPDATE estimates
@@ -1660,9 +1758,9 @@ export default function EditEstimateScreen() {
             smsResult: smsResponse?.result ?? null,
           },
         });
-        if (smsResponse?.result === SMS.SMSResult.Sent || smsResponse?.result === "sent") {
+        if (smsResponse?.result === "sent") {
           await markEstimateSent("sms");
-        } else if (smsResponse?.result === SMS.SMSResult.Cancelled) {
+        } else if (smsResponse?.result === "cancelled") {
           setSendSuccessMessage("Text message cancelled before sending.");
         } else {
           setSendSuccessMessage("Check your messaging app to finish sending this estimate.");
@@ -1716,7 +1814,7 @@ export default function EditEstimateScreen() {
         : jobAddress.trim()
             ? jobAddress.trim()
             : null;
-      const nextVersion = (estimate.version ?? 1) + 1;
+      const nextVersion = estimate.version + 1;
 
       const db = await openDB();
       await db.runAsync(
@@ -1940,7 +2038,7 @@ export default function EditEstimateScreen() {
     const loadEstimate = async () => {
       try {
         const db = await openDB();
-        const rows = await db.getAllAsync<EstimateListItem>(
+        const rows = await db.getAllAsync<EstimateListItemRow>(
           `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.material_total, e.labor_hours, e.labor_rate, e.labor_total, e.subtotal, e.tax_rate, e.tax_total, e.notes, e.status, e.version, e.updated_at, e.deleted_at,
                   e.billing_address, e.job_address, e.job_details,
                   c.name AS customer_name,
@@ -1954,7 +2052,8 @@ export default function EditEstimateScreen() {
           [estimateId],
         );
 
-        const record = rows[0];
+        const recordRow = rows[0];
+        const record = recordRow ? normalizeEstimateListItemRow(recordRow) : undefined;
         if (!record) {
           Alert.alert("Not found", "Estimate could not be found.", [
             { text: "OK", onPress: () => router.back() },
@@ -1983,16 +2082,13 @@ export default function EditEstimateScreen() {
           setJobAddressSameAsBilling(addressesMatch);
           jobCustomAddressRef.current = addressesMatch ? "" : jobAddressValue;
         }
-        const laborHoursValue =
-          typeof record.labor_hours === "number" && Number.isFinite(record.labor_hours)
-            ? Math.max(0, Math.round(record.labor_hours * 100) / 100)
-            : 0;
+        const laborHoursValue = Math.max(0, Math.round(record.labor_hours * 100) / 100);
         const laborRateValue =
-          typeof record.labor_rate === "number" && Number.isFinite(record.labor_rate)
+          typeof recordRow?.labor_rate === "number" && Number.isFinite(recordRow.labor_rate)
             ? Math.max(0, Math.round(record.labor_rate * 100) / 100)
             : Math.max(0, Math.round(settings.hourlyRate * 100) / 100);
         const taxRateValue =
-          typeof record.tax_rate === "number" && Number.isFinite(record.tax_rate)
+          typeof recordRow?.tax_rate === "number" && Number.isFinite(recordRow.tax_rate)
             ? Math.max(0, Math.round(record.tax_rate * 100) / 100)
             : Math.max(0, Math.round(settings.taxRate * 100) / 100);
         if (!draft) {
@@ -2011,7 +2107,7 @@ export default function EditEstimateScreen() {
           });
         }
 
-        const itemRows = await db.getAllAsync<EstimateItemRecord>(
+        const itemRows = await db.getAllAsync<EstimateItemRecordRow>(
           `SELECT id, estimate_id, description, quantity, unit_price, base_total, total, apply_markup, catalog_item_id, version, updated_at, deleted_at
            FROM estimate_items
            WHERE estimate_id = ? AND (deleted_at IS NULL OR deleted_at = '')
@@ -2021,13 +2117,11 @@ export default function EditEstimateScreen() {
 
         const activeItems = itemRows
           .filter((item) => !item.deleted_at)
+          .map((item) => normalizeEstimateItemRow(item))
           .map((item) => ({
             ...item,
-            base_total:
-              typeof item.base_total === "number"
-                ? Math.round(item.base_total * 100) / 100
-                : Math.round(item.total * 100) / 100,
-            apply_markup: item.apply_markup ?? 1,
+            base_total: Math.round(item.base_total * 100) / 100,
+            total: Math.round(item.total * 100) / 100,
           }));
 
         if (isMounted) {
@@ -2050,7 +2144,7 @@ export default function EditEstimateScreen() {
 
         const recalculatedTotals = calculateEstimateTotals({
           materialLineItems: activeItems.map((item) => ({
-            baseTotal: typeof item.base_total === "number" ? item.base_total : item.total,
+            baseTotal: item.base_total,
             applyMarkup: item.apply_markup !== 0,
           })),
           materialMarkup: {
@@ -2402,7 +2496,7 @@ export default function EditEstimateScreen() {
               Track the work you&apos;re quoting. Saved items help you move fast.
             </Subtitle>
           </View>
-          <FlatList
+          <FlatList<EstimateItemRecord>
             data={items}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
