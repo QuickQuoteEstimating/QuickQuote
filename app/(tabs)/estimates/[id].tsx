@@ -1415,6 +1415,155 @@ export default function EditEstimateScreen() {
     ],
   );
 
+  const saveEstimate = useCallback(async (): Promise<EstimateListItem | null> => {
+    if (!estimate || saving) {
+      return null;
+    }
+
+    if (!customerId) {
+      Alert.alert("Validation", "Please select a customer.");
+      return null;
+    }
+
+    setSaving(true);
+
+    try {
+      const safeTotal = Math.round(totals.grandTotal * 100) / 100;
+      const now = new Date().toISOString();
+      let isoDate: string | null = null;
+      if (estimateDate) {
+        const parsedDate = new Date(estimateDate);
+        isoDate = isNaN(parsedDate.getTime())
+          ? now
+          : new Date(parsedDate.setHours(0, 0, 0, 0)).toISOString();
+      }
+
+      const trimmedNotes = notes.trim() ? notes.trim() : null;
+      const nextVersion = (estimate.version ?? 1) + 1;
+
+      const db = await openDB();
+      await db.runAsync(
+        `UPDATE estimates
+         SET customer_id = ?, date = ?, total = ?, material_total = ?, labor_hours = ?, labor_rate = ?, labor_total = ?, subtotal = ?, tax_rate = ?, tax_total = ?, notes = ?, status = ?, version = ?, updated_at = ?, deleted_at = NULL
+         WHERE id = ?`,
+        [
+          customerId,
+          isoDate,
+          safeTotal,
+          totals.materialTotal,
+          totals.laborHours,
+          totals.laborRate,
+          totals.laborTotal,
+          totals.subtotal,
+          totals.taxRate,
+          totals.taxTotal,
+          trimmedNotes,
+          status,
+          nextVersion,
+          now,
+          estimate.id,
+        ],
+      );
+
+      let customerName = estimate.customer_name;
+      let customerEmail = estimate.customer_email;
+      let customerPhone = estimate.customer_phone;
+      let customerAddress = estimate.customer_address;
+      if (customerId !== estimate.customer_id) {
+        const customerRows = await db.getAllAsync<{
+          name: string | null;
+          email: string | null;
+          phone: string | null;
+          address: string | null;
+        }>(
+          `SELECT name, email, phone, address, notes
+           FROM customers
+           WHERE id = ? AND deleted_at IS NULL
+           LIMIT 1`,
+          [customerId],
+        );
+        const customerRecord = customerRows[0];
+        customerName = customerRecord?.name ?? customerName ?? null;
+        customerEmail = customerRecord?.email ?? null;
+        customerPhone = customerRecord?.phone ?? null;
+        customerAddress = customerRecord?.address ?? null;
+      }
+
+      const updatedEstimate: EstimateListItem = {
+        ...estimate,
+        customer_id: customerId,
+        customer_name: customerName,
+        customer_email: customerEmail ?? null,
+        customer_phone: customerPhone ?? null,
+        customer_address: customerAddress ?? null,
+        date: isoDate,
+        total: safeTotal,
+        material_total: totals.materialTotal,
+        labor_hours: totals.laborHours,
+        labor_rate: totals.laborRate,
+        labor_total: totals.laborTotal,
+        subtotal: totals.subtotal,
+        tax_rate: totals.taxRate,
+        tax_total: totals.taxTotal,
+        notes: trimmedNotes,
+        status,
+        version: nextVersion,
+        updated_at: now,
+        deleted_at: null,
+      };
+
+      await queueChange("estimates", "update", sanitizeEstimateForQueue(updatedEstimate));
+      await runSync();
+
+      estimateRef.current = updatedEstimate;
+      setEstimate(updatedEstimate);
+      setCustomerContact({
+        id: customerId,
+        name: customerName ?? "Customer",
+        email: customerEmail ?? null,
+        phone: customerPhone ?? null,
+        address: customerAddress ?? null,
+        notes: customerContact?.notes ?? null,
+      });
+
+      if (estimateId) {
+        clearEstimateFormDraft(estimateId);
+      }
+
+      if (releasePdfRef.current) {
+        releasePdfRef.current();
+        releasePdfRef.current = null;
+      }
+      lastPdfRef.current = null;
+
+      return updatedEstimate;
+    } catch (error) {
+      console.error("Failed to update estimate", error);
+      Alert.alert("Error", "Unable to update the estimate. Please try again.");
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    customerContact,
+    customerId,
+    estimate,
+    estimateDate,
+    estimateId,
+    notes,
+    runSync,
+    saving,
+    status,
+    totals.grandTotal,
+    totals.laborHours,
+    totals.laborRate,
+    totals.laborTotal,
+    totals.materialTotal,
+    totals.subtotal,
+    totals.taxRate,
+    totals.taxTotal,
+  ]);
+
   const handleSendToClient = useCallback(async () => {
     if (sending || saving) {
       return;
@@ -1723,155 +1872,6 @@ export default function EditEstimateScreen() {
       },
     );
   }, [deleting, estimateId]);
-
-  const saveEstimate = useCallback(async (): Promise<EstimateListItem | null> => {
-    if (!estimate || saving) {
-      return null;
-    }
-
-    if (!customerId) {
-      Alert.alert("Validation", "Please select a customer.");
-      return null;
-    }
-
-    setSaving(true);
-
-    try {
-      const safeTotal = Math.round(totals.grandTotal * 100) / 100;
-      const now = new Date().toISOString();
-      let isoDate: string | null = null;
-      if (estimateDate) {
-        const parsedDate = new Date(estimateDate);
-        isoDate = isNaN(parsedDate.getTime())
-          ? now
-          : new Date(parsedDate.setHours(0, 0, 0, 0)).toISOString();
-      }
-
-      const trimmedNotes = notes.trim() ? notes.trim() : null;
-      const nextVersion = (estimate.version ?? 1) + 1;
-
-      const db = await openDB();
-      await db.runAsync(
-        `UPDATE estimates
-         SET customer_id = ?, date = ?, total = ?, material_total = ?, labor_hours = ?, labor_rate = ?, labor_total = ?, subtotal = ?, tax_rate = ?, tax_total = ?, notes = ?, status = ?, version = ?, updated_at = ?, deleted_at = NULL
-         WHERE id = ?`,
-        [
-          customerId,
-          isoDate,
-          safeTotal,
-          totals.materialTotal,
-          totals.laborHours,
-          totals.laborRate,
-          totals.laborTotal,
-          totals.subtotal,
-          totals.taxRate,
-          totals.taxTotal,
-          trimmedNotes,
-          status,
-          nextVersion,
-          now,
-          estimate.id,
-        ],
-      );
-
-      let customerName = estimate.customer_name;
-      let customerEmail = estimate.customer_email;
-      let customerPhone = estimate.customer_phone;
-      let customerAddress = estimate.customer_address;
-      if (customerId !== estimate.customer_id) {
-        const customerRows = await db.getAllAsync<{
-          name: string | null;
-          email: string | null;
-          phone: string | null;
-          address: string | null;
-        }>(
-          `SELECT name, email, phone, address, notes
-           FROM customers
-           WHERE id = ? AND deleted_at IS NULL
-           LIMIT 1`,
-          [customerId],
-        );
-        const customerRecord = customerRows[0];
-        customerName = customerRecord?.name ?? customerName ?? null;
-        customerEmail = customerRecord?.email ?? null;
-        customerPhone = customerRecord?.phone ?? null;
-        customerAddress = customerRecord?.address ?? null;
-      }
-
-      const updatedEstimate: EstimateListItem = {
-        ...estimate,
-        customer_id: customerId,
-        customer_name: customerName,
-        customer_email: customerEmail ?? null,
-        customer_phone: customerPhone ?? null,
-        customer_address: customerAddress ?? null,
-        date: isoDate,
-        total: safeTotal,
-        material_total: totals.materialTotal,
-        labor_hours: totals.laborHours,
-        labor_rate: totals.laborRate,
-        labor_total: totals.laborTotal,
-        subtotal: totals.subtotal,
-        tax_rate: totals.taxRate,
-        tax_total: totals.taxTotal,
-        notes: trimmedNotes,
-        status,
-        version: nextVersion,
-        updated_at: now,
-        deleted_at: null,
-      };
-
-      await queueChange("estimates", "update", sanitizeEstimateForQueue(updatedEstimate));
-      await runSync();
-
-      estimateRef.current = updatedEstimate;
-      setEstimate(updatedEstimate);
-      setCustomerContact({
-        id: customerId,
-        name: customerName ?? "Customer",
-        email: customerEmail ?? null,
-        phone: customerPhone ?? null,
-        address: customerAddress ?? null,
-        notes: customerContact?.notes ?? null,
-      });
-
-      if (estimateId) {
-        clearEstimateFormDraft(estimateId);
-      }
-
-      if (releasePdfRef.current) {
-        releasePdfRef.current();
-        releasePdfRef.current = null;
-      }
-      lastPdfRef.current = null;
-
-      return updatedEstimate;
-    } catch (error) {
-      console.error("Failed to update estimate", error);
-      Alert.alert("Error", "Unable to update the estimate. Please try again.");
-      return null;
-    } finally {
-      setSaving(false);
-    }
-  }, [
-    customerContact,
-    customerId,
-    estimate,
-    estimateDate,
-    estimateId,
-    notes,
-    runSync,
-    saving,
-    status,
-    totals.grandTotal,
-    totals.laborHours,
-    totals.laborRate,
-    totals.laborTotal,
-    totals.materialTotal,
-    totals.subtotal,
-    totals.taxRate,
-    totals.taxTotal,
-  ]);
 
   const handleSaveDraft = useCallback(async () => {
     const updated = await saveEstimate();
