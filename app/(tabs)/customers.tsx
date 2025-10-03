@@ -18,19 +18,7 @@ import { useThemeContext } from "../../theme/ThemeProvider";
 import { confirmDelete } from "../../lib/confirmDelete";
 import { openDB, queueChange } from "../../lib/sqlite";
 import { runSync } from "../../lib/sync";
-
-export type CustomerRecord = {
-  id: string;
-  user_id: string;
-  name: string;
-  phone: string | null;
-  email: string | null;
-  address: string | null;
-  notes: string | null;
-  version: number;
-  updated_at: string;
-  deleted_at: string | null;
-};
+import type { CustomerRecord } from "../../types/customers";
 
 type EditCustomerFormProps = {
   customer: CustomerRecord;
@@ -193,16 +181,10 @@ export default function Customers() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<CustomerRecord | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const previousCustomersRef = useRef<CustomerRecord[] | null>(null);
-
-  useEffect(() => {
-    const timeout = setTimeout(() => setSearchTerm(searchInput.trim()), 250);
-    return () => clearTimeout(timeout);
-  }, [searchInput]);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -244,7 +226,7 @@ export default function Customers() {
   }, [loadCustomers]);
 
   const filteredCustomers = useMemo(() => {
-    const query = searchTerm.toLowerCase();
+    const query = searchInput.trim().toLowerCase();
     if (!query) {
       return customers;
     }
@@ -267,10 +249,10 @@ export default function Customers() {
       const notesMatch = normalize(customer.notes).includes(query);
       return nameMatch || emailMatch || phoneMatch || addressMatch || notesMatch;
     });
-  }, [customers, searchTerm]);
+  }, [customers, searchInput]);
 
   useEffect(() => {
-    if (!searchTerm) {
+    if (!searchInput.trim()) {
       return;
     }
 
@@ -285,7 +267,7 @@ export default function Customers() {
       }
       return filteredCustomers[0]?.id ?? null;
     });
-  }, [filteredCustomers, searchTerm]);
+  }, [filteredCustomers, searchInput]);
 
   const selectedCustomer = useMemo(
     () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
@@ -563,6 +545,12 @@ export default function Customers() {
                   onSaved={(customer) => {
                     setShowAddForm(false);
                     setEditingCustomer(null);
+                    setCustomers((prev) => {
+                      const next = [customer, ...prev.filter((row) => row.id !== customer.id)];
+                      return next.sort((a, b) =>
+                        a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+                      );
+                    });
                     setSelectedCustomerId(customer.id);
                     void reloadCustomers();
                   }}

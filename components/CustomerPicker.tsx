@@ -7,6 +7,7 @@ import CustomerForm from "./CustomerForm";
 import { Theme } from "../theme";
 import { useThemeContext } from "../theme/ThemeProvider";
 import { Button, Card, Input } from "./ui";
+import type { CustomerRecord } from "../types/customers";
 
 type Customer = {
   id: string;
@@ -102,14 +103,29 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
   if (addingNew) {
     return (
       <CustomerForm
-        onSaved={(c) => {
+        onSaved={(customer: CustomerRecord) => {
           setAddingNew(false);
           setSearchQuery("");
-          loadCustomers().then(() => {
-            onSelect(c.id);
+
+          const mapped: Customer = {
+            id: customer.id,
+            name: customer.name,
+            phone: customer.phone,
+            email: customer.email,
+            address: customer.address,
+            notes: customer.notes,
+          };
+
+          setCustomers((prev) => {
+            const next = [mapped, ...prev.filter((row) => row.id !== mapped.id)];
+            return next.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
           });
+
+          onSelect(customer.id);
+          void loadCustomers();
         }}
         onCancel={() => setAddingNew(false)}
+        wrapInCard={false}
       />
     );
   }

@@ -59,6 +59,12 @@ import {
   Title,
   type BadgeTone,
 } from "../../../components/ui";
+import type { CustomerRecord } from "../../../types/customers";
+
+type CustomerContact = Pick<
+  CustomerRecord,
+  "id" | "name" | "email" | "phone" | "address" | "notes"
+>;
 import { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 import type { EstimateListItem } from "./index";
@@ -88,15 +94,6 @@ type PhotoRecord = {
   version: number | null;
   updated_at: string;
   deleted_at: string | null;
-};
-
-type CustomerRecord = {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  notes: string | null;
 };
 
 type EstimateFormDraftState = {
@@ -225,7 +222,7 @@ export default function EditEstimateScreen() {
   const [pdfWorking, setPdfWorking] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendSuccessMessage, setSendSuccessMessage] = useState<string | null>(null);
-  const [customerContact, setCustomerContact] = useState<CustomerRecord | null>(null);
+  const [customerContact, setCustomerContact] = useState<CustomerContact | null>(null);
 
   const statusLabel = useMemo(() => {
     const option = STATUS_OPTIONS.find((option) => option.value === status);
@@ -399,7 +396,7 @@ export default function EditEstimateScreen() {
     (async () => {
       try {
         const db = await openDB();
-        const rows = await db.getAllAsync<CustomerRecord>(
+        const rows = await db.getAllAsync<CustomerContact>(
           `SELECT id, name, email, phone, address, notes
            FROM customers
            WHERE id = ? AND deleted_at IS NULL
