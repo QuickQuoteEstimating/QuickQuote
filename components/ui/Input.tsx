@@ -1,5 +1,7 @@
 import { ForwardedRef, ReactNode, forwardRef, useCallback, useMemo, useState } from "react";
 import {
+  BlurEvent,
+  FocusEvent,
   Platform,
   StyleProp,
   StyleSheet,
@@ -33,6 +35,8 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
     containerStyle,
     inputStyle,
     multiline,
+    onFocus,
+    onBlur,
     ...textInputProps
   }: InputProps,
   ref: ForwardedRef<TextInput>,
@@ -42,19 +46,19 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   const [isFocused, setFocused] = useState(false);
 
   const handleFocus = useCallback(
-    (event: any) => {
+    (event: FocusEvent) => {
       setFocused(true);
-      textInputProps.onFocus?.(event);
+      onFocus?.(event);
     },
-    [textInputProps],
+    [onFocus],
   );
 
   const handleBlur = useCallback(
-    (event: any) => {
+    (event: BlurEvent) => {
       setFocused(false);
-      textInputProps.onBlur?.(event);
+      onBlur?.(event);
     },
-    [textInputProps],
+    [onBlur],
   );
 
   const fieldState = useMemo(() => {

@@ -14,6 +14,8 @@ export interface ListItemProps {
   titleStyle?: StyleProp<TextStyle>;
   subtitleStyle?: StyleProp<TextStyle>;
   amountStyle?: StyleProp<TextStyle>;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
 export function ListItem({
@@ -27,6 +29,8 @@ export function ListItem({
   titleStyle,
   subtitleStyle,
   amountStyle,
+  accessibilityHint,
+  accessibilityLabel,
 }: ListItemProps) {
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -42,6 +46,8 @@ export function ListItem({
     return (
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? title}
+        accessibilityHint={accessibilityHint}
         onPress={onPress}
         style={({ pressed }) => [styles.container, pressed ? styles.pressed : null, style]}
       >

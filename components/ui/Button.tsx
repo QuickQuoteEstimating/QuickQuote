@@ -16,6 +16,8 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 type ButtonAlignment = "inline" | "full";
 
+type ButtonLabelVariant = `${ButtonVariant}Label`;
+
 export interface ButtonProps {
   label: string;
   onPress?: () => void;
@@ -56,6 +58,8 @@ export function Button({
     onPress();
   }, [isDisabled, onPress]);
 
+  const labelVariant: ButtonLabelVariant = `${variant}Label`;
+
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel ?? label}
@@ -83,7 +87,7 @@ export function Button({
         ) : (
           <>
             {leadingIcon ? <View style={styles.icon}>{leadingIcon}</View> : null}
-            <Text style={[styles.label, styles[`${variant}Label`], textStyle]}>{label}</Text>
+            <Text style={[styles.label, styles[labelVariant], textStyle]}>{label}</Text>
             {trailingIcon ? <View style={styles.icon}>{trailingIcon}</View> : null}
           </>
         )}

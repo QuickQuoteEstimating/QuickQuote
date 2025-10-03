@@ -5,6 +5,8 @@ import { useThemeContext } from "../../theme/ThemeProvider";
 
 type FABPalette = "auto" | "primary" | "highlight";
 
+type ResolvedFABPalette = Exclude<FABPalette, "auto">;
+
 export interface FABProps {
   icon: ReactNode;
   onPress?: () => void;
@@ -16,7 +18,7 @@ export interface FABProps {
 export function FAB({ icon, onPress, accessibilityLabel, palette = "auto", style }: FABProps) {
   const { theme, isDark } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const resolvedPalette =
+  const resolvedPalette: ResolvedFABPalette =
     palette === "auto" ? (isDark ? "highlight" : "primary") : palette;
 
   return (
