@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useHeaderHeight } from "@react-navigation/elements"; // add this
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
@@ -21,6 +22,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const headerHeight = useHeaderHeight();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -35,13 +37,10 @@ export default function LoginScreen() {
         password,
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       router.replace("/(tabs)/home");
     } catch (error: any) {
-      console.error("Login failed", error);
       Alert.alert("Login failed", error.message ?? "Please try again.");
     } finally {
       setLoading(false);
@@ -49,12 +48,12 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.keyboardAvoider}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
-    >
-      <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoider}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={headerHeight + 20} // dynamically offsets keyboard
+      >
         <ScrollView
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
@@ -103,8 +102,8 @@ export default function LoginScreen() {
             </View>
           </Card>
         </ScrollView>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -112,7 +111,6 @@ function createStyles(theme: Theme) {
   return StyleSheet.create({
     keyboardAvoider: {
       flex: 1,
-      backgroundColor: theme.colors.background,
     },
     safeArea: {
       flex: 1,
@@ -123,7 +121,6 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
       paddingHorizontal: theme.spacing.xl,
       paddingVertical: theme.spacing.xl,
-      backgroundColor: theme.colors.background,
     },
     card: {
       gap: theme.spacing.lg,

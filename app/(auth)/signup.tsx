@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import LogoPicker from "../../components/LogoPicker";
@@ -31,6 +32,7 @@ export default function SignupScreen() {
   const { settings, setCompanyProfile } = useSettings();
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const headerHeight = useHeaderHeight();
 
   useEffect(() => {
     setCompanyName(settings.companyProfile.name ?? "");
@@ -46,7 +48,6 @@ export default function SignupScreen() {
       Alert.alert("Missing info", "Please fill out all fields.");
       return;
     }
-
     if (password !== confirmPassword) {
       Alert.alert("Passwords do not match", "Make sure both passwords are the same.");
       return;
@@ -59,9 +60,7 @@ export default function SignupScreen() {
         password,
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setCompanyProfile({
         name: companyName.trim(),
@@ -74,11 +73,10 @@ export default function SignupScreen() {
 
       Alert.alert(
         "Check your inbox",
-        "We sent a confirmation email. Confirm your address and then sign in.",
+        "We sent a confirmation email. Confirm your address and then sign in."
       );
       router.replace("/(auth)/login");
     } catch (error: any) {
-      console.error("Sign-up failed", error);
       Alert.alert("Sign up failed", error.message ?? "Please try again.");
     } finally {
       setLoading(false);
@@ -86,12 +84,12 @@ export default function SignupScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.keyboardAvoider}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
-    >
-      <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoider}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={headerHeight + 20}
+      >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -102,6 +100,7 @@ export default function SignupScreen() {
               <BrandLogo size={80} />
             </View>
             <Title style={styles.title}>Create your account</Title>
+
             <View style={styles.section}>
               <Subtitle style={styles.sectionTitle}>Account details</Subtitle>
               <Body style={styles.sectionSubtitle}>
@@ -189,28 +188,27 @@ export default function SignupScreen() {
             </View>
           </Card>
         </ScrollView>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    keyboardAvoider: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
     safeArea: {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    card: {
-      gap: theme.spacing.xl,
+    keyboardAvoider: {
+      flex: 1,
     },
     scrollContent: {
       flexGrow: 1,
       paddingHorizontal: theme.spacing.xl,
       paddingVertical: theme.spacing.xl,
+    },
+    card: {
+      gap: theme.spacing.xl,
     },
     logoContainer: {
       alignItems: "center",
