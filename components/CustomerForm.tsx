@@ -7,14 +7,16 @@ import { openDB, queueChange } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
 import { useAuth } from "../context/AuthContext";
 import { Button, Card, Input } from "./ui";
+import type { CustomerRecord } from "../types/customers";
 
 type Props = {
-  onSaved?: (customer: { id: string; name: string }) => void;
+  onSaved?: (customer: CustomerRecord) => void;
   onCancel?: () => void;
   style?: StyleProp<ViewStyle>;
+  wrapInCard?: boolean;
 };
 
-export default function CustomerForm({ onSaved, onCancel, style }: Props) {
+export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = true }: Props) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -36,7 +38,8 @@ export default function CustomerForm({ onSaved, onCancel, style }: Props) {
       return;
     }
 
-    const newCustomer = {
+    const now = new Date().toISOString();
+    const newCustomer: CustomerRecord = {
       id: uuidv4(),
       user_id,
       name: name.trim(),
@@ -45,7 +48,7 @@ export default function CustomerForm({ onSaved, onCancel, style }: Props) {
       address: address?.trim() || null,
       notes: notes?.trim() || null,
       version: 1,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
       deleted_at: null,
     };
 
@@ -66,7 +69,7 @@ export default function CustomerForm({ onSaved, onCancel, style }: Props) {
           newCustomer.address ?? null,
           newCustomer.notes ?? null,
           newCustomer.version ?? 1,
-          newCustomer.updated_at ?? new Date().toISOString(),
+          newCustomer.updated_at ?? now,
           newCustomer.deleted_at ?? null,
         ],
       );
@@ -76,7 +79,7 @@ export default function CustomerForm({ onSaved, onCancel, style }: Props) {
       await runSync();
 
       Alert.alert("Success", "Customer saved (will sync when online).");
-      if (onSaved) onSaved({ id: newCustomer.id, name: newCustomer.name });
+      if (onSaved) onSaved(newCustomer);
 
       // reset form
       setName("");
@@ -92,8 +95,8 @@ export default function CustomerForm({ onSaved, onCancel, style }: Props) {
     }
   }
 
-  return (
-    <Card style={[styles.card, style]}>
+  const content = (
+    <>
       <Input
         label="Name"
         placeholder="John Doe"
@@ -135,13 +138,31 @@ export default function CustomerForm({ onSaved, onCancel, style }: Props) {
         multiline
       />
       <View style={styles.actions}>
-        <Button label="Save Customer" onPress={saveCustomer} loading={saving} disabled={saving} />
+        <Button
+          label="Save Customer"
+          onPress={saveCustomer}
+          loading={saving}
+          disabled={saving}
+          alignment="full"
+        />
         {onCancel ? (
-          <Button label="Cancel" variant="secondary" onPress={onCancel} disabled={saving} />
+          <Button
+            label="Cancel"
+            variant="secondary"
+            onPress={onCancel}
+            disabled={saving}
+            alignment="full"
+          />
         ) : null}
       </View>
-    </Card>
+    </>
   );
+
+  if (wrapInCard) {
+    return <Card style={[styles.card, style]}>{content}</Card>;
+  }
+
+  return <View style={[styles.card, style]}>{content}</View>;
 }
 
 function createStyles() {

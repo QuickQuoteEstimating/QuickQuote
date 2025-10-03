@@ -18,6 +18,7 @@ import * as Print from "expo-print";
 import * as SMS from "expo-sms";
 import { v4 as uuidv4 } from "uuid";
 
+import CustomerForm from "../../../components/CustomerForm";
 import { Button, Card, Input, ListItem } from "../../../components/ui";
 import { useAuth } from "../../../context/AuthContext";
 import { useSettings } from "../../../context/SettingsContext";
@@ -43,6 +44,7 @@ import {
 import { listSavedItems, upsertSavedItem, type SavedItemRecord } from "../../../lib/savedItems";
 import { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
+import type { CustomerRecord } from "../../../types/customers";
 
 const CURRENCY_FORMATTER = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -495,11 +497,6 @@ export default function NewEstimateScreen() {
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [customerError, setCustomerError] = useState<string | null>(null);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState("");
-  const [newCustomerPhone, setNewCustomerPhone] = useState("");
-  const [newCustomerEmail, setNewCustomerEmail] = useState("");
-  const [newCustomerAddress, setNewCustomerAddress] = useState("");
-  const [creatingCustomer, setCreatingCustomer] = useState(false);
 
   const [billingAddress, setBillingAddress] = useState("");
   const [jobAddress, setJobAddress] = useState("");
@@ -702,6 +699,30 @@ export default function NewEstimateScreen() {
     setJobAddressSameAsBilling(true);
   }, []);
 
+  const handleCustomerCreated = useCallback(
+    (customer: CustomerRecord) => {
+      const option: CustomerOption = {
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+        address: customer.address,
+      };
+
+      setSelectedCustomer(option);
+      setCustomerQuery(customer.name ?? "");
+      setShowNewCustomerForm(false);
+      setCustomerResults((current) => [option, ...current.filter((row) => row.id !== option.id)]);
+
+      const trimmedAddress = customer.address?.trim() ?? "";
+      setBillingAddress(trimmedAddress);
+      setJobAddressSameAsBilling(true);
+      setJobAddress(trimmedAddress);
+      jobCustomAddressRef.current = "";
+    },
+    [],
+  );
+
   const handleJobAddressToggle = useCallback(
     (value: boolean) => {
       setJobAddressSameAsBilling(value);
@@ -719,84 +740,6 @@ export default function NewEstimateScreen() {
     setJobAddress(value);
     jobCustomAddressRef.current = value;
   }, []);
-
-  const handleCreateCustomer = useCallback(async () => {
-    const trimmedName = newCustomerName.trim();
-    if (!trimmedName) {
-      Alert.alert("Customer", "Customer name is required.");
-      return;
-    }
-
-    if (!userId) {
-      Alert.alert("Sign in required", "You must be signed in before creating customers.");
-      return;
-    }
-
-    try {
-      setCreatingCustomer(true);
-      const db = await openDB();
-      const now = new Date().toISOString();
-      const customerRecord = {
-        id: uuidv4(),
-        user_id: userId,
-        name: trimmedName,
-        phone: newCustomerPhone.trim() ? newCustomerPhone.trim() : null,
-        email: newCustomerEmail.trim() ? newCustomerEmail.trim() : null,
-        address: newCustomerAddress.trim() ? newCustomerAddress.trim() : null,
-        notes: null as string | null,
-        version: 1,
-        updated_at: now,
-        deleted_at: null as string | null,
-      };
-
-      await db.runAsync(
-        `INSERT OR REPLACE INTO customers
-           (id, user_id, name, phone, email, address, notes, version, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          customerRecord.id,
-          customerRecord.user_id,
-          customerRecord.name,
-          customerRecord.phone,
-          customerRecord.email,
-          customerRecord.address,
-          customerRecord.notes,
-          customerRecord.version,
-          customerRecord.updated_at,
-          customerRecord.deleted_at,
-        ],
-      );
-
-      await queueChange("customers", "insert", customerRecord);
-      void runSync().catch((error) => {
-        console.warn("Failed to sync new customer immediately", error);
-      });
-
-      const option: CustomerOption = {
-        id: customerRecord.id,
-        name: customerRecord.name,
-        email: customerRecord.email,
-        phone: customerRecord.phone,
-        address: customerRecord.address,
-      };
-      setSelectedCustomer(option);
-      setCustomerQuery(customerRecord.name);
-      setShowNewCustomerForm(false);
-      setNewCustomerName("");
-      setNewCustomerPhone("");
-      setNewCustomerEmail("");
-      setNewCustomerAddress("");
-      setCustomerResults((current) => [option, ...current.filter((row) => row.id !== option.id)]);
-      setBillingAddress(option.address ?? "");
-      setJobAddressSameAsBilling(true);
-      setJobAddress(option.address ?? "");
-    } catch (error) {
-      console.error("Failed to create customer", error);
-      Alert.alert("Customer", "We couldn't save this customer. Please try again.");
-    } finally {
-      setCreatingCustomer(false);
-    }
-  }, [newCustomerAddress, newCustomerEmail, newCustomerName, newCustomerPhone, userId]);
 
   const handleAddLineItem = useCallback(() => {
     setLineItems((current) => [
@@ -1709,51 +1652,11 @@ export default function NewEstimateScreen() {
             )}
             {customerError ? <Text style={styles.errorText}>{customerError}</Text> : null}
             {showNewCustomerForm ? (
-              <View style={{ gap: theme.spacing.md }}>
-                <Input
-                  label="Customer name"
-                  placeholder="Jane Smith"
-                  value={newCustomerName}
-                  onChangeText={setNewCustomerName}
-                  autoCapitalize="words"
-                />
-                <Input
-                  label="Phone"
-                  placeholder="(555) 123-4567"
-                  value={newCustomerPhone}
-                  onChangeText={setNewCustomerPhone}
-                  keyboardType="phone-pad"
-                />
-                <Input
-                  label="Email"
-                  placeholder="you@example.com"
-                  value={newCustomerEmail}
-                  onChangeText={setNewCustomerEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                <Input
-                  label="Billing address"
-                  placeholder="123 Main St, Springfield"
-                  value={newCustomerAddress}
-                  onChangeText={setNewCustomerAddress}
-                  multiline
-                />
-                <View style={styles.inlineActions}>
-                  <Button
-                    label={creatingCustomer ? "Saving…" : "Save customer"}
-                    onPress={handleCreateCustomer}
-                    loading={creatingCustomer}
-                    disabled={creatingCustomer}
-                  />
-                  <Button
-                    label="Cancel"
-                    variant="ghost"
-                    onPress={() => setShowNewCustomerForm(false)}
-                    disabled={creatingCustomer}
-                  />
-                </View>
-              </View>
+              <CustomerForm
+                wrapInCard={false}
+                onSaved={handleCustomerCreated}
+                onCancel={() => setShowNewCustomerForm(false)}
+              />
             ) : (
               <Button
                 label="➕ Add New Customer"
