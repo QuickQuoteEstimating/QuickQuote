@@ -131,7 +131,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
   if (loading) {
     return (
       <Card style={styles.loadingCard}>
-        <ActivityIndicator color={theme.colors.primary} />
+        <ActivityIndicator color={theme.colors.accent} />
         <Text style={styles.loadingText}>Loading customers…</Text>
       </Card>
     );
@@ -159,7 +159,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
           selectedValue={selectedCustomer ?? ""}
           onValueChange={handleSelect}
           style={styles.picker}
-          dropdownIconColor={theme.colors.primary}
+          dropdownIconColor={theme.colors.accent}
         >
           <Picker.Item label="-- Select --" value="" />
           {filteredCustomers.length === 0 ? (
@@ -193,13 +193,13 @@ function createStyles(theme: Theme) {
     caption: {
       fontSize: 13,
       lineHeight: 18,
-      color: colors.textMuted,
+      color: colors.mutedText,
     },
     pickerShell: {
       borderRadius: 16,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.surfaceMuted,
+      backgroundColor: colors.surfaceAlt,
       overflow: "hidden",
     },
     picker: {
@@ -212,7 +212,7 @@ function createStyles(theme: Theme) {
     },
     loadingText: {
       fontSize: 14,
-      color: colors.textMuted,
+      color: colors.mutedText,
     },
   });
 }

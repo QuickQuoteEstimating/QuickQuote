@@ -119,7 +119,7 @@ function createStyles(theme: Theme) {
       alignItems: "center",
     },
     link: {
-      color: theme.colors.primary,
+      color: theme.colors.accent,
       fontWeight: "600",
     },
   });

@@ -92,11 +92,11 @@ function createStyles(theme: Theme) {
     title: {
       fontSize: 16,
       fontWeight: "600",
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
     },
     subtitle: {
       fontSize: 14,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     amount: {
       fontSize: 16,

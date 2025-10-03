@@ -56,10 +56,10 @@ function createStyles(theme: Theme) {
       }),
     },
     primary: {
-      backgroundColor: theme.colors.primary,
+      backgroundColor: theme.colors.accent,
     },
     highlight: {
-      backgroundColor: theme.colors.highlight,
+      backgroundColor: theme.colors.accentSoft,
     },
     pressed: {
       opacity: 0.9,

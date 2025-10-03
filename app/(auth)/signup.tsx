@@ -208,14 +208,14 @@ function createStyles(theme: Theme) {
       color: theme.colors.primaryText,
     },
     sectionSubtitle: {
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     linksRow: {
       flexDirection: "row",
       justifyContent: "center",
     },
     link: {
-      color: theme.colors.primary,
+      color: theme.colors.accent,
       fontWeight: "600",
     },
   });

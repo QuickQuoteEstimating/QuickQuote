@@ -101,7 +101,7 @@ export default function EstimateItemEditorScreen() {
   if (!config) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <ActivityIndicator size="large" color={theme.colors.accent} />
       </View>
     );
   }

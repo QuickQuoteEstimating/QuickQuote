@@ -281,8 +281,8 @@ export default function SavedItemsScreen() {
                   onValueChange={(value) =>
                     setEditor((prev) => (prev ? { ...prev, markupApplicable: value } : prev))
                   }
-                  trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }}
-                  thumbColor={editor.markupApplicable ? theme.colors.primary : undefined}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.accentSoft }}
+                  thumbColor={editor.markupApplicable ? theme.colors.accent : undefined}
                 />
               </View>
               <View style={styles.editorActions}>
@@ -309,7 +309,7 @@ export default function SavedItemsScreen() {
           {loading ? (
             <Card style={styles.messageCard}>
               <View style={styles.loadingRow}>
-                <ActivityIndicator color={theme.colors.primary} />
+                <ActivityIndicator color={theme.colors.accent} />
                 <Text style={styles.messageText}>Loading saved items…</Text>
               </View>
             </Card>
@@ -377,7 +377,7 @@ function createStyles(theme: Theme) {
     },
     subtitle: {
       fontSize: 15,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       lineHeight: 22,
     },
     editorCard: {
@@ -420,7 +420,7 @@ function createStyles(theme: Theme) {
     },
     toggleHint: {
       fontSize: 13,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       lineHeight: 18,
     },
     editorActions: {
@@ -439,7 +439,7 @@ function createStyles(theme: Theme) {
     },
     messageText: {
       fontSize: 15,
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
       lineHeight: 22,
     },
     loadingRow: {
@@ -466,11 +466,11 @@ function createStyles(theme: Theme) {
     },
     itemMeta: {
       fontSize: 15,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     itemMarkup: {
       fontSize: 14,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     itemActions: {
       flexDirection: "row",

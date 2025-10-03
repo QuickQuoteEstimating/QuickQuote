@@ -77,7 +77,7 @@ export function Button({
             color={
               variant === "primary" || variant === "danger"
                 ? theme.colors.surface
-                : theme.colors.primary
+                : theme.colors.accent
             }
           />
         ) : (
@@ -117,24 +117,24 @@ function createStyles(theme: Theme) {
       letterSpacing: 0.2,
     },
     primary: {
-      backgroundColor: theme.colors.primary,
+      backgroundColor: theme.colors.accent,
     },
     primaryLabel: {
       color: theme.colors.surface,
     },
     secondary: {
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.primary,
+      borderColor: theme.colors.accent,
       backgroundColor: "transparent",
     },
     secondaryLabel: {
-      color: theme.colors.primary,
+      color: theme.colors.accent,
     },
     ghost: {
       backgroundColor: "transparent",
     },
     ghostLabel: {
-      color: theme.colors.primary,
+      color: theme.colors.accent,
     },
     danger: {
       backgroundColor: theme.colors.danger,
