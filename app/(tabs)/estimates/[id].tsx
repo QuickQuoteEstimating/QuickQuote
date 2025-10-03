@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   View,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
@@ -101,6 +102,9 @@ type EstimateFormDraftState = {
   estimateDate: string;
   notes: string;
   status: string;
+  billingAddress: string;
+  jobAddress: string;
+  jobAddressSameAsBilling: boolean;
   items: EstimateItemRecord[];
   laborHoursText: string;
   hourlyRateText: string;
@@ -191,12 +195,22 @@ export default function EditEstimateScreen() {
   );
   const hasRestoredDraftRef = useRef(Boolean(draftRef.current));
   const preserveDraftRef = useRef(false);
+  const jobCustomAddressRef = useRef(
+    draftRef.current?.jobAddressSameAsBilling ? "" : draftRef.current?.jobAddress ?? "",
+  );
 
   const [estimate, setEstimate] = useState<EstimateListItem | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(draftRef.current?.customerId ?? null);
   const [estimateDate, setEstimateDate] = useState(draftRef.current?.estimateDate ?? "");
   const [notes, setNotes] = useState(draftRef.current?.notes ?? "");
   const [status, setStatus] = useState(draftRef.current?.status ?? "draft");
+  const [billingAddress, setBillingAddress] = useState(
+    draftRef.current?.billingAddress ?? "",
+  );
+  const [jobAddress, setJobAddress] = useState(draftRef.current?.jobAddress ?? "");
+  const [jobAddressSameAsBilling, setJobAddressSameAsBilling] = useState(
+    draftRef.current?.jobAddressSameAsBilling ?? true,
+  );
   const [items, setItems] = useState<EstimateItemRecord[]>(
     () => draftRef.current?.items.map((item) => ({ ...item })) ?? [],
   );
@@ -223,6 +237,42 @@ export default function EditEstimateScreen() {
   const [sending, setSending] = useState(false);
   const [sendSuccessMessage, setSendSuccessMessage] = useState<string | null>(null);
   const [customerContact, setCustomerContact] = useState<CustomerContact | null>(null);
+
+  const billingAddressRef = useRef(billingAddress);
+  const jobAddressSameAsBillingRef = useRef(jobAddressSameAsBilling);
+
+  useEffect(() => {
+    if (jobAddressSameAsBilling) {
+      setJobAddress(billingAddress);
+    }
+  }, [billingAddress, jobAddressSameAsBilling]);
+
+  useEffect(() => {
+    billingAddressRef.current = billingAddress;
+  }, [billingAddress]);
+
+  useEffect(() => {
+    jobAddressSameAsBillingRef.current = jobAddressSameAsBilling;
+  }, [jobAddressSameAsBilling]);
+
+  const handleJobAddressToggle = useCallback(
+    (value: boolean) => {
+      setJobAddressSameAsBilling(value);
+      if (value) {
+        jobCustomAddressRef.current = jobAddress;
+        setJobAddress(billingAddress);
+      } else {
+        const previous = jobCustomAddressRef.current.trim();
+        setJobAddress(previous || "");
+      }
+    },
+    [billingAddress, jobAddress],
+  );
+
+  const handleJobAddressChange = useCallback((value: string) => {
+    setJobAddress(value);
+    jobCustomAddressRef.current = value;
+  }, []);
 
   const statusLabel = useMemo(() => {
     const option = STATUS_OPTIONS.find((option) => option.value === status);
@@ -418,6 +468,13 @@ export default function EditEstimateScreen() {
             address: record.address ?? null,
             notes: record.notes ?? null,
           });
+          if (!billingAddressRef.current.trim()) {
+            const nextBilling = record.address ?? "";
+            setBillingAddress(nextBilling);
+            if (jobAddressSameAsBillingRef.current) {
+              setJobAddress(nextBilling);
+            }
+          }
         } else {
           setCustomerContact(null);
         }
@@ -457,9 +514,12 @@ export default function EditEstimateScreen() {
     const isoDate = estimateDate ? new Date(estimateDate).toISOString() : estimate.date;
 
     const trimmedNotes = notes.trim();
-    const billingAddress =
-      estimate.billing_address ?? customerContact?.address ?? estimate.customer_address ?? null;
-    const jobAddress = estimate.job_address ?? billingAddress ?? null;
+    const billingAddressValue = billingAddress.trim() ? billingAddress.trim() : null;
+    const jobAddressValue = jobAddressSameAsBilling
+      ? billingAddressValue
+      : jobAddress.trim()
+          ? jobAddress.trim()
+          : null;
 
     return {
       estimate: {
@@ -474,14 +534,15 @@ export default function EditEstimateScreen() {
         subtotal: totals.subtotal,
         laborHours: totals.laborHours,
         laborRate: totals.laborRate,
-        billingAddress,
-        jobAddress,
+        billingAddress: billingAddressValue,
+        jobAddress: jobAddressValue,
         jobDetails: trimmedNotes ? trimmedNotes : null,
         customer: {
           name: customerContact?.name ?? estimate.customer_name ?? "Customer",
           email: customerContact?.email ?? estimate.customer_email ?? null,
           phone: customerContact?.phone ?? estimate.customer_phone ?? null,
-          address: billingAddress,
+          address:
+            billingAddressValue ?? customerContact?.address ?? estimate.customer_address ?? null,
         },
       },
       items: items.map((item) => ({
@@ -504,10 +565,13 @@ export default function EditEstimateScreen() {
       paymentDetails: settings.paymentDetails,
     };
   }, [
+    billingAddress,
     customerContact,
     estimate,
     estimateDate,
     items,
+    jobAddress,
+    jobAddressSameAsBilling,
     notes,
     photos,
     status,
@@ -1436,12 +1500,18 @@ export default function EditEstimateScreen() {
       }
 
       const trimmedNotes = notes.trim() ? notes.trim() : null;
+      const billingAddressValue = billingAddress.trim() ? billingAddress.trim() : null;
+      const jobAddressValue = jobAddressSameAsBilling
+        ? billingAddressValue
+        : jobAddress.trim()
+            ? jobAddress.trim()
+            : null;
       const nextVersion = (estimate.version ?? 1) + 1;
 
       const db = await openDB();
       await db.runAsync(
         `UPDATE estimates
-         SET customer_id = ?, date = ?, total = ?, material_total = ?, labor_hours = ?, labor_rate = ?, labor_total = ?, subtotal = ?, tax_rate = ?, tax_total = ?, notes = ?, status = ?, version = ?, updated_at = ?, deleted_at = NULL
+         SET customer_id = ?, date = ?, total = ?, material_total = ?, labor_hours = ?, labor_rate = ?, labor_total = ?, subtotal = ?, tax_rate = ?, tax_total = ?, notes = ?, status = ?, version = ?, updated_at = ?, deleted_at = NULL, billing_address = ?, job_address = ?, job_details = ?
          WHERE id = ?`,
         [
           customerId,
@@ -1458,6 +1528,9 @@ export default function EditEstimateScreen() {
           status,
           nextVersion,
           now,
+          billingAddressValue,
+          jobAddressValue,
+          trimmedNotes,
           estimate.id,
         ],
       );
@@ -1503,6 +1576,9 @@ export default function EditEstimateScreen() {
         tax_rate: totals.taxRate,
         tax_total: totals.taxTotal,
         notes: trimmedNotes,
+        billing_address: billingAddressValue,
+        job_address: jobAddressValue,
+        job_details: trimmedNotes,
         status,
         version: nextVersion,
         updated_at: now,
@@ -1514,12 +1590,22 @@ export default function EditEstimateScreen() {
 
       estimateRef.current = updatedEstimate;
       setEstimate(updatedEstimate);
+      setBillingAddress(billingAddressValue ?? "");
+      if (jobAddressSameAsBilling) {
+        setJobAddress(billingAddressValue ?? "");
+      } else {
+        setJobAddress(jobAddressValue ?? "");
+      }
+      setJobAddressSameAsBilling(
+        (billingAddressValue ?? "") === (jobAddressValue ?? billingAddressValue ?? ""),
+      );
+      jobCustomAddressRef.current = jobAddressValue ?? "";
       setCustomerContact({
         id: customerId,
         name: customerName ?? "Customer",
         email: customerEmail ?? null,
         phone: customerPhone ?? null,
-        address: customerAddress ?? null,
+        address: billingAddressValue ?? customerAddress ?? null,
         notes: customerContact?.notes ?? null,
       });
 
@@ -1542,11 +1628,14 @@ export default function EditEstimateScreen() {
       setSaving(false);
     }
   }, [
+    billingAddress,
     customerContact,
     customerId,
     estimate,
     estimateDate,
     estimateId,
+    jobAddress,
+    jobAddressSameAsBilling,
     notes,
     runSync,
     saving,
@@ -1675,6 +1764,15 @@ export default function EditEstimateScreen() {
           setEstimateDate(record.date ? new Date(record.date).toISOString().split("T")[0] : "");
           setNotes(record.notes ?? "");
           setStatus(record.status ?? "draft");
+          const billingAddressValue =
+            record.billing_address?.trim() ?? record.customer_address?.trim() ?? "";
+          const jobAddressValue = record.job_address?.trim() ?? "";
+          const addressesMatch =
+            !jobAddressValue || jobAddressValue === billingAddressValue;
+          setBillingAddress(billingAddressValue);
+          setJobAddress(addressesMatch ? billingAddressValue : jobAddressValue);
+          setJobAddressSameAsBilling(addressesMatch);
+          jobCustomAddressRef.current = addressesMatch ? "" : jobAddressValue;
         }
         const laborHoursValue =
           typeof record.labor_hours === "number" && Number.isFinite(record.labor_hours)
@@ -1699,7 +1797,7 @@ export default function EditEstimateScreen() {
             name: record.customer_name ?? "Customer",
             email: record.customer_email ?? null,
             phone: record.customer_phone ?? null,
-            address: record.customer_address ?? null,
+            address: billingAddressValue || record.customer_address ?? null,
             notes: null,
           });
         }
@@ -1894,6 +1992,9 @@ export default function EditEstimateScreen() {
       estimateDate,
       notes,
       status,
+      billingAddress,
+      jobAddress,
+      jobAddressSameAsBilling,
       items,
       laborHoursText,
       hourlyRateText,
@@ -1904,7 +2005,10 @@ export default function EditEstimateScreen() {
     customerId,
     estimateDate,
     estimateId,
+    billingAddress,
     items,
+    jobAddress,
+    jobAddressSameAsBilling,
     laborHoursText,
     hourlyRateText,
     notes,
@@ -1961,6 +2065,43 @@ export default function EditEstimateScreen() {
             onChangeText={setEstimateDate}
             autoCapitalize="none"
           />
+        </Card>
+
+        <Card style={styles.card}>
+          <Title style={styles.sectionTitle}>Job Location &amp; Billing</Title>
+          <Subtitle style={styles.sectionSubtitle}>
+            Keep service and billing addresses current for this project.
+          </Subtitle>
+          <Input
+            label="Billing address"
+            placeholder="Where should invoices be sent?"
+            value={billingAddress}
+            onChangeText={setBillingAddress}
+            multiline
+          />
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleLabelGroup}>
+              <Body style={styles.toggleLabel}>Job site same as billing</Body>
+              <Body style={styles.toggleCaption}>
+                Turn off to enter a different service location.
+              </Body>
+            </View>
+            <Switch
+              value={jobAddressSameAsBilling}
+              onValueChange={handleJobAddressToggle}
+              trackColor={{ false: colors.border, true: colors.accentSoft }}
+              thumbColor={jobAddressSameAsBilling ? colors.accent : undefined}
+            />
+          </View>
+          {!jobAddressSameAsBilling ? (
+            <Input
+              label="Job site address"
+              placeholder="Where is the work happening?"
+              value={jobAddress}
+              onChangeText={handleJobAddressChange}
+              multiline
+            />
+          ) : null}
         </Card>
 
         <Card style={styles.photosCard}>
@@ -2146,7 +2287,7 @@ export default function EditEstimateScreen() {
           </View>
           <View style={styles.fieldGroup}>
             <Input
-              label="Internal notes"
+              label="Notes / Job description"
               placeholder="Add private notes for your team"
               value={notes}
               onChangeText={setNotes}
@@ -2431,6 +2572,25 @@ function createStyles(theme: Theme) {
     },
     card: {
       gap: spacing.lg,
+    },
+    toggleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: spacing.lg,
+    },
+    toggleLabelGroup: {
+      flex: 1,
+    },
+    toggleLabel: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.primaryText,
+    },
+    toggleCaption: {
+      fontSize: 13,
+      color: colors.mutedText,
+      marginTop: 2,
     },
     sectionTitle: {
       color: colors.primaryText,
