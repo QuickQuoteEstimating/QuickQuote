@@ -238,7 +238,6 @@ describe("NewEstimateScreen", () => {
     authState.session = null;
 
     const screen = render(<NewEstimateScreen />);
-    const { getByText, findByText } = screen;
 
     const jobTitleInput = await waitFor(() => {
       const inputs = screen.UNSAFE_getAllByType(TextInput);
@@ -251,7 +250,7 @@ describe("NewEstimateScreen", () => {
       return match;
     });
     fireEvent.changeText(jobTitleInput, "Landscaping");
-    const customerRow = await findByText("Acme Industries");
+    const customerRow = await screen.findByText("Acme Industries");
     const customerPressable = customerRow.parent?.parent ?? customerRow;
     fireEvent.press(customerPressable);
     await waitFor(() => {
@@ -288,7 +287,7 @@ describe("NewEstimateScreen", () => {
       await saveButton?.props.onPress?.();
     });
 
-    expect(await findByText("You need to be signed in to create a new estimate.")).toBeTruthy();
+    expect(await screen.findByText("You need to be signed in to create a new estimate.")).toBeTruthy();
     expect(alertSpy).toHaveBeenCalledWith(
       "Estimate",
       "You need to be signed in to create a new estimate.",
