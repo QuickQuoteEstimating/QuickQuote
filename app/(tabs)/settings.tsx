@@ -237,7 +237,7 @@ export default function Settings() {
                   setHapticsEnabled(value);
                   triggerHaptic();
                 }}
-                trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+                trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
                 thumbColor={theme.colors.surface}
               />
             }
@@ -256,7 +256,7 @@ export default function Settings() {
                   setHapticIntensity(value);
                   triggerHaptic();
                 }}
-                minimumTrackTintColor={theme.colors.primary}
+                minimumTrackTintColor={theme.colors.accent}
                 maximumTrackTintColor={theme.colors.border}
               />
             </View>
@@ -272,7 +272,7 @@ export default function Settings() {
                   setNotificationsEnabled(value);
                   triggerHaptic();
                 }}
-                trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+                trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
                 thumbColor={theme.colors.surface}
               />
             }
@@ -289,7 +289,7 @@ export default function Settings() {
                   setAutoSyncEnabled(value);
                   triggerHaptic();
                 }}
-                trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+                trackColor={{ true: theme.colors.accent, false: theme.colors.border }}
                 thumbColor={theme.colors.surface}
               />
             }
@@ -529,12 +529,12 @@ function createStyles(theme: Theme) {
     },
     loadingText: {
       fontSize: 16,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     cardTitle: {
       fontSize: 18,
       fontWeight: "700",
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
     },
     accountHeader: {
       flexDirection: "row",
@@ -545,7 +545,7 @@ function createStyles(theme: Theme) {
       width: 56,
       height: 56,
       borderRadius: theme.radii.full,
-      backgroundColor: theme.colors.surfaceMuted,
+      backgroundColor: theme.colors.surfaceAlt,
       alignItems: "center",
       justifyContent: "center",
       overflow: "hidden",
@@ -562,24 +562,24 @@ function createStyles(theme: Theme) {
     accountName: {
       fontSize: 17,
       fontWeight: "700",
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
     },
     accountEmail: {
       fontSize: 15,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     mutedText: {
       fontSize: 14,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     sectionDivider: {
       height: StyleSheet.hairlineWidth,
-      backgroundColor: theme.colors.separator,
+      backgroundColor: theme.colors.border,
     },
     sectionHeading: {
       fontSize: 16,
       fontWeight: "600",
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
     },
     fieldGroup: {
       gap: theme.spacing.md,
@@ -608,12 +608,12 @@ function createStyles(theme: Theme) {
     },
     sliderLabel: {
       fontSize: 13,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     inputAdornment: {
       fontSize: 16,
       fontWeight: "600",
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     inlineFieldGroup: {
       flexDirection: "row",
@@ -629,29 +629,29 @@ function createStyles(theme: Theme) {
     },
     markupToggleLabel: {
       fontSize: 13,
-      color: theme.colors.primary,
+      color: theme.colors.accent,
     },
     buttonRow: {
       flexDirection: "column",
       gap: theme.spacing.md,
     },
     badge: {
-      backgroundColor: theme.colors.surfaceMuted,
+      backgroundColor: theme.colors.surfaceAlt,
     },
     badgeSuccess: {
       backgroundColor: theme.colors.successSoft,
     },
     badgeWarning: {
-      backgroundColor: theme.colors.warningSoft,
+      backgroundColor: theme.colors.accentSoft,
     },
     badgeTextMuted: {
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     badgeTextSuccess: {
       color: theme.colors.success,
     },
     badgeTextWarning: {
-      color: theme.colors.warning,
+      color: theme.colors.accent,
     },
     aboutRow: {
       flexDirection: "row",
@@ -660,12 +660,12 @@ function createStyles(theme: Theme) {
     },
     aboutLabel: {
       fontSize: 14,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     aboutValue: {
       fontSize: 15,
       fontWeight: "600",
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
     },
   });
 }

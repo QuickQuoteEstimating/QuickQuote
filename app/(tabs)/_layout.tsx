@@ -11,10 +11,10 @@ export default function TabsLayout() {
   const { theme } = useThemeContext();
   const palette = {
     background: theme.colors.surface,
-    card: theme.colors.surfaceMuted,
-    accent: theme.colors.primary,
+    card: theme.colors.surfaceAlt,
+    accent: theme.colors.accent,
     primaryText: theme.colors.primaryText,
-    muted: theme.colors.textMuted,
+    muted: theme.colors.mutedText,
     border: theme.colors.border,
   };
 

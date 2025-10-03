@@ -61,7 +61,7 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
     },
     heroCard: {
-      backgroundColor: theme.colors.primarySoft,
+      backgroundColor: theme.colors.accentSoft,
       gap: theme.spacing.lg,
     },
     heroHeader: {
@@ -78,7 +78,7 @@ function createStyles(theme: Theme) {
       color: theme.colors.primaryText,
     },
     heroSummary: {
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     heroStatsRow: {
       flexDirection: "row",
@@ -89,7 +89,7 @@ function createStyles(theme: Theme) {
       gap: theme.spacing.xs,
     },
     heroStatLabel: {
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       fontSize: 13,
       fontWeight: "600",
       letterSpacing: 0.6,
@@ -114,14 +114,14 @@ function createStyles(theme: Theme) {
       gap: theme.spacing.xxs,
     },
     heroMetaLabel: {
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       fontSize: 12,
       textTransform: "uppercase",
       letterSpacing: 0.5,
       fontWeight: "600",
     },
     heroMetaValue: {
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
       fontWeight: "600",
     },
     sectionCard: {
@@ -139,13 +139,13 @@ function createStyles(theme: Theme) {
     statItem: {
       flexGrow: 1,
       flexBasis: "48%",
-      backgroundColor: theme.colors.surfaceMuted,
+      backgroundColor: theme.colors.surfaceAlt,
       borderRadius: theme.radii.md,
       padding: theme.spacing.lg,
       gap: theme.spacing.sm,
     },
     statLabel: {
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       fontSize: 12,
       textTransform: "uppercase",
       fontWeight: "600",
@@ -158,10 +158,10 @@ function createStyles(theme: Theme) {
       letterSpacing: 0.2,
     },
     statHint: {
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     listItem: {
-      backgroundColor: theme.colors.surfaceMuted,
+      backgroundColor: theme.colors.surfaceAlt,
       borderRadius: theme.radii.md,
       paddingVertical: theme.spacing.md,
     },
@@ -169,7 +169,7 @@ function createStyles(theme: Theme) {
       color: theme.colors.primaryText,
     },
     emptyState: {
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     topJobDetails: {
       gap: theme.spacing.md,
@@ -186,13 +186,13 @@ function createStyles(theme: Theme) {
       fontWeight: "700",
     },
     statusBadge: {
-      backgroundColor: theme.colors.primarySoft,
+      backgroundColor: theme.colors.accentSoft,
     },
     footer: {
       paddingHorizontal: theme.spacing.xl,
       paddingTop: theme.spacing.lg,
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.colors.separator,
+      borderTopColor: theme.colors.border,
       backgroundColor: theme.colors.background,
     },
   });
@@ -413,7 +413,7 @@ export default function Home() {
               setRefreshing(true);
               refreshMetrics();
             }}
-            tintColor={theme.colors.primary}
+            tintColor={theme.colors.accent}
           />
         }
       >
@@ -431,7 +431,7 @@ export default function Home() {
               <Title style={styles.heroStatValue}>{heroStatValue}</Title>
             </View>
             {loading ? (
-              <ActivityIndicator color={theme.colors.primary} />
+              <ActivityIndicator color={theme.colors.accent} />
             ) : (
               <View style={styles.heroStatBlock}>
                 <Body style={styles.heroStatLabel}>Close rate</Body>

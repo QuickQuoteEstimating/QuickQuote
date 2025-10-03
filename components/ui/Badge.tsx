@@ -11,22 +11,22 @@ export interface BadgeProps {
   textStyle?: StyleProp<TextStyle>;
 }
 
-export function Badge({ children, style, textStyle }: PropsWithChildren<BadgeProps>) {
+export function Badge({ children, tone = "info", style, textStyle }: PropsWithChildren<BadgeProps>) {
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const toneStyles = styles.tones[tone];
 
   return (
-    <View style={[styles.container, style]}>
-      <Text style={[styles.label, textStyle]}>{children}</Text>
+    <View style={[styles.container, toneStyles.container, style]}>
+      <Text style={[styles.label, toneStyles.label, textStyle]}>{children}</Text>
     </View>
   );
 }
 
 function createStyles(theme: Theme) {
-  return StyleSheet.create({
+  const base = StyleSheet.create({
     container: {
       alignSelf: "flex-start",
-      backgroundColor: theme.colors.highlight,
       borderRadius: theme.radii.full,
       paddingHorizontal: theme.spacing.md,
       paddingVertical: theme.spacing.xs,
@@ -35,10 +35,34 @@ function createStyles(theme: Theme) {
       fontSize: 13,
       fontWeight: "600",
       letterSpacing: 0.4,
-      color: theme.colors.primaryText,
       textTransform: "uppercase",
     },
   });
+
+  const tones: Record<BadgeTone, { container: ViewStyle; label: TextStyle }> = {
+    info: {
+      container: { backgroundColor: theme.colors.accentSoft },
+      label: { color: theme.colors.accent },
+    },
+    warning: {
+      container: { backgroundColor: theme.colors.accentSoft },
+      label: { color: theme.colors.accent },
+    },
+    success: {
+      container: { backgroundColor: theme.colors.successSoft },
+      label: { color: theme.colors.success },
+    },
+    danger: {
+      container: { backgroundColor: theme.colors.dangerSoft },
+      label: { color: theme.colors.danger },
+    },
+    muted: {
+      container: { backgroundColor: theme.colors.surfaceAlt },
+      label: { color: theme.colors.mutedText },
+    },
+  };
+
+  return { ...base, tones };
 }
 
 export default Badge;

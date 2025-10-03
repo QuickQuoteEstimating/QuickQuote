@@ -12,18 +12,18 @@ function createStyles(theme: Theme) {
     title: {
       fontSize: 24,
       fontWeight: "700",
-      color: theme.colors.text,
+      color: theme.colors.primaryText,
       letterSpacing: 0.3,
     },
     subtitle: {
       fontSize: 16,
       fontWeight: "500",
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       letterSpacing: 0.2,
     },
     body: {
       fontSize: 14,
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
       letterSpacing: 0.1,
       lineHeight: 20,
     },

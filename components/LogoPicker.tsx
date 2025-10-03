@@ -19,7 +19,7 @@ function createStyles(theme: Theme) {
     label: {
       fontSize: 16,
       fontWeight: "600",
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
     },
     previewRow: {
       flexDirection: "row",
@@ -60,8 +60,8 @@ function createStyles(theme: Theme) {
       fontWeight: "600",
     },
     primaryButton: {
-      backgroundColor: theme.colors.primary,
-      borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.accent,
+      borderColor: theme.colors.accent,
     },
     primaryButtonText: {
       color: theme.colors.surface,

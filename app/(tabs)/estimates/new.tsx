@@ -215,7 +215,7 @@ function createStyles(theme: Theme) {
     },
     sectionSubtitle: {
       fontSize: 14,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     errorCard: {
       borderColor: theme.colors.danger,
@@ -237,7 +237,7 @@ function createStyles(theme: Theme) {
     },
     customerEmptyText: {
       fontSize: 14,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       textAlign: "center",
     },
     selectedCustomerCard: {
@@ -261,7 +261,7 @@ function createStyles(theme: Theme) {
     },
     selectedCustomerMeta: {
       fontSize: 14,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     inlineActions: {
       flexDirection: "row",
@@ -285,7 +285,7 @@ function createStyles(theme: Theme) {
     },
     toggleCaption: {
       fontSize: 13,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       marginTop: 2,
     },
     lineItemList: {
@@ -312,7 +312,7 @@ function createStyles(theme: Theme) {
       borderColor: theme.colors.border,
       borderRadius: theme.radii.md,
       overflow: "hidden",
-      backgroundColor: theme.colors.surfaceMuted,
+      backgroundColor: theme.colors.surfaceAlt,
     },
     lineItemRow: {
       flexDirection: "row",
@@ -338,13 +338,13 @@ function createStyles(theme: Theme) {
     },
     lineItemToggleHint: {
       fontSize: 12,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     lineItemSummaryRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      backgroundColor: theme.colors.surfaceMuted,
+      backgroundColor: theme.colors.surfaceAlt,
       borderRadius: theme.radii.md,
       paddingVertical: theme.spacing.sm,
       paddingHorizontal: theme.spacing.md,
@@ -357,11 +357,11 @@ function createStyles(theme: Theme) {
     lineItemSummaryLabel: {
       fontSize: 13,
       fontWeight: "600",
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     lineItemSummaryHint: {
       fontSize: 11,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     lineItemSummaryValue: {
       fontSize: 16,
@@ -370,13 +370,13 @@ function createStyles(theme: Theme) {
     },
     lineItemSummaryTotalRow: {
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.colors.primarySoft,
+      borderColor: theme.colors.accent,
+      backgroundColor: theme.colors.accentSoft,
     },
     lineItemSummaryTotal: {
       fontSize: 18,
       fontWeight: "700",
-      color: theme.colors.primary,
+      color: theme.colors.accent,
     },
     addItemButton: {
       alignSelf: "flex-start",
@@ -403,7 +403,7 @@ function createStyles(theme: Theme) {
     },
     summaryLabel: {
       fontSize: 14,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     summaryValue: {
       fontSize: 16,
@@ -418,7 +418,7 @@ function createStyles(theme: Theme) {
     summaryTotalValue: {
       fontSize: 20,
       fontWeight: "700",
-      color: theme.colors.primary,
+      color: theme.colors.accent,
     },
     footer: {
       borderTopWidth: StyleSheet.hairlineWidth,
@@ -434,7 +434,7 @@ function createStyles(theme: Theme) {
     },
     caption: {
       fontSize: 12,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     photoGrid: {
       flexDirection: "row",
@@ -464,7 +464,7 @@ function createStyles(theme: Theme) {
     },
     photoEmptyText: {
       fontSize: 14,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       textAlign: "center",
     },
   });
@@ -1686,7 +1686,7 @@ export default function NewEstimateScreen() {
             />
             {loadingCustomers ? (
               <View style={styles.customerEmpty}>
-                <ActivityIndicator color={theme.colors.primary} />
+                <ActivityIndicator color={theme.colors.accent} />
               </View>
             ) : (
               <View style={styles.customerResults}>
@@ -1790,8 +1790,8 @@ export default function NewEstimateScreen() {
               <Switch
                 value={jobAddressSameAsBilling}
                 onValueChange={handleJobAddressToggle}
-                trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }}
-                thumbColor={jobAddressSameAsBilling ? theme.colors.primary : undefined}
+                trackColor={{ false: theme.colors.border, true: theme.colors.accentSoft }}
+                thumbColor={jobAddressSameAsBilling ? theme.colors.accent : undefined}
               />
             </View>
             {!jobAddressSameAsBilling ? (
@@ -1842,7 +1842,7 @@ export default function NewEstimateScreen() {
                         handleApplySavedItem(normalized);
                       }
                     }}
-                    dropdownIconColor={theme.colors.primary}
+                    dropdownIconColor={theme.colors.accent}
                   >
                     <Picker.Item label="Select a saved item" value="" />
                     {savedItems.map((item) => (
@@ -1899,8 +1899,8 @@ export default function NewEstimateScreen() {
                       <Switch
                         value={item.applyMarkup}
                         onValueChange={(value) => handleLineItemApplyMarkupChange(item.id, value)}
-                        trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }}
-                        thumbColor={item.applyMarkup ? theme.colors.primary : undefined}
+                        trackColor={{ false: theme.colors.border, true: theme.colors.accentSoft }}
+                        thumbColor={item.applyMarkup ? theme.colors.accent : undefined}
                       />
                     </View>
                     <View style={styles.lineItemSummaryRow}>

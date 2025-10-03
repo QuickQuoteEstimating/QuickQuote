@@ -23,21 +23,17 @@ export type ThemeRadii = {
 export type ThemeColors = {
   background: string;
   surface: string;
-  surfaceMuted: string;
-  primary: string;
-  primarySoft: string;
-  primaryText: string;
-  text: string;
-  textMuted: string;
+  surfaceAlt: string;
   border: string;
-  separator: string;
-  highlight: string;
-  success: string;
-  successSoft: string;
-  warning: string;
-  warningSoft: string;
+  primaryText: string;
+  secondaryText: string;
+  mutedText: string;
+  accent: string;
+  accentSoft: string;
   danger: string;
   dangerSoft: string;
+  success: string;
+  successSoft: string;
   overlay: string;
 };
 
@@ -75,19 +71,15 @@ export const light: Theme = {
   colors: {
     background: "#F5F7FB",
     surface: "#FFFFFF",
-    surfaceMuted: "#EDF1F8",
-    primary: "#2D74FF",
-    primarySoft: "#E3EDFF",
-    primaryText: "#0B1A37",
-    text: "#1F2933",
-    textMuted: "#5B667A",
+    surfaceAlt: "#EDF1F8",
     border: "#D3DBE8",
-    separator: "#E4E8F0",
-    highlight: "#F5B700",
+    primaryText: "#0B1A37",
+    secondaryText: "#1F2933",
+    mutedText: "#5B667A",
+    accent: "#2D74FF",
+    accentSoft: "#E3EDFF",
     success: "#2FBF71",
     successSoft: "#E3F7ED",
-    warning: "#F59E0B",
-    warningSoft: "#FEF3C7",
     danger: "#EF4444",
     dangerSoft: "#FEE2E2",
     overlay: "rgba(9, 17, 34, 0.4)",
@@ -101,19 +93,15 @@ export const dark: Theme = {
   colors: {
     background: "#0F172A",
     surface: "#16213C",
-    surfaceMuted: "#1F2A44",
-    primary: "#5A8BFF",
-    primarySoft: "#243560",
-    primaryText: "#EEF3FF",
-    text: "#E7ECF7",
-    textMuted: "#94A3B8",
+    surfaceAlt: "#1F2A44",
     border: "#243049",
-    separator: "#1D2740",
-    highlight: "#F5B700",
+    primaryText: "#EEF3FF",
+    secondaryText: "#E7ECF7",
+    mutedText: "#94A3B8",
+    accent: "#5A8BFF",
+    accentSoft: "#243560",
     success: "#3DD68C",
     successSoft: "#123D2C",
-    warning: "#FBBF24",
-    warningSoft: "#3B2A11",
     danger: "#F87171",
     dangerSoft: "#3A1B1B",
     overlay: "rgba(9, 17, 34, 0.65)",

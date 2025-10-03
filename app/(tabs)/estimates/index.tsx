@@ -228,7 +228,7 @@ export default function EstimatesScreen() {
                   onChangeText={setSearchQuery}
                   autoCorrect={false}
                   autoCapitalize="none"
-                  leftElement={<Feather name="search" size={18} color={theme.colors.textMuted} />}
+                  leftElement={<Feather name="search" size={18} color={theme.colors.mutedText} />}
                 />
                 <View style={styles.filterRow}>
                   {STATUS_FILTERS.map((filter) => {
@@ -254,13 +254,13 @@ export default function EstimatesScreen() {
                   variant="secondary"
                   alignment="inline"
                   onPress={() => router.push("/(tabs)/estimates/saved-items")}
-                  leadingIcon={<Feather name="bookmark" size={18} color={theme.colors.primary} />}
+                  leadingIcon={<Feather name="bookmark" size={18} color={theme.colors.accent} />}
                 />
               </View>
               {loading ? (
                 <Card style={styles.messageCard}>
                   <View style={styles.loadingRow}>
-                    <ActivityIndicator color={theme.colors.primary} />
+                    <ActivityIndicator color={theme.colors.accent} />
                     <Text style={styles.messageText}>Loading estimates…</Text>
                   </View>
                 </Card>
@@ -302,8 +302,8 @@ export default function EstimatesScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={theme.colors.primary}
-              colors={[theme.colors.primary]}
+              tintColor={theme.colors.accent}
+              colors={[theme.colors.accent]}
             />
           }
           contentContainerStyle={styles.listContent}
@@ -363,7 +363,7 @@ function createStyles(theme: Theme) {
     },
     screenSubtitle: {
       fontSize: 15,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       lineHeight: 22,
     },
     filterCard: {
@@ -382,7 +382,7 @@ function createStyles(theme: Theme) {
       minHeight: 48,
     },
     filterButtonActive: {
-      shadowColor: theme.colors.primary,
+      shadowColor: theme.colors.accent,
       shadowOpacity: 0.12,
       shadowOffset: { width: 0, height: theme.spacing.xs },
       shadowRadius: theme.spacing.md,
@@ -405,7 +405,7 @@ function createStyles(theme: Theme) {
     },
     messageText: {
       fontSize: 15,
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
     },
     emptyCard: {
       padding: theme.spacing.xl,
@@ -423,7 +423,7 @@ function createStyles(theme: Theme) {
     },
     emptySubtitle: {
       fontSize: 15,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       lineHeight: 22,
     },
     separator: {
@@ -442,7 +442,7 @@ function createStyles(theme: Theme) {
       color: theme.colors.primaryText,
     },
     statusBadge: {
-      backgroundColor: theme.colors.highlight,
+      backgroundColor: theme.colors.accentSoft,
     },
     primaryAction: {
       position: "absolute",

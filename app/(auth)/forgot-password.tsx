@@ -101,7 +101,7 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
     },
     link: {
-      color: theme.colors.primary,
+      color: theme.colors.accent,
       fontWeight: "600",
     },
   });

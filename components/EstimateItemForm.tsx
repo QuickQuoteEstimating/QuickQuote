@@ -214,7 +214,7 @@ export default function EstimateItemForm({
                 applyTemplate(normalized);
               }}
               style={styles.picker}
-              dropdownIconColor={theme.colors.primary}
+              dropdownIconColor={theme.colors.accent}
             >
               <Picker.Item label="Select a saved item" value="" />
               {templates.map((template) => (
@@ -262,8 +262,8 @@ export default function EstimateItemForm({
         <Switch
           value={markupApplied}
           onValueChange={setMarkupApplied}
-          trackColor={{ false: theme.colors.border, true: theme.colors.primarySoft }}
-          thumbColor={markupApplied ? theme.colors.primary : undefined}
+          trackColor={{ false: theme.colors.border, true: theme.colors.accentSoft }}
+          thumbColor={markupApplied ? theme.colors.accent : undefined}
         />
       </View>
 
@@ -311,7 +311,7 @@ export default function EstimateItemForm({
               <Feather
                 name={saveToLibrary ? "check" : "bookmark"}
                 size={18}
-                color={saveToLibrary ? theme.colors.primary : theme.colors.surface}
+                color={saveToLibrary ? theme.colors.accent : theme.colors.surface}
               />
             }
           />
@@ -347,13 +347,13 @@ function createStyles(theme: Theme) {
     label: {
       fontSize: 14,
       fontWeight: "600",
-      color: colors.textMuted,
+      color: colors.mutedText,
     },
     pickerShell: {
       borderRadius: 16,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.surfaceMuted,
+      backgroundColor: colors.surfaceAlt,
       overflow: "hidden",
     },
     picker: {
@@ -385,7 +385,7 @@ function createStyles(theme: Theme) {
       paddingVertical: 12,
       paddingHorizontal: 16,
       borderRadius: 16,
-      backgroundColor: colors.surfaceMuted,
+      backgroundColor: colors.surfaceAlt,
     },
     summaryColumn: {
       flex: 1,
@@ -395,11 +395,11 @@ function createStyles(theme: Theme) {
     summaryLabel: {
       fontSize: 15,
       fontWeight: "600",
-      color: colors.textMuted,
+      color: colors.mutedText,
     },
     summaryHint: {
       fontSize: 12,
-      color: colors.textMuted,
+      color: colors.mutedText,
     },
     summaryValue: {
       fontSize: 18,
@@ -408,13 +408,13 @@ function createStyles(theme: Theme) {
     },
     summaryTotalRow: {
       borderWidth: 1,
-      borderColor: colors.primary,
-      backgroundColor: colors.primarySoft,
+      borderColor: colors.accent,
+      backgroundColor: colors.accentSoft,
     },
     summaryTotalValue: {
       fontSize: 20,
       fontWeight: "700",
-      color: colors.primary,
+      color: colors.accent,
     },
     libraryRow: {
       flexDirection: "row",
@@ -434,7 +434,7 @@ function createStyles(theme: Theme) {
     },
     switchHint: {
       fontSize: 13,
-      color: colors.textMuted,
+      color: colors.mutedText,
       lineHeight: 18,
     },
     libraryButton: {

@@ -74,7 +74,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
         {leftElement ? <View style={styles.adornment}>{leftElement}</View> : null}
         <TextInput
           ref={ref}
-          placeholderTextColor={theme.colors.textMuted}
+          placeholderTextColor={theme.colors.mutedText}
           {...textInputProps}
           multiline={multiline}
           style={[styles.input, multiline ? styles.multilineInput : null, inputStyle]}
@@ -99,7 +99,7 @@ function createStyles(theme: Theme) {
     label: {
       fontSize: 14,
       fontWeight: "600",
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     fieldShell: {
       flexDirection: "row",
@@ -119,7 +119,7 @@ function createStyles(theme: Theme) {
     input: {
       flex: 1,
       fontSize: 16,
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
       paddingVertical: theme.spacing.sm,
     },
     multilineInput: {
@@ -128,7 +128,7 @@ function createStyles(theme: Theme) {
     },
     caption: {
       fontSize: 12,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
     },
     errorText: {
       fontSize: 12,
@@ -142,8 +142,8 @@ function createStyles(theme: Theme) {
       marginLeft: "auto",
     },
     focusedState: {
-      borderColor: theme.colors.primary,
-      shadowColor: theme.colors.primary,
+      borderColor: theme.colors.accent,
+      shadowColor: theme.colors.accent,
       shadowOpacity: Platform.OS === "ios" ? 0.16 : 0,
       shadowOffset: { width: 0, height: theme.spacing.sm },
       shadowRadius: theme.spacing.xl,

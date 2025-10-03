@@ -493,7 +493,7 @@ export default function Customers() {
 
               {loading ? (
                 <Card style={styles.statusCard} elevated={false}>
-                  <ActivityIndicator color={theme.colors.primary} />
+                  <ActivityIndicator color={theme.colors.accent} />
                   <Text style={styles.statusText}>Loading customers…</Text>
                 </Card>
               ) : null}
@@ -594,8 +594,8 @@ export default function Customers() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={theme.colors.primary}
-              colors={[theme.colors.primary]}
+              tintColor={theme.colors.accent}
+              colors={[theme.colors.accent]}
             />
           }
           showsVerticalScrollIndicator={false}
@@ -645,7 +645,7 @@ function createStyles(theme: Theme) {
     },
     headerSubtitle: {
       fontSize: 16,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       lineHeight: 22,
     },
     searchCard: {
@@ -657,7 +657,7 @@ function createStyles(theme: Theme) {
     },
     statusText: {
       fontSize: 15,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       textAlign: "center",
     },
     detailCard: {
@@ -672,7 +672,7 @@ function createStyles(theme: Theme) {
     detailName: {
       fontSize: 22,
       fontWeight: "700",
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
     },
     detailBody: {
       gap: theme.spacing.md,
@@ -681,20 +681,20 @@ function createStyles(theme: Theme) {
       gap: theme.spacing.xs,
     },
     notesRow: {
-      backgroundColor: theme.colors.surfaceMuted,
+      backgroundColor: theme.colors.surfaceAlt,
       borderRadius: theme.radii.md,
       padding: theme.spacing.lg,
     },
     detailLabel: {
       fontSize: 13,
       fontWeight: "600",
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       letterSpacing: 0.4,
       textTransform: "uppercase",
     },
     detailValue: {
       fontSize: 16,
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
       lineHeight: 22,
     },
     detailActions: {
@@ -712,11 +712,11 @@ function createStyles(theme: Theme) {
     },
     listItemActive: {
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.colors.surfaceMuted,
+      borderColor: theme.colors.accent,
+      backgroundColor: theme.colors.surfaceAlt,
     },
     notesBadge: {
-      backgroundColor: theme.colors.primarySoft,
+      backgroundColor: theme.colors.accentSoft,
     },
     separator: {
       height: theme.spacing.md,
@@ -732,11 +732,11 @@ function createStyles(theme: Theme) {
     emptyTitle: {
       fontSize: 18,
       fontWeight: "600",
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
     },
     emptyBody: {
       fontSize: 15,
-      color: theme.colors.textMuted,
+      color: theme.colors.mutedText,
       textAlign: "center",
       lineHeight: 20,
     },
@@ -762,10 +762,10 @@ function createEditStyles(theme: Theme) {
     title: {
       fontSize: 18,
       fontWeight: "600",
-      color: theme.colors.text,
+      color: theme.colors.secondaryText,
     },
     editBadge: {
-      backgroundColor: theme.colors.primarySoft,
+      backgroundColor: theme.colors.accentSoft,
     },
     actions: {
       flexDirection: "column",

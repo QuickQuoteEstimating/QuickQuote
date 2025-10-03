@@ -1931,7 +1931,7 @@ export default function EditEstimateScreen() {
   if (loading) {
     return (
       <View style={styles.loadingState}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
@@ -2257,12 +2257,12 @@ function createPreviewStyles(theme: Theme) {
     },
     previewTitle: {
       textAlign: "center",
-      color: colors.text,
+      color: colors.secondaryText,
       letterSpacing: 0,
     },
     previewSubtitle: {
       textAlign: "center",
-      color: colors.textMuted,
+      color: colors.mutedText,
       maxWidth: 520,
     },
     successBanner: {
@@ -2303,7 +2303,7 @@ function createPreviewStyles(theme: Theme) {
     brandTagline: {
       textTransform: "uppercase",
       letterSpacing: 1,
-      color: colors.textMuted,
+      color: colors.mutedText,
       fontSize: 13,
     },
     metaBlock: {
@@ -2313,7 +2313,7 @@ function createPreviewStyles(theme: Theme) {
     metaLabel: {
       textTransform: "uppercase",
       letterSpacing: 1,
-      color: colors.textMuted,
+      color: colors.mutedText,
       fontSize: 12,
     },
     metaValue: {
@@ -2328,7 +2328,7 @@ function createPreviewStyles(theme: Theme) {
       gap: spacing.md,
       paddingTop: spacing.md,
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.separator,
+      borderTopColor: colors.border,
     },
     summaryRow: {
       flexDirection: "row",
@@ -2337,11 +2337,11 @@ function createPreviewStyles(theme: Theme) {
       gap: spacing.md,
     },
     summaryLabel: {
-      color: colors.textMuted,
+      color: colors.mutedText,
       fontWeight: "500",
     },
     summaryValue: {
-      color: colors.text,
+      color: colors.secondaryText,
       fontWeight: "600",
       textAlign: "right",
       flexShrink: 1,
@@ -2350,14 +2350,14 @@ function createPreviewStyles(theme: Theme) {
       marginTop: spacing.lg,
       paddingTop: spacing.lg,
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.separator,
+      borderTopColor: colors.border,
       alignItems: "flex-end",
       gap: spacing.xs,
     },
     totalLabel: {
       textTransform: "uppercase",
       letterSpacing: 0.8,
-      color: colors.textMuted,
+      color: colors.mutedText,
       fontSize: 12,
     },
     totalValue: {
@@ -2365,7 +2365,7 @@ function createPreviewStyles(theme: Theme) {
       color: colors.primaryText,
     },
     previewHint: {
-      color: colors.textMuted,
+      color: colors.mutedText,
       textAlign: "center",
       maxWidth: 520,
     },
@@ -2421,7 +2421,7 @@ function createStyles(theme: Theme) {
     },
     headerSubtitle: {
       fontSize: 14,
-      color: colors.textMuted,
+      color: colors.mutedText,
       lineHeight: 20,
     },
     headerField: {
@@ -2430,7 +2430,7 @@ function createStyles(theme: Theme) {
     headerLabel: {
       fontSize: 14,
       fontWeight: "600",
-      color: colors.textMuted,
+      color: colors.mutedText,
     },
     card: {
       gap: spacing.lg,
@@ -2440,13 +2440,13 @@ function createStyles(theme: Theme) {
       fontSize: 20,
     },
     sectionSubtitle: {
-      color: colors.textMuted,
+      color: colors.mutedText,
     },
     fieldGroup: {
       gap: spacing.sm,
     },
     fieldLabel: {
-      color: colors.textMuted,
+      color: colors.mutedText,
       fontWeight: "600",
     },
     notesInput: {
@@ -2465,7 +2465,7 @@ function createStyles(theme: Theme) {
       gap: spacing.md,
       padding: spacing.lg,
       borderRadius: radii.md,
-      backgroundColor: colors.surfaceMuted,
+      backgroundColor: colors.surfaceAlt,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
     },
@@ -2496,7 +2496,7 @@ function createStyles(theme: Theme) {
     },
     photoPlaceholderText: {
       textAlign: "center",
-      color: colors.textMuted,
+      color: colors.mutedText,
     },
     emptyCard: {
       padding: spacing.xl,
@@ -2508,7 +2508,7 @@ function createStyles(theme: Theme) {
       backgroundColor: colors.surface,
     },
     emptyText: {
-      color: colors.textMuted,
+      color: colors.mutedText,
     },
     lineItemsCard: {
       gap: spacing.lg,
@@ -2523,7 +2523,7 @@ function createStyles(theme: Theme) {
       gap: spacing.sm,
     },
     lineItem: {
-      backgroundColor: colors.surfaceMuted,
+      backgroundColor: colors.surfaceAlt,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
       borderRadius: radii.lg,
@@ -2549,14 +2549,14 @@ function createStyles(theme: Theme) {
     inputAdornment: {
       fontSize: 16,
       fontWeight: "600",
-      color: colors.textMuted,
+      color: colors.mutedText,
     },
     pickerShell: {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
       borderRadius: radii.md,
       overflow: "hidden",
-      backgroundColor: colors.surfaceMuted,
+      backgroundColor: colors.surfaceAlt,
     },
     summaryList: {
       gap: spacing.md,
@@ -2569,7 +2569,7 @@ function createStyles(theme: Theme) {
     summaryLabel: {
       fontSize: 14,
       fontWeight: "600",
-      color: colors.textMuted,
+      color: colors.mutedText,
     },
     summaryValue: {
       fontSize: 16,
@@ -2583,7 +2583,7 @@ function createStyles(theme: Theme) {
       borderTopColor: colors.border,
     },
     summaryTotalLabel: {
-      color: colors.textMuted,
+      color: colors.mutedText,
       fontWeight: "600",
     },
     summaryTotalValue: {
