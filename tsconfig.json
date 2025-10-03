@@ -1,13 +1,27 @@
 {
+  "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "types": ["jest"]
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": ["jest"],
+    "baseUrl": ".",
+    "paths": {
+      "app/*": ["app/*"],
+      "app/(tabs)/*": ["app/(tabs)/*"],
+      "components/*": ["components/*"],
+      "context/*": ["context/*"],
+      "lib/*": ["lib/*"],
+      "theme/*": ["theme/*"]
+    }
   },
   "include": [
     "app",
+    "app/(tabs)",
     "components",
     "context",
     "lib",
+    "theme",
     "App.tsx",
     "__tests__",
     "jest.setup.ts",
@@ -15,6 +29,5 @@
     "types",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ],
-  // "extends": "@expo/tsconfig/tsconfig.base"
+  ]
 }
