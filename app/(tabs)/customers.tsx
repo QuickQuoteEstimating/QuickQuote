@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactElement } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,6 +11,7 @@ import {
   Text,
   View,
 } from "react-native";
+import type { ListRenderItem } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomerForm from "../../components/CustomerForm";
 import { Badge, Button, Card, FAB, Input, ListItem } from "../../components/ui";
@@ -30,12 +32,12 @@ type EditCustomerFormProps = {
 function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustomerFormProps) {
   const { theme } = useThemeContext();
   const styles = useMemo(() => createEditStyles(theme), [theme]);
-  const [name, setName] = useState(customer.name);
-  const [phone, setPhone] = useState(customer.phone ?? "");
-  const [email, setEmail] = useState(customer.email ?? "");
-  const [address, setAddress] = useState(customer.address ?? "");
-  const [notes, setNotes] = useState(customer.notes ?? "");
-  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState<string>(customer.name);
+  const [phone, setPhone] = useState<string>(customer.phone ?? "");
+  const [email, setEmail] = useState<string>(customer.email ?? "");
+  const [address, setAddress] = useState<string>(customer.address ?? "");
+  const [notes, setNotes] = useState<string>(customer.notes ?? "");
+  const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     setName(customer.name);
@@ -177,16 +179,16 @@ export default function Customers() {
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchInput, setSearchInput] = useState("");
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [searchInput, setSearchInput] = useState<string>("");
+  const [showAddForm, setShowAddForm] = useState<boolean>(false);
   const [editingCustomer, setEditingCustomer] = useState<CustomerRecord | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const previousCustomersRef = useRef<CustomerRecord[] | null>(null);
 
-  const loadCustomers = useCallback(async () => {
+  const loadCustomers = useCallback(async (): Promise<void> => {
     try {
       setError(null);
       const db = await openDB();
@@ -209,7 +211,7 @@ export default function Customers() {
     }
   }, []);
 
-  const reloadCustomers = useCallback(async () => {
+  const reloadCustomers = useCallback(async (): Promise<void> => {
     setLoading(true);
     await loadCustomers();
     setLoading(false);
@@ -219,13 +221,13 @@ export default function Customers() {
     void reloadCustomers();
   }, [reloadCustomers]);
 
-  const onRefresh = useCallback(async () => {
+  const onRefresh = useCallback(async (): Promise<void> => {
     setRefreshing(true);
     await loadCustomers();
     setRefreshing(false);
   }, [loadCustomers]);
 
-  const filteredCustomers = useMemo(() => {
+  const filteredCustomers = useMemo<CustomerRecord[]>(() => {
     const query = searchInput.trim().toLowerCase();
     if (!query) {
       return customers;
@@ -269,13 +271,18 @@ export default function Customers() {
     });
   }, [filteredCustomers, searchInput]);
 
-  const selectedCustomer = useMemo(
+  const selectedCustomer = useMemo<CustomerRecord | null>(
     () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
     [customers, selectedCustomerId],
   );
 
+  const selectedCustomerEmail = selectedCustomer?.email?.trim() ?? "";
+  const selectedCustomerPhone = selectedCustomer?.phone?.trim() ?? "";
+  const selectedCustomerAddress = selectedCustomer?.address?.trim() ?? "";
+  const selectedCustomerNotes = selectedCustomer?.notes?.trim() ?? "";
+
   const getDisplayName = useCallback((customer: CustomerRecord) => {
-    const trimmed = customer.name?.trim();
+    const trimmed = customer.name.trim();
     return trimmed ? trimmed : "Unnamed customer";
   }, []);
 
@@ -362,7 +369,8 @@ export default function Customers() {
                 throw transactionError;
               }
 
-              await queueChange("customers", "delete", { id: customer.id });
+              const deletedCustomerPayload: Pick<CustomerRecord, "id"> = { id: customer.id };
+              await queueChange("customers", "delete", deletedCustomerPayload);
               await Promise.all(
                 estimateIds.map((estimateId) => queueChange("estimates", "delete", { id: estimateId })),
               );
@@ -396,8 +404,8 @@ export default function Customers() {
     [customers, reloadCustomers],
   );
 
-  const renderCustomerItem = useCallback(
-    ({ item }: { item: CustomerRecord }) => {
+  const renderCustomerItem = useCallback<ListRenderItem<CustomerRecord>>(
+    ({ item }) => {
       const subtitle = item.phone?.trim() || item.email?.trim() || "No contact info yet";
       const hasNotes = Boolean(item.notes?.trim());
 
@@ -417,9 +425,11 @@ export default function Customers() {
     [getDisplayName, handleSelectCustomer, selectedCustomerId, styles.listItem, styles.listItemActive, styles.notesBadge],
   );
 
-  const itemSeparator = useCallback(() => <View style={styles.separator} />, [styles.separator]);
+  const itemSeparator = useCallback((): ReactElement => <View style={styles.separator} />, [
+    styles.separator,
+  ]);
 
-  const listEmptyComponent = useMemo(() => {
+  const listEmptyComponent = useMemo<ReactElement | null>(() => {
     if (loading) {
       return null;
     }
@@ -447,8 +457,8 @@ export default function Customers() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <FlatList
-          data={loading ? [] : filteredCustomers}
+        <FlatList<CustomerRecord>
+          data={loading ? ([] as CustomerRecord[]) : filteredCustomers}
           keyExtractor={(item) => item.id}
           renderItem={renderCustomerItem}
           ItemSeparatorComponent={itemSeparator}
@@ -491,7 +501,7 @@ export default function Customers() {
                 <Card style={styles.detailCard}>
                   <View style={styles.detailHeader}>
                     <Text style={styles.detailName}>{getDisplayName(selectedCustomer)}</Text>
-                    {selectedCustomer.notes ? (
+                    {selectedCustomerNotes ? (
                       <Badge style={styles.notesBadge}>Notes</Badge>
                     ) : null}
                   </View>
@@ -499,25 +509,25 @@ export default function Customers() {
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Email</Text>
                       <Text style={styles.detailValue}>
-                        {selectedCustomer.email || "Not provided"}
+                        {selectedCustomerEmail || "Not provided"}
                       </Text>
                     </View>
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Phone</Text>
                       <Text style={styles.detailValue}>
-                        {selectedCustomer.phone || "Not provided"}
+                        {selectedCustomerPhone || "Not provided"}
                       </Text>
                     </View>
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Address</Text>
                       <Text style={styles.detailValue}>
-                        {selectedCustomer.address || "Not provided"}
+                        {selectedCustomerAddress || "Not provided"}
                       </Text>
                     </View>
-                    {selectedCustomer.notes ? (
+                    {selectedCustomerNotes ? (
                       <View style={[styles.detailRow, styles.notesRow]}>
                         <Text style={styles.detailLabel}>Notes</Text>
-                        <Text style={styles.detailValue}>{selectedCustomer.notes}</Text>
+                        <Text style={styles.detailValue}>{selectedCustomerNotes}</Text>
                       </View>
                     ) : null}
                   </View>
