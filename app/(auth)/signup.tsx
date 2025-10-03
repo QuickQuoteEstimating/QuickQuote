@@ -1,6 +1,15 @@
 import { Link, router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, StyleSheet, TextInput, View } from "react-native";
+import {
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  TextInput,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { supabase } from "../../lib/supabase";
@@ -85,139 +94,149 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAwareScrollView
-        style={styles.scrollView}
-        enableOnAndroid
-        keyboardShouldPersistTaps="handled"
-        extraScrollHeight={24}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoiding}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
       >
-        <Card style={styles.card}>
-          <View style={styles.logoContainer}>
-            <BrandLogo size={80} />
-          </View>
-          <Title style={styles.title}>Create your account</Title>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={styles.flex}>
+            <KeyboardAwareScrollView
+              style={styles.scrollView}
+              enableOnAndroid
+              keyboardShouldPersistTaps="handled"
+              extraScrollHeight={24}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <Card style={styles.card}>
+                <View style={styles.logoContainer}>
+                  <BrandLogo size={80} />
+                </View>
+                <Title style={styles.title}>Create your account</Title>
 
-          <View style={styles.section}>
-            <Subtitle style={styles.sectionTitle}>Account details</Subtitle>
-            <Body style={styles.sectionSubtitle}>
-              Sign in with your work email so we can keep your estimates in sync.
-            </Body>
-            <Input
-              ref={emailRef}
-              autoCapitalize="none"
-              autoComplete="email"
-              autoCorrect={false}
-              keyboardType="email-address"
-              placeholder="you@example.com"
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => passwordRef.current?.focus()}
-            />
-            <Input
-              ref={passwordRef}
-              autoCapitalize="none"
-              autoComplete="password"
-              placeholder="Create a password"
-              secureTextEntry
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => confirmPasswordRef.current?.focus()}
-            />
-            <Input
-              ref={confirmPasswordRef}
-              autoCapitalize="none"
-              autoComplete="password"
-              placeholder="Confirm your password"
-              secureTextEntry
-              label="Confirm password"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => companyNameRef.current?.focus()}
-            />
-          </View>
+                <View style={styles.section}>
+                  <Subtitle style={styles.sectionTitle}>Account details</Subtitle>
+                  <Body style={styles.sectionSubtitle}>
+                    Sign in with your work email so we can keep your estimates in sync.
+                  </Body>
+                  <Input
+                    ref={emailRef}
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    placeholder="you@example.com"
+                    label="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => passwordRef.current?.focus()}
+                  />
+                  <Input
+                    ref={passwordRef}
+                    autoCapitalize="none"
+                    autoComplete="password"
+                    placeholder="Create a password"
+                    secureTextEntry
+                    label="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+                  />
+                  <Input
+                    ref={confirmPasswordRef}
+                    autoCapitalize="none"
+                    autoComplete="password"
+                    placeholder="Confirm your password"
+                    secureTextEntry
+                    label="Confirm password"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => companyNameRef.current?.focus()}
+                  />
+                </View>
 
-          <View style={styles.section}>
-            <Subtitle style={styles.sectionTitle}>Company profile</Subtitle>
-            <Body style={styles.sectionSubtitle}>
-              We’ll preload every estimate with this information. You can tweak it anytime in
-              Settings.
-            </Body>
-            <LogoPicker value={logoUri} onChange={setLogoUri} />
-            <Input
-              ref={companyNameRef}
-              placeholder="Acme Landscaping"
-              label="Company name"
-              value={companyName}
-              onChangeText={setCompanyName}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => companyEmailRef.current?.focus()}
-            />
-            <Input
-              ref={companyEmailRef}
-              placeholder="hello@acme.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              label="Company email"
-              value={companyEmail}
-              onChangeText={setCompanyEmail}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => companyPhoneRef.current?.focus()}
-            />
-            <Input
-              ref={companyPhoneRef}
-              placeholder="(555) 555-0199"
-              keyboardType="phone-pad"
-              label="Phone"
-              value={companyPhone}
-              onChangeText={setCompanyPhone}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => companyWebsiteRef.current?.focus()}
-            />
-            <Input
-              ref={companyWebsiteRef}
-              placeholder="https://acme.com"
-              autoCapitalize="none"
-              label="Website"
-              value={companyWebsite}
-              onChangeText={setCompanyWebsite}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => companyAddressRef.current?.focus()}
-            />
-            <Input
-              ref={companyAddressRef}
-              placeholder="123 Main St, Springfield"
-              label="Business address"
-              value={companyAddress}
-              onChangeText={setCompanyAddress}
-              multiline
-              returnKeyType="done"
-              blurOnSubmit
-              onSubmitEditing={handleSignup}
-            />
-          </View>
+                <View style={styles.section}>
+                  <Subtitle style={styles.sectionTitle}>Company profile</Subtitle>
+                  <Body style={styles.sectionSubtitle}>
+                    We’ll preload every estimate with this information. You can tweak it anytime in
+                    Settings.
+                  </Body>
+                  <LogoPicker value={logoUri} onChange={setLogoUri} />
+                  <Input
+                    ref={companyNameRef}
+                    placeholder="Acme Landscaping"
+                    label="Company name"
+                    value={companyName}
+                    onChangeText={setCompanyName}
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => companyEmailRef.current?.focus()}
+                  />
+                  <Input
+                    ref={companyEmailRef}
+                    placeholder="hello@acme.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    label="Company email"
+                    value={companyEmail}
+                    onChangeText={setCompanyEmail}
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => companyPhoneRef.current?.focus()}
+                  />
+                  <Input
+                    ref={companyPhoneRef}
+                    placeholder="(555) 555-0199"
+                    keyboardType="phone-pad"
+                    label="Phone"
+                    value={companyPhone}
+                    onChangeText={setCompanyPhone}
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => companyWebsiteRef.current?.focus()}
+                  />
+                  <Input
+                    ref={companyWebsiteRef}
+                    placeholder="https://acme.com"
+                    autoCapitalize="none"
+                    label="Website"
+                    value={companyWebsite}
+                    onChangeText={setCompanyWebsite}
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => companyAddressRef.current?.focus()}
+                  />
+                  <Input
+                    ref={companyAddressRef}
+                    placeholder="123 Main St, Springfield"
+                    label="Business address"
+                    value={companyAddress}
+                    onChangeText={setCompanyAddress}
+                    multiline
+                    returnKeyType="done"
+                    blurOnSubmit
+                    onSubmitEditing={handleSignup}
+                  />
+                </View>
 
-          <Button label="Sign up" onPress={handleSignup} loading={loading} />
-          <View style={styles.linksRow}>
-            <Link href="/(auth)/login">
-              <Body style={styles.link}>Already have an account?</Body>
-            </Link>
+                <Button label="Sign up" onPress={handleSignup} loading={loading} />
+                <View style={styles.linksRow}>
+                  <Link href="/(auth)/login">
+                    <Body style={styles.link}>Already have an account?</Body>
+                  </Link>
+                </View>
+              </Card>
+            </KeyboardAwareScrollView>
           </View>
-        </Card>
-      </KeyboardAwareScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -227,6 +246,12 @@ function createStyles(theme: Theme) {
     safeArea: {
       flex: 1,
       backgroundColor: theme.colors.background,
+    },
+    keyboardAvoiding: {
+      flex: 1,
+    },
+    flex: {
+      flex: 1,
     },
     scrollContent: {
       flexGrow: 1,

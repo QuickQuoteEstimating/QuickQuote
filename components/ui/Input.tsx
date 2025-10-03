@@ -79,6 +79,8 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
         <TextInput
           ref={ref}
           placeholderTextColor={theme.colors.mutedText}
+          blurOnSubmit={multiline ? false : true}
+          returnKeyType={multiline ? "default" : "done"}
           {...textInputProps}
           multiline={multiline}
           style={[styles.input, multiline ? styles.multilineInput : null, inputStyle]}
