@@ -1,15 +1,8 @@
 import { Link, router } from "expo-router";
-import { useMemo, useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  View,
-} from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { Alert, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements"; // add this
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
@@ -22,7 +15,8 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const headerHeight = useHeaderHeight();
+  const emailRef = useRef<TextInput | null>(null);
+  const passwordRef = useRef<TextInput | null>(null);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -49,69 +43,69 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.keyboardAvoider}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={headerHeight + 20} // dynamically offsets keyboard
+      <KeyboardAwareScrollView
+        enableOnAndroid
+        keyboardShouldPersistTaps="handled"
+        extraScrollHeight={24}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <Card style={styles.card}>
-            <View style={styles.logoContainer}>
-              <BrandLogo size={80} />
-            </View>
-            <Title style={styles.title}>Welcome back</Title>
-            <Subtitle style={styles.subtitle}>
-              Sign in to manage estimates, customers, and your team from anywhere.
-            </Subtitle>
-            <Input
-              autoCapitalize="none"
-              autoComplete="email"
-              autoCorrect={false}
-              keyboardType="email-address"
-              placeholder="you@example.com"
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-            />
-            <Input
-              autoCapitalize="none"
-              autoComplete="password"
-              placeholder="••••••••"
-              secureTextEntry
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-            />
-            <Button
-              label="Sign in"
-              onPress={handleLogin}
-              loading={loading}
-              accessibilityLabel="Sign in to QuickQuote"
-            />
-            <View style={styles.linksRow}>
-              <Link href="/(auth)/forgot-password">
-                <Body style={styles.link}>Forgot password?</Body>
-              </Link>
-              <Link href="/(auth)/signup">
-                <Body style={styles.link}>Create account</Body>
-              </Link>
-            </View>
-          </Card>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <Card style={styles.card}>
+          <View style={styles.logoContainer}>
+            <BrandLogo size={80} />
+          </View>
+          <Title style={styles.title}>Welcome back</Title>
+          <Subtitle style={styles.subtitle}>
+            Sign in to manage estimates, customers, and your team from anywhere.
+          </Subtitle>
+          <Input
+            ref={emailRef}
+            autoCapitalize="none"
+            autoComplete="email"
+            autoCorrect={false}
+            keyboardType="email-address"
+            placeholder="you@example.com"
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+          <Input
+            ref={passwordRef}
+            autoCapitalize="none"
+            autoComplete="password"
+            placeholder="••••••••"
+            secureTextEntry
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            returnKeyType="done"
+            onSubmitEditing={() => handleLogin()}
+          />
+          <Button
+            label="Sign in"
+            onPress={() => handleLogin()}
+            loading={loading}
+            accessibilityLabel="Sign in to QuickQuote"
+          />
+          <View style={styles.linksRow}>
+            <Link href="/(auth)/forgot-password">
+              <Body style={styles.link}>Forgot password?</Body>
+            </Link>
+            <Link href="/(auth)/signup">
+              <Body style={styles.link}>Create account</Body>
+            </Link>
+          </View>
+        </Card>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    keyboardAvoider: {
-      flex: 1,
-    },
     safeArea: {
       flex: 1,
       backgroundColor: theme.colors.background,
