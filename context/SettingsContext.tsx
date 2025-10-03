@@ -108,7 +108,11 @@ const STORAGE_KEY = "@quickquote/settings";
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
 
-export function SettingsProvider({ children }: { children: ReactNode }) {
+type SettingsProviderProps = {
+  children: ReactNode;
+};
+
+export function SettingsProvider({ children }: SettingsProviderProps) {
   const [settings, setSettings] = useState<SettingsState>(() => ({
     ...DEFAULT_SETTINGS,
     companyProfile: { ...DEFAULT_COMPANY_PROFILE },
@@ -404,7 +408,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
-export function useSettings() {
+export function useSettings(): SettingsContextValue {
   const context = useContext(SettingsContext);
 
   if (!context) {

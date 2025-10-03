@@ -1,10 +1,10 @@
 import React, {
+  type ReactNode,
   createContext,
   useCallback,
   useContext,
   useMemo,
   useState,
-  type PropsWithChildren,
 } from "react";
 import type {
   EstimateItemFormSubmit,
@@ -36,7 +36,11 @@ export type ItemEditorContextValue = {
 
 const ItemEditorContext = createContext<ItemEditorContextValue | undefined>(undefined);
 
-export function ItemEditorProvider({ children }: PropsWithChildren) {
+type ItemEditorProviderProps = {
+  children: ReactNode;
+};
+
+export function ItemEditorProvider({ children }: ItemEditorProviderProps) {
   const [config, setConfig] = useState<ItemEditorConfig | null>(null);
 
   const openEditor = useCallback((nextConfig: ItemEditorConfig) => {
