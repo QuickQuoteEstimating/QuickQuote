@@ -24,7 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
-    windowSoftInputMode: "adjustResize",
+    softwareKeyboardLayoutMode: "pan",
   },
   web: {
     favicon: "./assets/favicon.png",
