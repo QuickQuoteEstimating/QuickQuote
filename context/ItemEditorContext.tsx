@@ -10,15 +10,13 @@ import type {
   EstimateItemFormSubmit,
   EstimateItemTemplate,
 } from "../components/EstimateItemForm";
+import type { EstimateItemRecord } from "../types/estimates";
 import type { MarkupMode } from "../lib/estimateMath";
 
 export type ItemEditorConfig = {
   title: string;
   submitLabel?: string;
-  initialValue?: {
-    description: string;
-    quantity: number;
-    unit_price: number;
+  initialValue?: Pick<EstimateItemRecord, "description" | "quantity" | "unit_price"> & {
     apply_markup?: boolean;
   };
   initialTemplateId?: string | null;

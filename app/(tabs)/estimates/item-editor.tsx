@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigation, useRouter } from "expo-router";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
-import EstimateItemForm from "../../../components/EstimateItemForm";
+import EstimateItemForm, {
+  type EstimateItemFormSubmit,
+  type EstimateItemTemplate,
+} from "../../../components/EstimateItemForm";
 import { useItemEditor } from "../../../context/ItemEditorContext";
 import { Card } from "../../../components/ui";
 import { Theme } from "../../../theme";
@@ -72,7 +75,7 @@ export default function EstimateItemEditorScreen() {
   }, [config, router]);
 
   const handleSubmit = useCallback(
-    async (payload: Parameters<NonNullable<typeof config>["onSubmit"]>[0]) => {
+    async (payload: EstimateItemFormSubmit): Promise<void> => {
       if (!config) {
         return;
       }
@@ -86,7 +89,7 @@ export default function EstimateItemEditorScreen() {
     [closeEditor, config, router],
   );
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = useCallback((): void => {
     if (!config) {
       return;
     }
@@ -98,6 +101,18 @@ export default function EstimateItemEditorScreen() {
     }
   }, [closeEditor, config, router]);
 
+  const templates = useMemo<EstimateItemTemplate[]>(() => {
+    if (!config?.templates) {
+      return [];
+    }
+
+    if (typeof config.templates === "function") {
+      return config.templates() ?? [];
+    }
+
+    return config.templates ?? [];
+  }, [config]);
+
   if (!config) {
     return (
       <View style={styles.loadingContainer}>
@@ -105,8 +120,6 @@ export default function EstimateItemEditorScreen() {
       </View>
     );
   }
-
-  const templates = typeof config.templates === "function" ? config.templates() : config.templates;
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
