@@ -9,7 +9,7 @@ module.exports = {
       jsx: true,
     },
   },
-  plugins: ["@typescript-eslint", "prettier"],
+  plugins: ["@typescript-eslint"],
   ignorePatterns: ["node_modules/", ".expo/", "coverage/", "dist/", "build/"],
   rules: {
     "@typescript-eslint/no-unused-vars": [
@@ -21,7 +21,7 @@ module.exports = {
     "@typescript-eslint/no-shadow": "off",
     "no-void": "off",
     "no-useless-escape": "off",
-    "prettier/prettier": "warn",
+    "no-alert": "off",
     "eslint-comments/no-unused-disable": "off",
     "react-hooks/exhaustive-deps": "off",
     "react-hooks/rules-of-hooks": "off",

@@ -44,7 +44,6 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
-    "@babel/eslint-parser": "^7.25.9",
     "@react-native/eslint-config": "^0.81.1",
     "@react-native/eslint-plugin": "^0.81.1",
     "@testing-library/jest-native": "^5.4.3",
@@ -56,10 +55,7 @@
     "babel-preset-expo": "^54.0.3",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-eslint-comments": "^3.2.0",
-    "eslint-plugin-ft-flow": "^2.0.3",
     "eslint-plugin-jest": "^29.0.1",
-    "eslint-plugin-prettier": "^5.5.4",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-native": "^5.0.0",
