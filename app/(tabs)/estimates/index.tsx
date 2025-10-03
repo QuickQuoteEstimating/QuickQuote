@@ -1,22 +1,52 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+  type ListRenderItem,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Badge, Button, Card, FAB, Input, ListItem } from "../../../components/ui";
 import { openDB } from "../../../lib/sqlite";
 import { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 
-type EstimateListItem = {
+export type EstimateRecord = {
   id: string;
   user_id: string;
   customer_id: string;
+  date: string | null;
+  total: number;
+  material_total: number;
+  labor_hours: number;
+  labor_rate: number;
+  labor_total: number;
+  subtotal: number;
+  tax_rate: number;
+  tax_total: number;
+  notes: string | null;
+  billing_address: string | null;
+  job_address: string | null;
+  job_details: string | null;
+  status: string;
+  version: number;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type EstimateListItem = EstimateRecord & {
   customer_name: string | null;
   customer_email: string | null;
   customer_phone: string | null;
   customer_address: string | null;
-  date: string | null;
+};
+
+type EstimateRecordRow = Omit<EstimateRecord, "total" | "material_total" | "labor_hours" | "labor_rate" | "labor_total" | "subtotal" | "tax_rate" | "tax_total" | "status" | "version"> & {
   total: number | null;
   material_total: number | null;
   labor_hours: number | null;
@@ -25,15 +55,50 @@ type EstimateListItem = {
   subtotal: number | null;
   tax_rate: number | null;
   tax_total: number | null;
-  notes: string | null;
-  billing_address: string | null;
-  job_address: string | null;
-  job_details: string | null;
   status: string | null;
   version: number | null;
-  updated_at: string;
-  deleted_at: string | null;
 };
+
+type EstimateListItemRow = EstimateRecordRow & {
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  customer_address: string | null;
+};
+
+function coerceEstimateNumber(value: number | null | undefined): number {
+  if (typeof value !== "number" || Number.isNaN(value) || !Number.isFinite(value)) {
+    return 0;
+  }
+  return value;
+}
+
+function normalizeEstimateRecord(row: EstimateRecordRow): EstimateRecord {
+  return {
+    ...row,
+    total: coerceEstimateNumber(row.total),
+    material_total: coerceEstimateNumber(row.material_total),
+    labor_hours: coerceEstimateNumber(row.labor_hours),
+    labor_rate: coerceEstimateNumber(row.labor_rate),
+    labor_total: coerceEstimateNumber(row.labor_total),
+    subtotal: coerceEstimateNumber(row.subtotal),
+    tax_rate: coerceEstimateNumber(row.tax_rate),
+    tax_total: coerceEstimateNumber(row.tax_total),
+    status: row.status?.trim() ? row.status.trim() : "draft",
+    version: typeof row.version === "number" && Number.isFinite(row.version) ? row.version : 1,
+  };
+}
+
+function normalizeEstimateListItem(row: EstimateListItemRow): EstimateListItem {
+  const record = normalizeEstimateRecord(row);
+  return {
+    ...record,
+    customer_name: row.customer_name ?? null,
+    customer_email: row.customer_email ?? null,
+    customer_phone: row.customer_phone ?? null,
+    customer_address: row.customer_address ?? null,
+  };
+}
 
 type EstimateStatusFilter = "all" | "draft" | "sent" | "approved" | "declined";
 
@@ -58,17 +123,17 @@ const STATUS_LABELS: Record<string, string> = {
   declined: "Declined",
 };
 
-function normalizeStatus(status: string | null): string {
+function normalizeStatus(status: string | null | undefined): string {
   return status?.toLowerCase() ?? "draft";
 }
 
-function formatStatus(status: string | null): string {
+function formatStatus(status: string | null | undefined): string {
   const normalized = normalizeStatus(status);
   return STATUS_LABELS[normalized] ?? status ?? "Draft";
 }
 
-function formatCurrency(value: number | null): string {
-  const amount = typeof value === "number" ? value : 0;
+function formatCurrency(value: number | null | undefined): string {
+  const amount = coerceEstimateNumber(value);
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -76,8 +141,8 @@ function formatCurrency(value: number | null): string {
   }).format(amount);
 }
 
-function formatEstimateNumber(estimate: EstimateListItem): string {
-  if (typeof estimate.version === "number" && !Number.isNaN(estimate.version)) {
+function formatEstimateNumber(estimate: EstimateRecord): string {
+  if (Number.isFinite(estimate.version)) {
     return `Q-${String(estimate.version).padStart(4, "0")}`;
   }
 
@@ -98,7 +163,7 @@ export default function EstimatesScreen() {
     try {
       setError(null);
       const db = await openDB();
-      const rows = await db.getAllAsync<EstimateListItem>(
+      const rows = await db.getAllAsync<EstimateListItemRow>(
         `SELECT e.id, e.user_id, e.customer_id, e.date, e.total, e.notes, e.status, e.version, e.updated_at, e.deleted_at,
                 e.material_total, e.labor_hours, e.labor_rate, e.labor_total, e.subtotal, e.tax_rate, e.tax_total,
                 e.billing_address, e.job_address, e.job_details,
@@ -111,7 +176,8 @@ export default function EstimatesScreen() {
          WHERE e.deleted_at IS NULL
          ORDER BY datetime(e.updated_at) DESC`,
       );
-      setEstimates(rows);
+      const normalizedRows = rows.map(normalizeEstimateListItem);
+      setEstimates(normalizedRows);
     } catch (err) {
       console.error("Failed to load estimates", err);
       setError("We couldn't load your estimates. Please try again.");
@@ -176,8 +242,8 @@ export default function EstimatesScreen() {
     });
   }, [estimates, searchQuery, statusFilter]);
 
-  const renderEstimateItem = useCallback(
-    ({ item }: { item: EstimateListItem }) => {
+  const renderEstimateItem = useCallback<ListRenderItem<EstimateListItem>>(
+    ({ item }) => {
       const statusLabel = formatStatus(item.status);
       const formattedDate = item.date ? new Date(item.date).toLocaleDateString() : "No date";
       const estimateNumber = formatEstimateNumber(item);
@@ -208,7 +274,7 @@ export default function EstimatesScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <FlatList
+        <FlatList<EstimateListItem>
           data={filteredEstimates}
           keyExtractor={(item) => item.id}
           renderItem={renderEstimateItem}
