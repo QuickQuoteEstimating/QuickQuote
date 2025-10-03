@@ -16,8 +16,11 @@ import {
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import * as ImagePicker from "expo-image-picker";
+import * as MailComposer from "expo-mail-composer";
+import { MailComposerStatus } from "expo-mail-composer";
 import * as Print from "expo-print";
 import * as SMS from "expo-sms";
+import * as FileSystem from "expo-file-system/legacy";
 import CustomerPicker from "../../../components/CustomerPicker";
 import {
   type EstimateItemFormSubmit,
@@ -44,6 +47,7 @@ import {
 } from "../../../lib/storage";
 import {
   renderEstimatePdf,
+  uploadEstimatePdfToStorage,
   type EstimatePdfOptions,
   type EstimatePdfResult,
 } from "../../../lib/pdf";
@@ -280,24 +284,106 @@ export default function EditEstimateScreen() {
   }, [status]);
   const statusBadgeTone = useMemo(() => getStatusTone(status), [status]);
   const previewEstimateNumber = useMemo(() => {
-    if (estimate?.id) {
-      return estimate.id.slice(0, 8).toUpperCase();
+    const identifier = pdfOptions?.estimate.id ?? estimate?.id ?? null;
+    if (!identifier) {
+      return "—";
     }
-    return "—";
-  }, [estimate?.id]);
+    return identifier;
+  }, [estimate?.id, pdfOptions]);
   const previewCustomerName = useMemo(() => {
-    return customerContact?.name ?? estimate?.customer_name ?? "Client not assigned";
-  }, [customerContact?.name, estimate?.customer_name]);
+    const name = pdfOptions?.estimate.customer?.name ?? null;
+    const normalized = name?.trim();
+    return normalized && normalized.length > 0 ? normalized : "No name on file";
+  }, [pdfOptions]);
+  const previewCustomerEmail = useMemo(() => {
+    const email = pdfOptions?.estimate.customer?.email ?? null;
+    const normalized = email?.trim();
+    return normalized && normalized.length > 0 ? normalized : "N/A";
+  }, [pdfOptions]);
+  const previewCustomerPhone = useMemo(() => {
+    const phone = pdfOptions?.estimate.customer?.phone ?? null;
+    const normalized = phone?.trim();
+    return normalized && normalized.length > 0 ? normalized : "N/A";
+  }, [pdfOptions]);
+  const formatAddressPreview = useCallback((address: string | null | undefined) => {
+    if (!address || !address.trim()) {
+      return "Address not provided";
+    }
+    return address
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .join(", ");
+  }, []);
+  const previewBillingAddressDisplay = useMemo(() => {
+    const address =
+      pdfOptions?.estimate.billingAddress ?? pdfOptions?.estimate.customer?.address ?? null;
+    return formatAddressPreview(address);
+  }, [formatAddressPreview, pdfOptions]);
+  const previewJobAddressDisplay = useMemo(() => {
+    const estimateData = pdfOptions?.estimate;
+    const address =
+      estimateData?.jobAddress ??
+      estimateData?.billingAddress ??
+      estimateData?.customer?.address ??
+      null;
+    return formatAddressPreview(address);
+  }, [formatAddressPreview, pdfOptions]);
+  const previewJobAddressHint = useMemo(() => {
+    const estimateData = pdfOptions?.estimate;
+    const job = estimateData?.jobAddress?.trim();
+    const billing = estimateData?.billingAddress?.trim();
+    if (!job || !billing) {
+      return null;
+    }
+    return job === billing ? "Matches billing address" : "Different from billing address";
+  }, [pdfOptions]);
   const previewDate = useMemo(() => {
-    return estimateDate ? new Date(estimateDate).toLocaleDateString() : "Date not set";
-  }, [estimateDate]);
+    if (estimateDate) {
+      return new Date(estimateDate).toLocaleDateString();
+    }
+    const isoDate = pdfOptions?.estimate.date;
+    return isoDate ? new Date(isoDate).toLocaleDateString() : "Date not set";
+  }, [estimateDate, pdfOptions]);
   const previewLineItems = useMemo(() => {
-    const count = items.length;
+    const count = pdfOptions?.items?.length ?? items.length;
     if (count === 0) {
       return "No line items";
     }
     return count === 1 ? "1 line item" : `${count} line items`;
-  }, [items]);
+  }, [items.length, pdfOptions]);
+  const previewPhotoSummary = useMemo(() => {
+    const count = pdfOptions?.photos?.length ?? photos.length;
+    if (!count) {
+      return "No photos";
+    }
+    return count === 1 ? "1 photo" : `${count} photos`;
+  }, [pdfOptions, photos.length]);
+  const previewNotesSummary = useMemo(() => {
+    const raw = pdfOptions?.estimate.jobDetails ?? pdfOptions?.estimate.notes ?? null;
+    if (!raw) {
+      return null;
+    }
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const lines = trimmed
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    if (lines.length === 0) {
+      return null;
+    }
+    const snippet = lines.slice(0, 3);
+    let summary = snippet.join("\n");
+    if (lines.length > snippet.length) {
+      summary = `${summary}\n…`;
+    } else if (trimmed.length > summary.length) {
+      summary = `${summary}${summary.endsWith("\n") ? "" : "\n"}…`;
+    }
+    return summary;
+  }, [pdfOptions]);
   const estimateRef = useRef<EstimateListItem | null>(null);
   const lastPdfRef = useRef<EstimatePdfResult | null>(null);
   const releasePdfRef = useRef<(() => void) | null>(null);
@@ -1233,6 +1319,55 @@ export default function EditEstimateScreen() {
     }
   }, [pdfOptions]);
 
+  const ensureShareablePdf = useCallback(
+    async (pdf: EstimatePdfResult): Promise<EstimatePdfResult> => {
+      if (!estimate) {
+        return pdf;
+      }
+      if (Platform.OS === "web") {
+        return pdf;
+      }
+      if (pdf.publicUrl) {
+        return pdf;
+      }
+      if (!process.env.EXPO_PUBLIC_SUPABASE_URL) {
+        return pdf;
+      }
+
+      try {
+        const uploaded = await uploadEstimatePdfToStorage(pdf, estimate.id);
+        if (uploaded) {
+          const enriched: EstimatePdfResult = {
+            ...pdf,
+            storagePath: uploaded.storagePath,
+            publicUrl: uploaded.publicUrl,
+          };
+          lastPdfRef.current = enriched;
+          return enriched;
+        }
+      } catch (error) {
+        console.warn("Failed to upload estimate PDF for sharing", error);
+      }
+
+      return pdf;
+    },
+    [estimate],
+  );
+
+  const resolveAttachmentUri = useCallback(async (uri: string): Promise<string> => {
+    if (Platform.OS === "android" && typeof FileSystem.getContentUriAsync === "function") {
+      try {
+        const contentUri = await FileSystem.getContentUriAsync(uri);
+        if (contentUri) {
+          return contentUri;
+        }
+      } catch (error) {
+        console.warn("Failed to resolve attachment URI", error);
+      }
+    }
+    return uri;
+  }, []);
+
   const handlePreviewPdf = useCallback(async () => {
     setPdfWorking(true);
     try {
@@ -1320,9 +1455,7 @@ export default function EditEstimateScreen() {
     [setEstimate, setSendSuccessMessage, setStatus, status],
   );
 
-  const sendEstimateViaEmail = useCallback(async (
-    pdf: EstimatePdfResult,
-  ) => {
+  const sendEstimateViaEmail = useCallback(async (pdf: EstimatePdfResult) => {
     if (!estimate) {
       return;
     }
@@ -1339,18 +1472,65 @@ export default function EditEstimateScreen() {
     setSending(true);
     try {
       setSendSuccessMessage(null);
-      const subject = encodeURIComponent(`Estimate ${estimate.id} from QuickQuote`);
+      const shareablePdf = await ensureShareablePdf(pdf);
+      let attachmentUri: string | null = null;
+      if (shareablePdf.uri?.startsWith("file://")) {
+        attachmentUri = await resolveAttachmentUri(shareablePdf.uri);
+      }
+
+      const subjectText = `Estimate ${estimate.id} from QuickQuote`;
       const greetingName = customerContact?.name?.trim() || "there";
       const bodyLines = [
         `Hi ${greetingName},`,
         "",
         "Please review your estimate from QuickQuote.",
         `Total: ${formatCurrency(totals.grandTotal)}`,
-        `PDF saved at: ${pdf.uri}`,
-        "",
-        "Thank you!",
       ];
+      if (shareablePdf.publicUrl) {
+        bodyLines.push(`PDF: ${shareablePdf.publicUrl}`);
+      } else if (attachmentUri) {
+        bodyLines.push("The estimate PDF is attached for your convenience.");
+      } else {
+        bodyLines.push("Open QuickQuote to download the full PDF estimate.");
+      }
+      bodyLines.push("", "Thank you!");
       const bodyPlain = bodyLines.join("\n");
+      const messagePreview =
+        bodyPlain.length > 240 ? `${bodyPlain.slice(0, 237)}...` : bodyPlain;
+
+      if (Platform.OS !== "web" && (await MailComposer.isAvailableAsync())) {
+        const composerResult = await MailComposer.composeAsync({
+          recipients: [emailAddress],
+          subject: subjectText,
+          body: bodyPlain,
+          attachments: attachmentUri ? [attachmentUri] : undefined,
+          isHtml: false,
+        });
+
+        await logEstimateDelivery({
+          estimateId: estimate.id,
+          channel: "email",
+          recipient: emailAddress,
+          messagePreview,
+          metadata: {
+            pdfUri: shareablePdf.uri,
+            attachmentUri,
+            publicUrl: shareablePdf.publicUrl ?? null,
+            mailComposerStatus: composerResult.status ?? null,
+          },
+        });
+
+        if (composerResult.status === MailComposerStatus.SENT) {
+          await markEstimateSent("email");
+        } else if (composerResult.status === MailComposerStatus.CANCELLED) {
+          setSendSuccessMessage("Email cancelled. You can try again when you're ready.");
+        } else {
+          setSendSuccessMessage("Email draft saved. Send it from your mail app when ready.");
+        }
+        return;
+      }
+
+      const subject = encodeURIComponent(subjectText);
       const body = encodeURIComponent(bodyPlain);
       const mailto = `mailto:${encodeURIComponent(emailAddress)}?subject=${subject}&body=${body}`;
 
@@ -1365,10 +1545,10 @@ export default function EditEstimateScreen() {
 
       await Linking.openURL(mailto);
 
-      if (Platform.OS === "web" && typeof document !== "undefined") {
+      if (Platform.OS === "web" && typeof document !== "undefined" && shareablePdf.uri) {
         const link = document.createElement("a");
-        link.href = pdf.uri;
-        link.download = pdf.fileName;
+        link.href = shareablePdf.uri;
+        link.download = shareablePdf.fileName;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1378,8 +1558,12 @@ export default function EditEstimateScreen() {
         estimateId: estimate.id,
         channel: "email",
         recipient: emailAddress,
-        messagePreview: bodyPlain.length > 240 ? `${bodyPlain.slice(0, 237)}...` : bodyPlain,
-        metadata: { pdfUri: pdf.uri, mailto },
+        messagePreview,
+        metadata: {
+          pdfUri: shareablePdf.uri,
+          publicUrl: shareablePdf.publicUrl ?? null,
+          mailto,
+        },
       });
       await markEstimateSent("email");
     } catch (error) {
@@ -1391,9 +1575,11 @@ export default function EditEstimateScreen() {
   }, [
     customerContact?.email,
     customerContact?.name,
+    ensureShareablePdf,
     estimate,
     logEstimateDelivery,
     markEstimateSent,
+    resolveAttachmentUri,
     setSendSuccessMessage,
     totals.grandTotal,
   ]);
@@ -1422,22 +1608,36 @@ export default function EditEstimateScreen() {
           return;
         }
 
-        const message = `Estimate ${estimate.id} total ${formatCurrency(
-          totals.grandTotal,
-        )}. PDF: ${pdf.uri}`;
+        const shareablePdf = await ensureShareablePdf(pdf);
+        let attachmentUri: string | null = null;
+        if (shareablePdf.uri?.startsWith("file://")) {
+          attachmentUri = await resolveAttachmentUri(shareablePdf.uri);
+        }
 
+        const messageParts = [
+          `Estimate ${estimate.id}`,
+          `Total: ${formatCurrency(totals.grandTotal)}`,
+        ];
+        if (shareablePdf.publicUrl) {
+          messageParts.push(`PDF: ${shareablePdf.publicUrl}`);
+        } else if (attachmentUri) {
+          messageParts.push("The estimate PDF is attached.");
+        } else {
+          messageParts.push("Download the PDF from QuickQuote to review details.");
+        }
+        const message = messageParts.join("\n");
         let smsResponse;
         try {
           smsResponse = await SMS.sendSMSAsync(
             [phoneNumber],
             message,
-            pdf.uri
+            attachmentUri
               ? {
                   attachments: [
                     {
-                      uri: pdf.uri,
+                      uri: attachmentUri,
                       mimeType: "application/pdf",
-                      filename: pdf.fileName,
+                      filename: shareablePdf.fileName,
                     },
                   ],
                 }
@@ -1454,11 +1654,18 @@ export default function EditEstimateScreen() {
           recipient: phoneNumber,
           messagePreview: message.length > 240 ? `${message.slice(0, 237)}...` : message,
           metadata: {
-            pdfUri: pdf.uri,
+            pdfUri: shareablePdf.uri,
+            publicUrl: shareablePdf.publicUrl ?? null,
             smsResult: smsResponse?.result ?? null,
           },
         });
-        await markEstimateSent("sms");
+        if (smsResponse?.result === SMS.SMSResult.Sent || smsResponse?.result === "sent") {
+          await markEstimateSent("sms");
+        } else if (smsResponse?.result === SMS.SMSResult.Cancelled) {
+          setSendSuccessMessage("Text message cancelled before sending.");
+        } else {
+          setSendSuccessMessage("Check your messaging app to finish sending this estimate.");
+        }
       } catch (error) {
         console.error("Failed to share via SMS", error);
         Alert.alert("Error", "Unable to share the estimate via SMS.");
@@ -1468,9 +1675,11 @@ export default function EditEstimateScreen() {
     },
     [
       customerContact?.phone,
+      ensureShareablePdf,
       estimate,
       logEstimateDelivery,
       markEstimateSent,
+      resolveAttachmentUri,
       setSendSuccessMessage,
       totals.grandTotal,
     ],
@@ -1759,16 +1968,15 @@ export default function EditEstimateScreen() {
         estimateRef.current = record;
         setEstimate(record);
         const draft = draftRef.current;
+        const billingAddressValue =
+          record.billing_address?.trim() ?? record.customer_address?.trim() ?? "";
+        const jobAddressValue = record.job_address?.trim() ?? "";
+        const addressesMatch = !jobAddressValue || jobAddressValue === billingAddressValue;
         if (!draft) {
           setCustomerId(record.customer_id);
           setEstimateDate(record.date ? new Date(record.date).toISOString().split("T")[0] : "");
           setNotes(record.notes ?? "");
           setStatus(record.status ?? "draft");
-          const billingAddressValue =
-            record.billing_address?.trim() ?? record.customer_address?.trim() ?? "";
-          const jobAddressValue = record.job_address?.trim() ?? "";
-          const addressesMatch =
-            !jobAddressValue || jobAddressValue === billingAddressValue;
           setBillingAddress(billingAddressValue);
           setJobAddress(addressesMatch ? billingAddressValue : jobAddressValue);
           setJobAddressSameAsBilling(addressesMatch);
@@ -1797,7 +2005,7 @@ export default function EditEstimateScreen() {
             name: record.customer_name ?? "Customer",
             email: record.customer_email ?? null,
             phone: record.customer_phone ?? null,
-            address: billingAddressValue || record.customer_address ?? null,
+            address: billingAddressValue || record.customer_address || null,
             notes: null,
           });
         }
@@ -2322,27 +2530,83 @@ export default function EditEstimateScreen() {
             <Badge tone={statusBadgeTone} style={previewStyles.statusBadge}>
               {statusLabel}
             </Badge>
-            <View style={previewStyles.summaryRows}>
-              <View style={previewStyles.summaryRow}>
-                <Body style={previewStyles.summaryLabel}>Client</Body>
-                <Body style={previewStyles.summaryValue}>{previewCustomerName}</Body>
+            <View style={previewStyles.quickFacts}>
+              <View style={previewStyles.quickFact}>
+                <Subtitle style={previewStyles.quickFactLabel}>Estimate date</Subtitle>
+                <Body style={previewStyles.quickFactValue}>{previewDate}</Body>
               </View>
-              <View style={previewStyles.summaryRow}>
-                <Body style={previewStyles.summaryLabel}>Line items</Body>
-                <Body style={previewStyles.summaryValue}>{previewLineItems}</Body>
+              <View style={previewStyles.quickFact}>
+                <Subtitle style={previewStyles.quickFactLabel}>Line items</Subtitle>
+                <Body style={previewStyles.quickFactValue}>{previewLineItems}</Body>
               </View>
-              <View style={previewStyles.summaryRow}>
-                <Body style={previewStyles.summaryLabel}>Estimate date</Body>
-                <Body style={previewStyles.summaryValue}>{previewDate}</Body>
+              <View style={previewStyles.quickFact}>
+                <Subtitle style={previewStyles.quickFactLabel}>Photos</Subtitle>
+                <Body style={previewStyles.quickFactValue}>{previewPhotoSummary}</Body>
               </View>
             </View>
-            <View style={previewStyles.totalBlock}>
-              <Subtitle style={previewStyles.totalLabel}>Total amount</Subtitle>
-              <Title style={previewStyles.totalValue}>{formatCurrency(totals.grandTotal)}</Title>
+            <View style={previewStyles.infoGrid}>
+              <View style={previewStyles.infoCard}>
+                <Subtitle style={previewStyles.infoTitle}>Customer</Subtitle>
+                <Body style={previewStyles.infoValue}>{previewCustomerName}</Body>
+                <Body style={previewStyles.infoMeta}>Email: {previewCustomerEmail}</Body>
+                <Body style={previewStyles.infoMeta}>Phone: {previewCustomerPhone}</Body>
+              </View>
+              <View style={previewStyles.infoCard}>
+                <Subtitle style={previewStyles.infoTitle}>Billing address</Subtitle>
+                <Body style={previewStyles.infoValue}>{previewBillingAddressDisplay}</Body>
+              </View>
+              <View style={previewStyles.infoCard}>
+                <Subtitle style={previewStyles.infoTitle}>Job site</Subtitle>
+                <Body style={previewStyles.infoValue}>{previewJobAddressDisplay}</Body>
+                {previewJobAddressHint ? (
+                  <Body style={previewStyles.infoMeta}>{previewJobAddressHint}</Body>
+                ) : null}
+              </View>
+            </View>
+            <View style={previewStyles.breakdownCard}>
+              <View style={previewStyles.breakdownRow}>
+                <Body style={previewStyles.breakdownLabel}>Line items</Body>
+                <Body style={previewStyles.breakdownValue}>
+                  {formatCurrency(totals.materialTotal)}
+                </Body>
+              </View>
+              <View style={previewStyles.breakdownRow}>
+                <Body style={previewStyles.breakdownLabel}>Labor charge</Body>
+                <Body style={previewStyles.breakdownValue}>{formatCurrency(totals.laborTotal)}</Body>
+              </View>
+              <View style={previewStyles.breakdownRow}>
+                <Body style={previewStyles.breakdownLabel}>Subtotal</Body>
+                <Body style={previewStyles.breakdownValue}>{formatCurrency(totals.subtotal)}</Body>
+              </View>
+              <View
+                style={[
+                  previewStyles.breakdownRow,
+                  totals.taxTotal <= 0.0001 ? previewStyles.breakdownMutedRow : null,
+                ]}
+              >
+                <Body style={previewStyles.breakdownLabel}>Tax</Body>
+                <Body style={previewStyles.breakdownValue}>{formatCurrency(totals.taxTotal)}</Body>
+              </View>
+              <View style={[previewStyles.breakdownRow, previewStyles.breakdownTotalRow]}>
+                <Subtitle style={previewStyles.breakdownTotalLabel}>Total due</Subtitle>
+                <Title style={previewStyles.breakdownTotalValue}>
+                  {formatCurrency(totals.grandTotal)}
+                </Title>
+              </View>
+            </View>
+            <View style={previewStyles.notesSection}>
+              <Subtitle style={previewStyles.notesTitle}>Project notes</Subtitle>
+              {previewNotesSummary ? (
+                <Body style={previewStyles.notesBody}>{previewNotesSummary}</Body>
+              ) : (
+                <Body style={[previewStyles.notesBody, previewStyles.notesEmpty]}>
+                  No additional notes.
+                </Body>
+              )}
             </View>
           </Card>
           <Body style={previewStyles.previewHint}>
-            A polished PDF and this summary will be included when you send the estimate.
+            This summary mirrors the PDF your client receives when you send the estimate.
           </Body>
           <View style={previewStyles.previewActions}>
             <Button
@@ -2461,46 +2725,119 @@ function createPreviewStyles(theme: Theme) {
     statusBadge: {
       alignSelf: "flex-end",
     },
-    summaryRows: {
+    quickFacts: {
       width: "100%",
-      gap: spacing.md,
-      paddingTop: spacing.md,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-    },
-    summaryRow: {
       flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
+      flexWrap: "wrap",
       gap: spacing.md,
-    },
-    summaryLabel: {
-      color: colors.mutedText,
-      fontWeight: "500",
-    },
-    summaryValue: {
-      color: colors.secondaryText,
-      fontWeight: "600",
-      textAlign: "right",
-      flexShrink: 1,
-    },
-    totalBlock: {
-      marginTop: spacing.lg,
-      paddingTop: spacing.lg,
+      paddingVertical: spacing.md,
       borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-      alignItems: "flex-end",
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    quickFact: {
+      flexGrow: 1,
+      minWidth: 140,
       gap: spacing.xs,
     },
-    totalLabel: {
+    quickFactLabel: {
       textTransform: "uppercase",
       letterSpacing: 0.8,
       color: colors.mutedText,
       fontSize: 12,
     },
-    totalValue: {
-      fontSize: 30,
+    quickFactValue: {
+      color: colors.secondaryText,
+      fontWeight: "600",
+    },
+    infoGrid: {
+      width: "100%",
+      gap: spacing.md,
+    },
+    infoCard: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      borderRadius: radii.lg,
+      padding: spacing.md,
+      backgroundColor: colors.surfaceAlt,
+      gap: spacing.xs,
+    },
+    infoTitle: {
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      color: colors.mutedText,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    infoValue: {
       color: colors.primaryText,
+      fontWeight: "600",
+    },
+    infoMeta: {
+      color: colors.mutedText,
+    },
+    breakdownCard: {
+      width: "100%",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      borderRadius: radii.lg,
+      padding: spacing.md,
+      backgroundColor: colors.surface,
+      gap: spacing.sm,
+    },
+    breakdownRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    breakdownLabel: {
+      color: colors.mutedText,
+      fontWeight: "500",
+    },
+    breakdownValue: {
+      color: colors.secondaryText,
+      fontWeight: "600",
+    },
+    breakdownMutedRow: {
+      opacity: 0.7,
+    },
+    breakdownTotalRow: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      paddingTop: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    breakdownTotalLabel: {
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      color: colors.mutedText,
+      fontSize: 12,
+    },
+    breakdownTotalValue: {
+      color: colors.primaryText,
+    },
+    notesSection: {
+      width: "100%",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      borderRadius: radii.lg,
+      padding: spacing.md,
+      backgroundColor: colors.surface,
+      gap: spacing.sm,
+    },
+    notesTitle: {
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+      color: colors.mutedText,
+      fontSize: 12,
+    },
+    notesBody: {
+      color: colors.secondaryText,
+      lineHeight: 20,
+    },
+    notesEmpty: {
+      color: colors.mutedText,
+      fontStyle: "italic",
     },
     previewHint: {
       color: colors.mutedText,
