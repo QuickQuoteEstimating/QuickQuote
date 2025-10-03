@@ -82,11 +82,11 @@ export default function LoginScreen() {
             value={password}
             onChangeText={setPassword}
             returnKeyType="done"
-            onSubmitEditing={() => handleLogin()}
+            onSubmitEditing={handleLogin}
           />
           <Button
             label="Sign in"
-            onPress={() => handleLogin()}
+            onPress={handleLogin}
             loading={loading}
             accessibilityLabel="Sign in to QuickQuote"
           />

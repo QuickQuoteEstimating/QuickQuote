@@ -205,11 +205,11 @@ export default function SignupScreen() {
               multiline
               returnKeyType="done"
               blurOnSubmit
-              onSubmitEditing={() => handleSignup()}
+              onSubmitEditing={handleSignup}
             />
           </View>
 
-          <Button label="Sign up" onPress={() => handleSignup()} loading={loading} />
+          <Button label="Sign up" onPress={handleSignup} loading={loading} />
           <View style={styles.linksRow}>
             <Link href="/(auth)/login">
               <Body style={styles.link}>Already have an account?</Body>
