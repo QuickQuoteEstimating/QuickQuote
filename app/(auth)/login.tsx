@@ -44,6 +44,7 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAwareScrollView
+        style={styles.scrollView}
         enableOnAndroid
         keyboardShouldPersistTaps="handled"
         extraScrollHeight={24}
@@ -115,6 +116,9 @@ function createStyles(theme: Theme) {
       justifyContent: "center",
       paddingHorizontal: theme.spacing.xl,
       paddingVertical: theme.spacing.xl,
+    },
+    scrollView: {
+      flex: 1,
     },
     card: {
       gap: theme.spacing.lg,
