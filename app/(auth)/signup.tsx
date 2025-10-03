@@ -1,13 +1,6 @@
 import { Link, router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  View,
-} from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
@@ -86,99 +79,95 @@ export default function SignupScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.select({ ios: "padding", android: "height" })}
-      style={styles.keyboardAvoider}
-    >
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <Card style={styles.card}>
-            <View style={styles.logoContainer}>
-              <BrandLogo size={80} />
-            </View>
-            <Title style={styles.title}>Create your account</Title>
-            <View style={styles.section}>
-              <Subtitle style={styles.sectionTitle}>Account details</Subtitle>
-              <Body style={styles.sectionSubtitle}>
-                Sign in with your work email so we can keep your estimates in sync.
-              </Body>
-              <Input
-                autoCapitalize="none"
-                autoComplete="email"
-                autoCorrect={false}
-                keyboardType="email-address"
-                placeholder="you@example.com"
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-              />
-              <Input
-                autoCapitalize="none"
-                autoComplete="password"
-                placeholder="Create a password"
-                secureTextEntry
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-              />
-              <Input
-                autoCapitalize="none"
-                autoComplete="password"
-                placeholder="Confirm your password"
-                secureTextEntry
-                label="Confirm password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-              />
-            </View>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Card style={styles.card}>
+          <View style={styles.logoContainer}>
+            <BrandLogo size={80} />
+          </View>
+          <Title style={styles.title}>Create your account</Title>
+          <View style={styles.section}>
+            <Subtitle style={styles.sectionTitle}>Account details</Subtitle>
+            <Body style={styles.sectionSubtitle}>
+              Sign in with your work email so we can keep your estimates in sync.
+            </Body>
+            <Input
+              autoCapitalize="none"
+              autoComplete="email"
+              autoCorrect={false}
+              keyboardType="email-address"
+              placeholder="you@example.com"
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+            />
+            <Input
+              autoCapitalize="none"
+              autoComplete="password"
+              placeholder="Create a password"
+              secureTextEntry
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+            />
+            <Input
+              autoCapitalize="none"
+              autoComplete="password"
+              placeholder="Confirm your password"
+              secureTextEntry
+              label="Confirm password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+          </View>
 
-            <View style={styles.section}>
-              <Subtitle style={styles.sectionTitle}>Company profile</Subtitle>
-              <Body style={styles.sectionSubtitle}>
-                We’ll preload every estimate with this information. You can tweak it anytime in
-                Settings.
-              </Body>
-              <LogoPicker value={logoUri} onChange={setLogoUri} />
-              <Input
-                placeholder="Acme Landscaping"
-                label="Company name"
-                value={companyName}
-                onChangeText={setCompanyName}
-              />
-              <Input
-                placeholder="hello@acme.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                label="Company email"
-                value={companyEmail}
-                onChangeText={setCompanyEmail}
-              />
-              <Input
-                placeholder="(555) 555-0199"
-                keyboardType="phone-pad"
-                label="Phone"
-                value={companyPhone}
-                onChangeText={setCompanyPhone}
-              />
-              <Input
-                placeholder="https://acme.com"
-                autoCapitalize="none"
-                label="Website"
-                value={companyWebsite}
-                onChangeText={setCompanyWebsite}
-              />
-              <Input
-                placeholder="123 Main St, Springfield"
-                label="Business address"
-                value={companyAddress}
-                onChangeText={setCompanyAddress}
-                multiline
-              />
-            </View>
+          <View style={styles.section}>
+            <Subtitle style={styles.sectionTitle}>Company profile</Subtitle>
+            <Body style={styles.sectionSubtitle}>
+              We’ll preload every estimate with this information. You can tweak it anytime in
+              Settings.
+            </Body>
+            <LogoPicker value={logoUri} onChange={setLogoUri} />
+            <Input
+              placeholder="Acme Landscaping"
+              label="Company name"
+              value={companyName}
+              onChangeText={setCompanyName}
+            />
+            <Input
+              placeholder="hello@acme.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              label="Company email"
+              value={companyEmail}
+              onChangeText={setCompanyEmail}
+            />
+            <Input
+              placeholder="(555) 555-0199"
+              keyboardType="phone-pad"
+              label="Phone"
+              value={companyPhone}
+              onChangeText={setCompanyPhone}
+            />
+            <Input
+              placeholder="https://acme.com"
+              autoCapitalize="none"
+              label="Website"
+              value={companyWebsite}
+              onChangeText={setCompanyWebsite}
+            />
+            <Input
+              placeholder="123 Main St, Springfield"
+              label="Business address"
+              value={companyAddress}
+              onChangeText={setCompanyAddress}
+              multiline
+            />
+          </View>
 
           <Button label="Sign up" onPress={handleSignup} loading={loading} />
           <View style={styles.linksRow}>
@@ -189,16 +178,11 @@ export default function SignupScreen() {
         </Card>
       </ScrollView>
     </SafeAreaView>
-  </KeyboardAvoidingView>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    keyboardAvoider: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
     safeArea: {
       flex: 1,
       backgroundColor: theme.colors.background,
