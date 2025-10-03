@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { router } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
   Image,
-  Linking,
-  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -14,8 +13,6 @@ import {
 import { Picker } from "@react-native-picker/picker";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
-import * as Print from "expo-print";
-import * as SMS from "expo-sms";
 import { v4 as uuidv4 } from "uuid";
 
 import CustomerForm from "../../../components/CustomerForm";
@@ -29,12 +26,7 @@ import {
   roundCurrency,
   type MarkupMode,
 } from "../../../lib/estimateMath";
-import { logEstimateDelivery, openDB, queueChange } from "../../../lib/sqlite";
-import {
-  renderEstimatePdf,
-  type EstimatePdfOptions,
-  type EstimatePdfResult,
-} from "../../../lib/pdf";
+import { openDB, queueChange } from "../../../lib/sqlite";
 import { runSync } from "../../../lib/sync";
 import {
   createPhotoStoragePath,
@@ -73,6 +65,7 @@ type PhotoDraft = {
   id: string;
   storagePath: string;
   localUri: string;
+  description: string;
   version: number;
   persisted: boolean;
 };
@@ -124,7 +117,13 @@ type SavedEstimateContext = {
   jobDetails: string | null;
   laborHours: number;
   laborRate: number;
-  photos: { id: string; localUri: string | null; remoteUri: string | null }[];
+  taxRate: number;
+  photos: {
+    id: string;
+    localUri: string | null;
+    remoteUri: string | null;
+    description: string | null;
+  }[];
 };
 
 type FormErrors = {
@@ -459,6 +458,9 @@ function createStyles(theme: Theme) {
       padding: theme.spacing.sm,
       gap: theme.spacing.xs,
     },
+    photoDescriptionInput: {
+      paddingHorizontal: 0,
+    },
     photoEmpty: {
       alignItems: "center",
       justifyContent: "center",
@@ -509,6 +511,9 @@ export default function NewEstimateScreen() {
     defaultLaborRate > 0 ? defaultLaborRate.toFixed(2) : "",
   );
   const [laborHoursInput, setLaborHoursInput] = useState("");
+  const [taxRateInput, setTaxRateInput] = useState(
+    defaultTaxRate > 0 ? defaultTaxRate.toFixed(2) : "",
+  );
 
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([]);
   const [savedItems, setSavedItems] = useState<SavedItemRecord[]>([]);
@@ -522,15 +527,11 @@ export default function NewEstimateScreen() {
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [previewing, setPreviewing] = useState(false);
 
   const [persistedData, setPersistedData] = useState<{
     estimate: PersistedEstimateRecord;
     items: PersistedEstimateItem[];
   } | null>(null);
-
-  const taxRate = defaultTaxRate;
 
   useEffect(() => {
     if (jobAddressSameAsBilling) {
@@ -579,6 +580,7 @@ export default function NewEstimateScreen() {
 
   const laborRateValue = useMemo(() => parseDecimal(laborRateInput) ?? 0, [laborRateInput]);
   const laborHoursValue = useMemo(() => parseDecimal(laborHoursInput) ?? 0, [laborHoursInput]);
+  const taxRateValue = useMemo(() => parseDecimal(taxRateInput) ?? 0, [taxRateInput]);
 
   const totals = useMemo(() => {
     return calculateEstimateTotals({
@@ -596,7 +598,7 @@ export default function NewEstimateScreen() {
         mode: settings.laborMarkupMode,
         value: settings.laborMarkup,
       },
-      taxRate,
+      taxRate: taxRateValue,
     });
   }, [
     computedLineItems,
@@ -606,7 +608,7 @@ export default function NewEstimateScreen() {
     settings.laborMarkupMode,
     settings.materialMarkup,
     settings.materialMarkupMode,
-    taxRate,
+    taxRateValue,
   ]);
 
   const fetchCustomers = useCallback(async (query: string) => {
@@ -906,6 +908,7 @@ export default function NewEstimateScreen() {
           id: photoId,
           storagePath,
           localUri,
+          description: "",
           version: 1,
           persisted: false,
         });
@@ -946,52 +949,41 @@ export default function NewEstimateScreen() {
     [photoDrafts],
   );
 
-  const markEstimateSent = useCallback(
-    async (context: SavedEstimateContext, channel: "email" | "sms") => {
-      try {
-        const db = await openDB();
-        const now = new Date().toISOString();
-        const nextVersion = (context.estimate.version ?? 1) + 1;
-        const updatedEstimate: PersistedEstimateRecord = {
-          ...context.estimate,
-          status: "sent",
-          version: nextVersion,
-          updated_at: now,
-        };
+  const handlePhotoDescriptionChange = useCallback((photoId: string, value: string) => {
+    setPhotoDrafts((current) =>
+      current.map((photo) => (photo.id === photoId ? { ...photo, description: value } : photo)),
+    );
+  }, []);
 
-        await db.runAsync(
-          `UPDATE estimates
-             SET status = ?, version = ?, updated_at = ?
-             WHERE id = ?`,
-          [
-            updatedEstimate.status,
-            updatedEstimate.version,
-            updatedEstimate.updated_at,
-            updatedEstimate.id,
-          ],
-        );
+  const handleSaveAndContinue = useCallback(async () => {
+    if (saving) {
+      return;
+    }
 
-        await queueChange("estimates", "update", sanitizeEstimateForQueue(updatedEstimate));
-        setPersistedData((current) => {
-          if (current && current.estimate.id === updatedEstimate.id) {
-            return { estimate: updatedEstimate, items: current.items };
-          }
-          return current;
-        });
-
-        void runSync().catch((error) => {
-          console.warn("Failed to sync estimate status", error);
-        });
-      } catch (error) {
-        console.error("Failed to update estimate status", error);
-        Alert.alert(
-          "Status",
-          `Estimate ${channel === "email" ? "emailed" : "texted"}, but we couldn't update the status automatically. Please review it manually.`,
-        );
+    try {
+      setSaving(true);
+      const context = await saveEstimate();
+      if (!context) {
+        return;
       }
-    },
-    [],
-  );
+      router.replace(`/(tabs)/estimates/${context.estimate.id}`);
+    } finally {
+      setSaving(false);
+    }
+  }, [saveEstimate, saving]);
+
+  const handleCancel = useCallback(() => {
+    Alert.alert("Discard estimate?", "Your current changes will be lost.", [
+      { text: "Keep editing", style: "cancel" },
+      {
+        text: "Discard",
+        style: "destructive",
+        onPress: () => {
+          router.back();
+        },
+      },
+    ]);
+  }, []);
 
   const saveEstimate = useCallback(async (): Promise<SavedEstimateContext | null> => {
     if (!userId) {
@@ -1084,7 +1076,7 @@ export default function NewEstimateScreen() {
         mode: settings.laborMarkupMode,
         value: settings.laborMarkup,
       },
-      taxRate,
+      taxRate: taxRateValue,
     });
 
     const db = await openDB();
@@ -1233,12 +1225,15 @@ export default function NewEstimateScreen() {
 
       const photosToInsert = photoDrafts.filter((photo) => !photo.persisted);
       for (const photo of photosToInsert) {
+        const normalizedDescription = photo.description.trim()
+          ? photo.description.trim()
+          : null;
         const photoRecord = {
           id: photo.id,
           estimate_id: newEstimate.id,
           uri: photo.storagePath,
           local_uri: photo.localUri,
-          description: null as string | null,
+          description: normalizedDescription,
           version: photo.version,
           updated_at: now,
           deleted_at: null as string | null,
@@ -1275,11 +1270,17 @@ export default function NewEstimateScreen() {
       }
 
       setPhotoDrafts((current) =>
-        current.map((photo) =>
-          photosToInsert.some((item) => item.id === photo.id)
-            ? { ...photo, persisted: true }
-            : photo,
-        ),
+        current.map((photo) => {
+          if (!photosToInsert.some((item) => item.id === photo.id)) {
+            return photo;
+          }
+          const trimmedDescription = photo.description.trim();
+          return {
+            ...photo,
+            description: trimmedDescription,
+            persisted: true,
+          };
+        }),
       );
       setPendingPhotoDeletes([]);
 
@@ -1294,12 +1295,14 @@ export default function NewEstimateScreen() {
         jobDetails: jobDetailsValue,
         laborHours: estimateTotals.laborHours,
         laborRate: estimateTotals.laborRate,
+        taxRate: estimateTotals.taxRate,
         photos: photoDrafts
           .filter((photo) => !pendingPhotoDeletes.some((pending) => pending.id === photo.id))
           .map((photo) => ({
             id: photo.id,
             localUri: photo.localUri,
             remoteUri: photo.storagePath,
+            description: photo.description.trim() ? photo.description.trim() : null,
           })),
       };
 
@@ -1326,252 +1329,9 @@ export default function NewEstimateScreen() {
     persistedData,
     photoDrafts,
     selectedCustomer,
-    taxRate,
+    taxRateValue,
     userId,
   ]);
-
-  const buildPdfOptions = useCallback(
-    (context: SavedEstimateContext): EstimatePdfOptions => ({
-      estimate: {
-        id: context.estimate.id,
-        date: context.estimate.date,
-        status: context.estimate.status,
-        notes: context.jobDetails,
-        total: context.estimate.total,
-        materialTotal: context.estimate.material_total,
-        laborTotal: context.estimate.labor_total,
-        taxTotal: context.estimate.tax_total,
-        subtotal: context.estimate.subtotal,
-        laborHours: context.laborHours,
-        laborRate: context.laborRate,
-        billingAddress: context.billingAddress,
-        jobAddress: context.jobAddress,
-        jobDetails: context.jobDetails,
-        customer: {
-          name: context.customer.name,
-          email: context.customer.email,
-          phone: context.customer.phone,
-          address: context.billingAddress ?? context.customer.address ?? null,
-        },
-      },
-      items: context.items.map((item) => ({
-        id: item.id,
-        description: item.description,
-        quantity: item.quantity,
-        unitPrice:
-          item.quantity > 0
-            ? Math.round((item.total / item.quantity) * 100) / 100
-            : Math.round(item.total * 100) / 100,
-        total: Math.round(item.total * 100) / 100,
-      })),
-      photos: context.photos.map((photo) => ({
-        id: photo.id,
-        localUri: photo.localUri ?? null,
-        remoteUri: photo.remoteUri ?? null,
-      })),
-      termsAndConditions: settings.termsAndConditions,
-      paymentDetails: settings.paymentDetails,
-    }),
-    [settings.paymentDetails, settings.termsAndConditions],
-  );
-
-  const shareViaEmail = useCallback(
-    async (context: SavedEstimateContext, pdf: EstimatePdfResult) => {
-      const email = context.customer.email?.trim();
-      if (!email) {
-        Alert.alert(
-          "Missing email",
-          "Add an email address for this customer to share the estimate.",
-        );
-        return;
-      }
-
-      try {
-        const subject = encodeURIComponent(`Estimate ${context.estimate.id} from QuickQuote`);
-        const greetingName = context.customer.name?.trim() || "there";
-        const bodyLines = [
-          `Hi ${greetingName},`,
-          "",
-          "Please review your estimate from QuickQuote.",
-          `Total: ${formatCurrency(context.estimate.total)}`,
-          `PDF saved at: ${pdf.uri}`,
-          "",
-          "Thank you!",
-        ];
-        const bodyPlain = bodyLines.join("\n");
-        const body = encodeURIComponent(bodyPlain);
-        const mailto = `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`;
-
-        let canOpen = true;
-        if (Platform.OS !== "web") {
-          canOpen = await Linking.canOpenURL(mailto);
-        }
-        if (!canOpen) {
-          Alert.alert("Unavailable", "No email client is configured on this device.");
-          return;
-        }
-
-        await Linking.openURL(mailto);
-
-        if (Platform.OS === "web" && typeof document !== "undefined") {
-          const link = document.createElement("a");
-          link.href = pdf.uri;
-          link.download = pdf.fileName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
-
-        await logEstimateDelivery({
-          estimateId: context.estimate.id,
-          channel: "email",
-          recipient: email,
-          messagePreview: bodyPlain.length > 240 ? `${bodyPlain.slice(0, 237)}...` : bodyPlain,
-          metadata: { pdfUri: pdf.uri, mailto },
-        });
-        await markEstimateSent(context, "email");
-      } catch (error) {
-        console.error("Failed to share via email", error);
-        Alert.alert("Error", "Unable to share the estimate via email.");
-      }
-    },
-    [markEstimateSent],
-  );
-
-  const shareViaSms = useCallback(
-    async (context: SavedEstimateContext, pdf: EstimatePdfResult) => {
-      const phone = context.customer.phone?.trim();
-      if (!phone) {
-        Alert.alert(
-          "Missing phone",
-          "Add a phone number for this customer to send the estimate via text.",
-        );
-        return;
-      }
-
-      const isAvailable = await SMS.isAvailableAsync();
-      if (!isAvailable) {
-        Alert.alert("Unavailable", "Text messaging isn't available on this device.");
-        return;
-      }
-
-      try {
-        const message = [
-          `Estimate ${context.estimate.id} total: ${formatCurrency(context.estimate.total)}`,
-          pdf.uri,
-        ].join("\n");
-
-        await SMS.sendSMSAsync([phone], message);
-        await logEstimateDelivery({
-          estimateId: context.estimate.id,
-          channel: "sms",
-          recipient: phone,
-          messagePreview: message.length > 240 ? `${message.slice(0, 237)}...` : message,
-          metadata: { pdfUri: pdf.uri },
-        });
-        await markEstimateSent(context, "sms");
-      } catch (error) {
-        console.error("Failed to share via SMS", error);
-        Alert.alert("Error", "Unable to send the estimate via text.");
-      }
-    },
-    [markEstimateSent],
-  );
-
-  const handleSaveDraft = useCallback(async () => {
-    if (saving || sending || previewing) {
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const context = await saveEstimate();
-      if (!context) {
-        return;
-      }
-      Alert.alert("Estimate saved", "Draft saved successfully.");
-    } finally {
-      setSaving(false);
-    }
-  }, [previewing, saveEstimate, saving, sending]);
-
-  const handleSaveAndSend = useCallback(async () => {
-    if (saving || sending || previewing) {
-      return;
-    }
-
-    try {
-      setSending(true);
-      const context = await saveEstimate();
-      if (!context) {
-        return;
-      }
-
-      const pdf = await renderEstimatePdf(buildPdfOptions(context));
-      if (Platform.OS === "ios" || Platform.OS === "android") {
-        Alert.alert("Send Estimate", "How would you like to share the estimate?", [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Email",
-            onPress: () => {
-              void shareViaEmail(context, pdf);
-            },
-          },
-          {
-            text: "Text message",
-            onPress: () => {
-              void shareViaSms(context, pdf);
-            },
-          },
-        ]);
-      } else {
-        await shareViaEmail(context, pdf);
-      }
-    } catch (error) {
-      console.error("Failed to send estimate", error);
-      Alert.alert("Estimate", "We couldn't send this estimate. Please try again.");
-    } finally {
-      setSending(false);
-    }
-  }, [buildPdfOptions, previewing, saveEstimate, saving, sending, shareViaEmail, shareViaSms]);
-
-  const handlePreview = useCallback(async () => {
-    if (saving || sending || previewing) {
-      return;
-    }
-
-    try {
-      setPreviewing(true);
-      const context = await saveEstimate();
-      if (!context) {
-        return;
-      }
-
-      const pdf = await renderEstimatePdf(buildPdfOptions(context));
-
-      if (Platform.OS === "web") {
-        if (!pdf.html) {
-          Alert.alert("Unavailable", "Preview is not supported in this environment.");
-          return;
-        }
-        const previewWindow = window.open("", "_blank");
-        if (!previewWindow) {
-          Alert.alert("Popup blocked", "Allow popups to preview the estimate.");
-          return;
-        }
-        previewWindow.document.write(pdf.html);
-        previewWindow.document.close();
-        return;
-      }
-
-      await Print.printAsync({ html: pdf.html });
-    } catch (error) {
-      console.error("Failed to preview estimate", error);
-      Alert.alert("Preview", "We couldn't preview this estimate. Please try again.");
-    } finally {
-      setPreviewing(false);
-    }
-  }, [buildPdfOptions, previewing, saveEstimate, saving, sending]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -1877,13 +1637,13 @@ export default function NewEstimateScreen() {
                 <Text style={styles.summaryLabel}>Tax ({totals.taxRate.toFixed(2)}%)</Text>
                 <Text style={styles.summaryValue}>{formatCurrency(totals.taxTotal)}</Text>
               </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryTotalLabel}>Grand total</Text>
-                <Text style={styles.summaryTotalValue}>{formatCurrency(totals.grandTotal)}</Text>
-              </View>
-              <Text style={styles.caption}>Tax rate comes from your account settings.</Text>
-            </View>
-          </Card>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryTotalLabel}>Grand total</Text>
+            <Text style={styles.summaryTotalValue}>{formatCurrency(totals.grandTotal)}</Text>
+          </View>
+          <Text style={styles.caption}>Adjust the tax rate above to match this project.</Text>
+        </View>
+      </Card>
 
           <Card style={{ gap: theme.spacing.lg }}>
             <View style={styles.sectionHeader}>
@@ -1892,35 +1652,43 @@ export default function NewEstimateScreen() {
                 Track crew time with an hourly rate and total hours.
               </Text>
             </View>
-            <View style={styles.laborGrid}>
-              <Input
-                label="Labor rate ($/hour)"
-                placeholder="0.00"
-                value={laborRateInput}
-                onChangeText={setLaborRateInput}
-                keyboardType="decimal-pad"
-                containerStyle={styles.laborColumn}
-                leftElement={<Text>$</Text>}
-              />
-              <Input
-                label="Labor hours"
-                placeholder="0"
-                value={laborHoursInput}
-                onChangeText={setLaborHoursInput}
-                keyboardType="decimal-pad"
-                containerStyle={styles.laborColumn}
-              />
+          <View style={styles.laborGrid}>
+            <Input
+              label="Labor rate ($/hour)"
+              placeholder="0.00"
+              value={laborRateInput}
+              onChangeText={setLaborRateInput}
+              keyboardType="decimal-pad"
+              containerStyle={styles.laborColumn}
+              leftElement={<Text>$</Text>}
+            />
+            <Input
+              label="Labor hours"
+              placeholder="0"
+              value={laborHoursInput}
+              onChangeText={setLaborHoursInput}
+              keyboardType="decimal-pad"
+              containerStyle={styles.laborColumn}
+            />
+          </View>
+          <Input
+            label="Tax rate (%)"
+            placeholder="0"
+            value={taxRateInput}
+            onChangeText={setTaxRateInput}
+            keyboardType="decimal-pad"
+            rightElement={<Text>%</Text>}
+          />
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Labor charge</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(totals.laborTotal)}</Text>
             </View>
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Labor charge</Text>
-                <Text style={styles.summaryValue}>{formatCurrency(totals.laborTotal)}</Text>
-              </View>
-              <Text style={styles.caption}>
-                The labor charge automatically feeds into your estimate grand total.
-              </Text>
-            </View>
-          </Card>
+            <Text style={styles.caption}>
+              Labor and tax entries automatically feed into your estimate grand total.
+            </Text>
+          </View>
+        </Card>
 
           <Card style={{ gap: theme.spacing.lg }}>
             <View style={styles.sectionHeader}>
@@ -1935,13 +1703,22 @@ export default function NewEstimateScreen() {
               </View>
             ) : (
               <View style={styles.photoGrid}>
-                {photoDrafts.map((photo) => (
+                {photoDrafts.map((photo, index) => (
                   <View key={photo.id} style={styles.photoCard}>
                     <Image source={{ uri: photo.localUri }} style={styles.photoImage} />
                     <View style={styles.photoFooter}>
-                      <Text style={styles.caption}>Photo #{photo.id.slice(0, 6)}</Text>
+                      <Text style={styles.caption}>Photo {index + 1}</Text>
+                      <Input
+                        label="Description"
+                        placeholder="Add helpful context"
+                        value={photo.description}
+                        onChangeText={(value) => handlePhotoDescriptionChange(photo.id, value)}
+                        multiline
+                        numberOfLines={2}
+                        containerStyle={styles.photoDescriptionInput}
+                      />
                       <Button
-                        label="Remove"
+                        label="Remove photo"
                         variant="ghost"
                         alignment="inline"
                         onPress={() => handleRemovePhoto(photo.id)}
@@ -1963,24 +1740,16 @@ export default function NewEstimateScreen() {
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, theme.spacing.lg) }]}>
           <View style={styles.footerButtons}>
             <Button
-              label={sending ? "Saving…" : "Save & Send"}
-              onPress={handleSaveAndSend}
-              loading={sending}
-              disabled={sending || saving}
-            />
-            <Button
-              label={saving ? "Saving…" : "Save Draft"}
-              variant="secondary"
-              onPress={handleSaveDraft}
+              label={saving ? "Saving…" : "Save & Continue"}
+              onPress={handleSaveAndContinue}
               loading={saving}
-              disabled={saving || sending}
+              disabled={saving}
             />
             <Button
-              label={previewing ? "Preparing preview…" : "Preview"}
+              label="Cancel"
               variant="ghost"
-              onPress={handlePreview}
-              loading={previewing}
-              disabled={previewing || saving || sending}
+              onPress={handleCancel}
+              disabled={saving}
             />
           </View>
         </View>
