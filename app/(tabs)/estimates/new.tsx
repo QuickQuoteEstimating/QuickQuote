@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -16,8 +16,10 @@ import * as ImagePicker from "expo-image-picker";
 import { v4 as uuidv4 } from "uuid";
 
 import CustomerForm from "../../../components/CustomerForm";
+import { type EstimateItemFormSubmit, type EstimateItemTemplate } from "../../../components/EstimateItemForm";
 import { Button, Card, Input, ListItem } from "../../../components/ui";
 import { useAuth } from "../../../context/AuthContext";
+import { useItemEditor, type ItemEditorConfig } from "../../../context/ItemEditorContext";
 import { useSettings } from "../../../context/SettingsContext";
 import { sanitizeEstimateForQueue } from "../../../lib/estimates";
 import {
@@ -54,9 +56,9 @@ type CustomerOption = {
 
 type LineItemDraft = {
   id: string;
-  name: string;
-  quantity: string;
-  unitPrice: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
   applyMarkup: boolean;
   templateId: string | null;
 };
@@ -135,6 +137,18 @@ function formatCurrency(value: number): string {
   return CURRENCY_FORMATTER.format(Math.round(value * 100) / 100);
 }
 
+function formatQuantityDisplay(quantity: number): string {
+  if (!Number.isFinite(quantity)) {
+    return "0";
+  }
+
+  const normalized = Math.round(quantity * 1000) / 1000;
+  if (Number.isInteger(normalized)) {
+    return normalized.toFixed(0);
+  }
+  return normalized.toString();
+}
+
 function parseDecimal(value: string): number | null {
   if (!value) {
     return null;
@@ -158,14 +172,7 @@ function computeLineItemTotals(
   markupMode: MarkupMode,
   markupValue: number,
 ): { baseTotal: number; total: number; markupAmount: number } {
-  const quantity = parseDecimal(item.quantity);
-  const unitPrice = parseDecimal(item.unitPrice);
-
-  if (quantity === null || unitPrice === null) {
-    return { baseTotal: 0, total: 0, markupAmount: 0 };
-  }
-
-  const base = roundCurrency(quantity * unitPrice);
+  const base = roundCurrency((item.quantity || 0) * (item.unitPrice || 0));
   const result = applyMarkup(base, { mode: markupMode, value: markupValue }, { apply: item.applyMarkup });
   return { baseTotal: base, total: result.total, markupAmount: result.markupAmount };
 }
@@ -300,8 +307,30 @@ function createStyles(theme: Theme) {
       padding: theme.spacing.lg,
       gap: theme.spacing.md,
     },
+    lineItemHeaderRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: theme.spacing.md,
+    },
+    lineItemHeaderInfo: {
+      flex: 1,
+      gap: 4,
+    },
+    lineItemTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.primaryText,
+    },
+    lineItemMeta: {
+      fontSize: 13,
+      color: theme.colors.mutedText,
+    },
     savedItemsPicker: {
       gap: theme.spacing.sm,
+    },
+    sectionCard: {
+      gap: theme.spacing.lg,
     },
     savedItemsLabel: {
       fontSize: 14,
@@ -314,32 +343,6 @@ function createStyles(theme: Theme) {
       borderRadius: theme.radii.md,
       overflow: "hidden",
       backgroundColor: theme.colors.surfaceAlt,
-    },
-    lineItemRow: {
-      flexDirection: "row",
-      gap: theme.spacing.md,
-    },
-    lineItemColumn: {
-      flex: 1,
-    },
-    lineItemToggleRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: theme.spacing.md,
-    },
-    lineItemToggleInfo: {
-      flex: 1,
-      gap: 4,
-    },
-    lineItemToggleLabel: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: theme.colors.primaryText,
-    },
-    lineItemToggleHint: {
-      fontSize: 12,
-      color: theme.colors.mutedText,
     },
     lineItemSummaryRow: {
       flexDirection: "row",
@@ -368,11 +371,6 @@ function createStyles(theme: Theme) {
       fontSize: 16,
       fontWeight: "600",
       color: theme.colors.primaryText,
-    },
-    lineItemSummaryTotalRow: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.accent,
-      backgroundColor: theme.colors.accentSoft,
     },
     lineItemSummaryTotal: {
       fontSize: 18,
@@ -477,6 +475,8 @@ function createStyles(theme: Theme) {
 export default function NewEstimateScreen() {
   const { user, session } = useAuth();
   const { settings } = useSettings();
+  const { openEditor } = useItemEditor();
+  const navigation = useRouter();
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
@@ -518,7 +518,6 @@ export default function NewEstimateScreen() {
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([]);
   const [savedItems, setSavedItems] = useState<SavedItemRecord[]>([]);
   const [selectedSavedItemId, setSelectedSavedItemId] = useState<string>("");
-  const [savingLibraryItemIds, setSavingLibraryItemIds] = useState<string[]>([]);
 
   const [photoDrafts, setPhotoDrafts] = useState<PhotoDraft[]>([]);
   const [pendingPhotoDeletes, setPendingPhotoDeletes] = useState<PhotoDraft[]>([]);
@@ -565,6 +564,18 @@ export default function NewEstimateScreen() {
     };
   }, [userId]);
 
+  const savedItemTemplates = useMemo<EstimateItemTemplate[]>(
+    () =>
+      savedItems.map((item) => ({
+        id: item.id,
+        description: item.name,
+        unit_price: item.default_unit_price,
+        default_quantity: item.default_quantity,
+        default_markup_applicable: item.default_markup_applicable !== 0,
+      })),
+    [savedItems],
+  );
+
   const computedLineItems = useMemo(
     () =>
       lineItems.map((item) => {
@@ -573,7 +584,9 @@ export default function NewEstimateScreen() {
           settings.materialMarkupMode,
           settings.materialMarkup,
         );
-        return { ...item, baseTotal, total, markupAmount };
+        const unitPriceWithMarkup =
+          item.quantity > 0 ? roundCurrency(total / item.quantity) : total;
+        return { ...item, baseTotal, total, markupAmount, unitPriceWithMarkup };
       }),
     [lineItems, settings.materialMarkup, settings.materialMarkupMode],
   );
@@ -743,27 +756,116 @@ export default function NewEstimateScreen() {
     jobCustomAddressRef.current = value;
   }, []);
 
-  const handleAddLineItem = useCallback(() => {
-    setLineItems((current) => [
-      ...current,
-      { id: uuidv4(), name: "", quantity: "1", unitPrice: "", applyMarkup: true, templateId: null },
-    ]);
-  }, []);
-
-  const handleLineItemChange = useCallback(
-    (itemId: string, field: keyof LineItemDraft, value: string) => {
-      setLineItems((current) =>
-        current.map((item) => (item.id === itemId ? { ...item, [field]: value } : item)),
-      );
+  const openLineItemEditor = useCallback(
+    (config: ItemEditorConfig) => {
+      openEditor(config);
+      if (typeof navigation.push === "function") {
+        navigation.push("/(tabs)/estimates/item-editor");
+      }
     },
-    [],
+    [navigation, openEditor],
   );
 
-  const handleLineItemApplyMarkupChange = useCallback((itemId: string, value: boolean) => {
-    setLineItems((current) =>
-      current.map((item) => (item.id === itemId ? { ...item, applyMarkup: value } : item)),
-    );
-  }, []);
+  const makeLineItemSubmitHandler = useCallback(
+    (existingItem?: LineItemDraft | null) =>
+      async ({ values, saveToLibrary, templateId }: EstimateItemFormSubmit) => {
+        let resolvedTemplateId = templateId ?? null;
+
+        if (saveToLibrary) {
+          if (!userId) {
+            Alert.alert(
+              "Saved items",
+              "You need to be signed in to save items to your library.",
+            );
+          } else {
+            try {
+              const record = await upsertSavedItem({
+                id: templateId ?? undefined,
+                userId,
+                name: values.description,
+                unitPrice: values.unit_price,
+                defaultQuantity: values.quantity,
+                markupApplicable: values.apply_markup,
+              });
+              resolvedTemplateId = record.id;
+              setSavedItems((current) => {
+                const next = [...current];
+                const index = next.findIndex((item) => item.id === record.id);
+                if (index >= 0) {
+                  next[index] = record;
+                } else {
+                  next.push(record);
+                }
+                return next.sort((a, b) => a.name.localeCompare(b.name));
+              });
+            } catch (error) {
+              console.error("Failed to save item to library", error);
+              Alert.alert(
+                "Saved items",
+                "We couldn't save this item to your library. The line item was still updated.",
+              );
+            }
+          }
+        }
+
+        const nextItem: LineItemDraft = {
+          id: existingItem?.id ?? uuidv4(),
+          description: values.description,
+          quantity: values.quantity,
+          unitPrice: values.unit_price,
+          applyMarkup: values.apply_markup,
+          templateId: resolvedTemplateId,
+        };
+
+        setLineItems((current) => {
+          if (existingItem) {
+            return current.map((item) => (item.id === existingItem.id ? nextItem : item));
+          }
+          return [...current, nextItem];
+        });
+      },
+    [userId],
+  );
+
+  const handleAddLineItem = useCallback(() => {
+    openLineItemEditor({
+      title: "Add line item",
+      submitLabel: "Add line item",
+      templates: () => savedItemTemplates,
+      materialMarkupValue: settings.materialMarkup,
+      materialMarkupMode: settings.materialMarkupMode,
+      showLibraryToggle: true,
+      onSubmit: makeLineItemSubmitHandler(null),
+    });
+  }, [makeLineItemSubmitHandler, openLineItemEditor, savedItemTemplates, settings.materialMarkup, settings.materialMarkupMode]);
+
+  const handleEditLineItem = useCallback(
+    (item: LineItemDraft) => {
+      openLineItemEditor({
+        title: "Edit line item",
+        submitLabel: "Update line item",
+        initialValue: {
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          apply_markup: item.applyMarkup,
+        },
+        initialTemplateId: item.templateId,
+        templates: () => savedItemTemplates,
+        materialMarkupValue: settings.materialMarkup,
+        materialMarkupMode: settings.materialMarkupMode,
+        showLibraryToggle: true,
+        onSubmit: makeLineItemSubmitHandler(item),
+      });
+    },
+    [
+      makeLineItemSubmitHandler,
+      openLineItemEditor,
+      savedItemTemplates,
+      settings.materialMarkup,
+      settings.materialMarkupMode,
+    ],
+  );
 
   const handleRemoveLineItem = useCallback((itemId: string) => {
     setLineItems((current) => current.filter((item) => item.id !== itemId));
@@ -771,102 +873,34 @@ export default function NewEstimateScreen() {
 
   const handleApplySavedItem = useCallback(
     (savedItemId: string) => {
-      const template = savedItems.find((item) => item.id === savedItemId);
+      const template = savedItemTemplates.find((item) => item.id === savedItemId);
       if (!template) {
+        setSelectedSavedItemId("");
         return;
       }
 
-      setLineItems((current) => [
-        ...current,
-        {
-          id: uuidv4(),
-          name: template.name,
-          quantity:
-            template.default_quantity !== undefined && template.default_quantity !== null
-              ? String(template.default_quantity)
-              : "1",
-          unitPrice: template.default_unit_price.toFixed(2),
-          applyMarkup: (template.default_markup_applicable ?? 1) !== 0,
-          templateId: template.id,
+      openLineItemEditor({
+        title: "Add line item",
+        submitLabel: "Add line item",
+        initialTemplateId: template.id,
+        templates: () => savedItemTemplates,
+        materialMarkupValue: settings.materialMarkup,
+        materialMarkupMode: settings.materialMarkupMode,
+        showLibraryToggle: true,
+        onSubmit: async (payload) => {
+          await makeLineItemSubmitHandler(null)(payload);
+          setSelectedSavedItemId("");
         },
-      ]);
-      setSelectedSavedItemId("");
+        onCancel: () => setSelectedSavedItemId(""),
+      });
     },
-    [savedItems],
-  );
-
-  const handleSaveLineItemToLibrary = useCallback(
-    async (itemId: string) => {
-      const draft = lineItems.find((item) => item.id === itemId);
-      if (!draft) {
-        return;
-      }
-
-      const trimmedName = draft.name.trim();
-      const quantityValue = parseDecimal(draft.quantity);
-      const unitPriceValue = parseDecimal(draft.unitPrice);
-
-      if (!trimmedName || quantityValue === null || unitPriceValue === null) {
-        Alert.alert(
-          "Saved items",
-          "Enter a name, quantity, and unit price before saving this item to your library.",
-        );
-        return;
-      }
-
-      if (!userId) {
-        Alert.alert(
-          "Saved items",
-          "You need to be signed in to save items to your library.",
-        );
-        return;
-      }
-
-      const normalizedQuantity = Math.max(1, Math.round(quantityValue));
-      const normalizedUnitPrice = Math.max(0, Math.round(unitPriceValue * 100) / 100);
-
-      setSavingLibraryItemIds((current) =>
-        current.includes(itemId) ? current : [...current, itemId],
-      );
-
-      try {
-        const record = await upsertSavedItem({
-          id: draft.templateId ?? undefined,
-          userId,
-          name: trimmedName,
-          unitPrice: normalizedUnitPrice,
-          defaultQuantity: normalizedQuantity,
-          markupApplicable: draft.applyMarkup,
-        });
-
-        setSavedItems((current) => {
-          const next = [...current];
-          const existingIndex = next.findIndex((item) => item.id === record.id);
-          if (existingIndex >= 0) {
-            next[existingIndex] = record;
-          } else {
-            next.push(record);
-          }
-          next.sort((a, b) => a.name.localeCompare(b.name));
-          return next;
-        });
-
-        setLineItems((current) =>
-          current.map((item) => (item.id === itemId ? { ...item, templateId: record.id } : item)),
-        );
-
-        Alert.alert("Saved items", "This line item was saved to your library.");
-      } catch (error) {
-        console.error("Failed to save line item to library", error);
-        Alert.alert(
-          "Saved items",
-          "We couldn't save this item to your library. Please try again.",
-        );
-      } finally {
-        setSavingLibraryItemIds((current) => current.filter((value) => value !== itemId));
-      }
-    },
-    [lineItems, userId],
+    [
+      makeLineItemSubmitHandler,
+      openLineItemEditor,
+      savedItemTemplates,
+      settings.materialMarkup,
+      settings.materialMarkupMode,
+    ],
   );
 
   const handleAddPhoto = useCallback(async () => {
@@ -966,11 +1000,13 @@ export default function NewEstimateScreen() {
       if (!context) {
         return;
       }
-      router.replace(`/(tabs)/estimates/${context.estimate.id}`);
+      if (typeof navigation.replace === "function") {
+        navigation.replace(`/(tabs)/estimates/${context.estimate.id}`);
+      }
     } finally {
       setSaving(false);
     }
-  }, [saveEstimate, saving]);
+  }, [navigation, saveEstimate, saving]);
 
   const handleCancel = useCallback(() => {
     Alert.alert("Discard estimate?", "Your current changes will be lost.", [
@@ -979,11 +1015,13 @@ export default function NewEstimateScreen() {
         text: "Discard",
         style: "destructive",
         onPress: () => {
-          router.back();
+          if (typeof navigation.back === "function") {
+            navigation.back();
+          }
         },
       },
     ]);
-  }, []);
+  }, [navigation]);
 
   const saveEstimate = useCallback(async (): Promise<SavedEstimateContext | null> => {
     if (!userId) {
@@ -998,55 +1036,41 @@ export default function NewEstimateScreen() {
     }
 
     let lineItemError = false;
-    const normalizedLineItems = lineItems
-      .map((item) => {
-        const name = item.name.trim();
-        const quantityValue = parseDecimal(item.quantity);
-        const unitPriceValue = parseDecimal(item.unitPrice);
-        const isBlank = !name && quantityValue === null && unitPriceValue === null;
+    const normalizedLineItems = lineItems.map((item) => {
+      const description = item.description.trim();
+      const quantity = Math.max(0, Math.round(item.quantity * 1000) / 1000);
+      const unitPrice = Math.max(0, Math.round(item.unitPrice * 100) / 100);
 
-        if (isBlank) {
-          return null;
-        }
+      if (!description || quantity <= 0) {
+        lineItemError = true;
+      }
 
-        if (!name || quantityValue === null || unitPriceValue === null) {
-          lineItemError = true;
-          return null;
-        }
+      const sanitized: LineItemDraft = {
+        ...item,
+        description,
+        quantity,
+        unitPrice,
+      };
 
-        const quantity = Math.max(0, Math.round(quantityValue * 1000) / 1000);
-        const unitPrice = Math.max(0, Math.round(unitPriceValue * 100) / 100);
-        const totals = computeLineItemTotals(
-          { ...item, quantity: String(quantity), unitPrice: String(unitPrice) },
-          settings.materialMarkupMode,
-          settings.materialMarkup,
-        );
-        return {
-          name,
-          quantity,
-          unitPrice,
-          baseTotal: totals.baseTotal,
-          total: totals.total,
-          applyMarkup: item.applyMarkup,
-          templateId: item.templateId,
-        };
-      })
-      .filter(
-        (
-          item,
-        ): item is {
-          name: string;
-          quantity: number;
-          unitPrice: number;
-          baseTotal: number;
-          total: number;
-          applyMarkup: boolean;
-          templateId: string | null;
-        } => item !== null,
+      const totals = computeLineItemTotals(
+        sanitized,
+        settings.materialMarkupMode,
+        settings.materialMarkup,
       );
 
+      return {
+        description,
+        quantity,
+        unitPrice,
+        baseTotal: totals.baseTotal,
+        total: totals.total,
+        applyMarkup: sanitized.applyMarkup,
+        templateId: sanitized.templateId,
+      };
+    });
+
     if (lineItemError) {
-      setFormErrors({ lineItems: "Fill in each item with a name, quantity, and price." });
+      setFormErrors({ lineItems: "Fill in each item with a description, quantity, and price." });
       return null;
     }
 
@@ -1188,7 +1212,7 @@ export default function NewEstimateScreen() {
         const record: PersistedEstimateItem = {
           id: uuidv4(),
           estimate_id: newEstimate.id,
-          description: item.name,
+          description: item.description,
           quantity: item.quantity,
           unit_price: item.unitPrice,
           base_total: item.baseTotal,
@@ -1347,7 +1371,7 @@ export default function NewEstimateScreen() {
             </Card>
           ) : null}
 
-          <Card style={{ gap: theme.spacing.lg }}>
+          <Card style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Customer</Text>
               <Text style={styles.sectionSubtitle}>
@@ -1429,7 +1453,7 @@ export default function NewEstimateScreen() {
             ) : null}
           </Card>
 
-          <Card style={{ gap: theme.spacing.lg }}>
+          <Card style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Job Location & Billing</Text>
               <Text style={styles.sectionSubtitle}>
@@ -1468,7 +1492,7 @@ export default function NewEstimateScreen() {
             ) : null}
           </Card>
 
-          <Card style={{ gap: theme.spacing.lg }}>
+          <Card style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Job Details</Text>
               <Text style={styles.sectionSubtitle}>
@@ -1485,7 +1509,7 @@ export default function NewEstimateScreen() {
             />
           </Card>
 
-          <Card style={{ gap: theme.spacing.lg }}>
+          <Card style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Line Items</Text>
               <Text style={styles.sectionSubtitle}>
@@ -1525,88 +1549,53 @@ export default function NewEstimateScreen() {
                 </View>
               ) : (
                 computedLineItems.map((item) => {
-                  const isSaving = savingLibraryItemIds.includes(item.id);
-                  const saveLabel = item.templateId ? "Update saved item" : "Save to library";
+                  const quantityDisplay = formatQuantityDisplay(item.quantity);
                   return (
                     <View key={item.id} style={styles.lineItemCard}>
-                      <Input
-                        label="Item name"
-                        placeholder="Describe the work"
-                        value={item.name}
-                        onChangeText={(value) => handleLineItemChange(item.id, "name", value)}
-                    />
-                    <View style={styles.lineItemRow}>
-                      <Input
-                        label="Quantity"
-                        placeholder="0"
-                        value={item.quantity}
-                        onChangeText={(value) => handleLineItemChange(item.id, "quantity", value)}
-                        keyboardType="decimal-pad"
-                        containerStyle={styles.lineItemColumn}
-                      />
-                      <Input
-                        label="Unit price"
-                        placeholder="0.00"
-                        value={item.unitPrice}
-                        onChangeText={(value) => handleLineItemChange(item.id, "unitPrice", value)}
-                        keyboardType="decimal-pad"
-                        leftElement={<Text>$</Text>}
-                        containerStyle={styles.lineItemColumn}
-                      />
-                    </View>
-                    <View style={styles.lineItemToggleRow}>
-                      <View style={styles.lineItemToggleInfo}>
-                        <Text style={styles.lineItemToggleLabel}>Apply markup</Text>
-                        <Text style={styles.lineItemToggleHint}>Uses your material markup setting.</Text>
-                      </View>
-                      <Switch
-                        value={item.applyMarkup}
-                        onValueChange={(value) => handleLineItemApplyMarkupChange(item.id, value)}
-                        trackColor={{ false: theme.colors.border, true: theme.colors.accentSoft }}
-                        thumbColor={item.applyMarkup ? theme.colors.accent : undefined}
-                      />
-                    </View>
-                    <View style={styles.lineItemSummaryRow}>
-                      <View style={styles.lineItemSummaryColumn}>
-                        <Text style={styles.lineItemSummaryLabel}>Base total</Text>
-                        <Text style={styles.lineItemSummaryHint}>Quantity × unit price</Text>
-                      </View>
-                      <Text style={styles.lineItemSummaryValue}>{formatCurrency(item.baseTotal)}</Text>
-                    </View>
-                    {item.applyMarkup && item.markupAmount > 0 ? (
-                      <View style={styles.lineItemSummaryRow}>
-                        <View style={styles.lineItemSummaryColumn}>
-                          <Text style={styles.lineItemSummaryLabel}>Markup applied</Text>
-                          <Text style={styles.lineItemSummaryHint}>
-                            {settings.materialMarkupMode === "percentage"
-                              ? `${settings.materialMarkup}% material markup`
-                              : `${formatCurrency(settings.materialMarkup)} flat markup`}
+                      <View style={styles.lineItemHeaderRow}>
+                        <View style={styles.lineItemHeaderInfo}>
+                          <Text style={styles.lineItemTitle}>{item.description}</Text>
+                          <Text style={styles.lineItemMeta}>
+                            Qty: {quantityDisplay} @ {formatCurrency(item.unitPriceWithMarkup)}
                           </Text>
                         </View>
-                        <Text style={styles.lineItemSummaryValue}>{formatCurrency(item.markupAmount)}</Text>
+                        <Text style={styles.lineItemSummaryTotal}>{formatCurrency(item.total)}</Text>
                       </View>
-                    ) : null}
-                    <View style={[styles.lineItemSummaryRow, styles.lineItemSummaryTotalRow]}>
-                      <Text style={styles.lineItemSummaryLabel}>Line total</Text>
-                      <Text style={styles.lineItemSummaryTotal}>{formatCurrency(item.total)}</Text>
+                      <View style={styles.lineItemSummaryRow}>
+                        <View style={styles.lineItemSummaryColumn}>
+                          <Text style={styles.lineItemSummaryLabel}>Base total</Text>
+                          <Text style={styles.lineItemSummaryHint}>Quantity × unit price</Text>
+                        </View>
+                        <Text style={styles.lineItemSummaryValue}>{formatCurrency(item.baseTotal)}</Text>
+                      </View>
+                      {item.applyMarkup && item.markupAmount > 0 ? (
+                        <View style={styles.lineItemSummaryRow}>
+                          <View style={styles.lineItemSummaryColumn}>
+                            <Text style={styles.lineItemSummaryLabel}>Markup applied</Text>
+                            <Text style={styles.lineItemSummaryHint}>
+                              {settings.materialMarkupMode === "percentage"
+                                ? `${settings.materialMarkup}% material markup`
+                                : `${formatCurrency(settings.materialMarkup)} flat markup`}
+                            </Text>
+                          </View>
+                          <Text style={styles.lineItemSummaryValue}>{formatCurrency(item.markupAmount)}</Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.inlineActions}>
+                        <Button
+                          label="Edit"
+                          variant="secondary"
+                          alignment="inline"
+                          onPress={() => handleEditLineItem(item)}
+                        />
+                        <Button
+                          label="Remove"
+                          variant="ghost"
+                          alignment="inline"
+                          onPress={() => handleRemoveLineItem(item.id)}
+                        />
+                      </View>
                     </View>
-                    <View style={styles.inlineActions}>
-                      <Button
-                        label={saveLabel}
-                        variant="secondary"
-                        alignment="inline"
-                        onPress={() => handleSaveLineItemToLibrary(item.id)}
-                        loading={isSaving}
-                        disabled={isSaving}
-                      />
-                      <Button
-                        label="Remove"
-                        variant="ghost"
-                        alignment="inline"
-                        onPress={() => handleRemoveLineItem(item.id)}
-                      />
-                    </View>
-                  </View>
                   );
                 })
               )}
@@ -1645,7 +1634,7 @@ export default function NewEstimateScreen() {
         </View>
       </Card>
 
-          <Card style={{ gap: theme.spacing.lg }}>
+          <Card style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Labor</Text>
               <Text style={styles.sectionSubtitle}>
@@ -1690,7 +1679,7 @@ export default function NewEstimateScreen() {
           </View>
         </Card>
 
-          <Card style={{ gap: theme.spacing.lg }}>
+          <Card style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Photos</Text>
               <Text style={styles.sectionSubtitle}>
