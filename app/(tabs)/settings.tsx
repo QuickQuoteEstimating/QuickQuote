@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,8 +16,9 @@ import { Badge, Button, Card, Input, ListItem } from "../../components/ui";
 import LogoPicker from "../../components/LogoPicker";
 import { useAuth } from "../../context/AuthContext";
 import { useSettings } from "../../context/SettingsContext";
+import type { HapticIntensity } from "../../context/SettingsContext";
 import type { MarkupMode } from "../../lib/estimateMath";
-import { Theme } from "../../theme";
+import type { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
 
 const HAPTIC_LABELS = ["Subtle", "Balanced", "Bold"];
@@ -118,6 +118,21 @@ export default function Settings() {
       setHourlyRate(Math.max(0, Math.round(parsed * 100) / 100));
     },
     [setHourlyRate],
+  );
+
+  const handleUpdateTaxRate = useCallback(
+    (value: string) => {
+      const normalized = value.replace(/[^0-9.]/g, "");
+      const parsed = Number.parseFloat(normalized);
+      if (Number.isNaN(parsed)) {
+        setTaxRate(0);
+        return;
+      }
+
+      const clamped = Math.max(0, Math.min(parsed, 100));
+      setTaxRate(clamped);
+    },
+    [setTaxRate],
   );
 
   const handleSavePreferences = useCallback(() => {
@@ -254,7 +269,8 @@ export default function Settings() {
                 step={1}
                 value={settings.hapticIntensity}
                 onSlidingComplete={(value) => {
-                  setHapticIntensity(value);
+                  const intensity = Math.round(value) as HapticIntensity;
+                  setHapticIntensity(intensity);
                   triggerHaptic();
                 }}
                 minimumTrackTintColor={theme.colors.accent}
@@ -319,7 +335,7 @@ export default function Settings() {
             label="Sales tax percentage"
             value={taxRateInput}
             onChangeText={setTaxRateInput}
-            onBlur={() => handleUpdatePercentage(taxRateInput, setTaxRate)}
+            onBlur={() => handleUpdateTaxRate(taxRateInput)}
             keyboardType="decimal-pad"
             rightElement={<Text style={styles.inputAdornment}>%</Text>}
           />
