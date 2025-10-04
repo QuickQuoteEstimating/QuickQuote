@@ -26,7 +26,7 @@ android: {
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
-    softwareKeyboardLayoutMode: "pan",
+    softwareKeyboardLayoutMode: "resize",
   },
   web: {
     favicon: "./assets/favicon.png",

@@ -15,6 +15,8 @@ import {
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
 
+
+
 export interface InputProps extends TextInputProps {
   label?: string;
   caption?: string;
@@ -23,6 +25,9 @@ export interface InputProps extends TextInputProps {
   rightElement?: ReactNode;
   containerStyle?: StyleProp<ViewStyle>;
   inputStyle?: StyleProp<TextStyle>;
+  multiline?: boolean;
+  onFocus?: (e: FocusEvent) => void;
+  onBlur?: (e: BlurEvent) => void;
 }
 
 export const Input = forwardRef<TextInput, InputProps>(function Input(
