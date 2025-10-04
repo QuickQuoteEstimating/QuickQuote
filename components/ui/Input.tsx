@@ -1,4 +1,12 @@
-import { ForwardedRef, ReactNode, forwardRef, useCallback, useMemo, useState } from "react";
+import {
+  ForwardedRef,
+  ReactNode,
+  forwardRef,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
+import type { ComponentProps } from "react";
 import {
   BlurEvent,
   FocusEvent,
@@ -15,7 +23,14 @@ import {
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
 
+type BaseAutoComplete = ComponentProps<typeof TextInput>["autoComplete"];
 
+declare module "react-native" {
+  interface TextInputProps {
+    autoCapitalize?: "none" | "sentences" | "words" | "characters";
+    autoComplete?: BaseAutoComplete;
+  }
+}
 
 export interface InputProps extends TextInputProps {
   label?: string;

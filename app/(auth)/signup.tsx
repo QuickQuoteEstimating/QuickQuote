@@ -1,5 +1,6 @@
 import { Link, router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ComponentProps } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -8,7 +9,13 @@ import {
   StyleSheet,
   TextInput,
   View,
+} from "react-native";
+import type {
   KeyboardTypeOptions,
+  ReturnKeyTypeOptions,
+  StyleProp,
+  TextStyle,
+  ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
@@ -244,14 +251,16 @@ function createStyles(theme: Theme) {
   });
 }
 
+type NativeTextInputProps = ComponentProps<typeof TextInput>;
+
 export interface InputProps {
   label?: string;
   placeholder?: string;
   secureTextEntry?: boolean;
   keyboardType?: KeyboardTypeOptions;
-  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  autoCapitalize?: NativeTextInputProps["autoCapitalize"];
   autoCorrect?: boolean;
-  autoComplete?: string;
+  autoComplete?: NativeTextInputProps["autoComplete"];
   multiline?: boolean;
   returnKeyType?: ReturnKeyTypeOptions;
   blurOnSubmit?: boolean;

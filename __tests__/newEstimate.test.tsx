@@ -20,12 +20,13 @@ jest.mock("@react-native-picker/picker", () => {
   const { View, Pressable, Text } = require("react-native");
   const MockPicker = ({ children, onValueChange }: any) => (
     <View testID="picker">
-      {React.Children.map(children, (child, index) => {
+      {React.Children.map(children, (child: React.ReactNode, index: number) => {
         if (!React.isValidElement(child)) {
           return child;
         }
-        return React.cloneElement(child, {
-          onSelect: () => onValueChange(child.props.value, index),
+        const element = child as React.ReactElement<{ value?: string }>;
+        return React.cloneElement(element, {
+          onSelect: () => onValueChange(element.props.value, index),
         });
       })}
     </View>
