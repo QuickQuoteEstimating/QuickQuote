@@ -3,7 +3,10 @@ import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
+  AlertButton,
   Image,
+  Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -13,6 +16,11 @@ import {
 import { Picker } from "@react-native-picker/picker";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import * as MailComposer from "expo-mail-composer";
+import { MailComposerStatus } from "expo-mail-composer";
+import * as Print from "expo-print";
+import * as SMS from "expo-sms";
+import * as FileSystem from "expo-file-system/legacy";
 import { v4 as uuidv4 } from "uuid";
 
 import CustomerForm from "../../../components/CustomerForm";
@@ -29,7 +37,7 @@ import {
   roundCurrency,
   type MarkupMode,
 } from "../../../lib/estimateMath";
-import { openDB, queueChange } from "../../../lib/sqlite";
+import { logEstimateDelivery, openDB, queueChange } from "../../../lib/sqlite";
 import { runSync } from "../../../lib/sync";
 import {
   createPhotoStoragePath,
@@ -37,6 +45,12 @@ import {
   persistLocalPhotoCopy,
 } from "../../../lib/storage";
 import { listSavedItems, upsertSavedItem, type SavedItemRecord } from "../../../lib/savedItems";
+import {
+  renderEstimatePdf,
+  uploadEstimatePdfToStorage,
+  type EstimatePdfOptions,
+  type EstimatePdfResult,
+} from "../../../lib/pdf";
 import type { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 import type { CustomerRecord } from "../../../types/customers";
@@ -425,6 +439,9 @@ function createStyles(theme: Theme) {
       flexDirection: "column",
       gap: theme.spacing.md,
     },
+    deleteSection: {
+      marginTop: theme.spacing.md,
+    },
     caption: {
       fontSize: 12,
       color: theme.colors.mutedText,
@@ -468,7 +485,7 @@ function createStyles(theme: Theme) {
 
 export default function CreateEstimateView({
   estimateId,
-  onCreated,
+  onCreated: _onCreated,
   onCancel,
 }: CreateEstimateViewProps) {
   const { user, session } = useAuth();
@@ -524,11 +541,16 @@ export default function CreateEstimateView({
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pdfWorking, setPdfWorking] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [persistedData, setPersistedData] = useState<{
     estimate: PersistedEstimateRecord;
     items: PersistedEstimateItem[];
   } | null>(null);
+
+  const lastPdfRef = useRef<EstimatePdfResult | null>(null);
 
   useEffect(() => {
     if (jobAddressSameAsBilling) {
@@ -620,6 +642,89 @@ export default function CreateEstimateView({
     settings.materialMarkup,
     settings.materialMarkupMode,
     taxRateValue,
+  ]);
+  const pdfOptions = useMemo<EstimatePdfOptions | null>(() => {
+    if (!selectedCustomer) {
+      return null;
+    }
+
+    const estimateRecord = persistedData?.estimate ?? null;
+    const identifier = estimateRecord?.id ?? draftEstimateIdRef.current;
+    const trimmedNotes = jobDetails.trim();
+    const billingAddressValue = billingAddress.trim() ? billingAddress.trim() : null;
+    const jobAddressValue = jobAddressSameAsBilling
+      ? billingAddressValue
+      : jobAddress.trim()
+          ? jobAddress.trim()
+          : null;
+    const activePhotos = photoDrafts.filter(
+      (photo) => !pendingPhotoDeletes.some((pending) => pending.id === photo.id),
+    );
+
+    return {
+      estimate: {
+        id: identifier,
+        date: estimateRecord?.date ?? null,
+        status: estimateRecord?.status ?? "draft",
+        notes: trimmedNotes ? trimmedNotes : null,
+        total: totals.grandTotal,
+        materialTotal: totals.materialTotal,
+        laborTotal: totals.laborTotal,
+        taxTotal: totals.taxTotal,
+        subtotal: totals.subtotal,
+        laborHours: totals.laborHours,
+        laborRate: totals.laborRate,
+        billingAddress: billingAddressValue,
+        jobAddress: jobAddressValue,
+        jobDetails: trimmedNotes ? trimmedNotes : null,
+        customer: {
+          name: selectedCustomer.name?.trim() || "Customer",
+          email: selectedCustomer.email ?? null,
+          phone: selectedCustomer.phone ?? null,
+          address: billingAddressValue ?? selectedCustomer.address ?? null,
+        },
+      },
+      items: computedLineItems.map((item) => ({
+        id: item.id,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice:
+          item.quantity > 0
+            ? Math.round((item.total / item.quantity) * 100) / 100
+            : Math.round(item.total * 100) / 100,
+        total: Math.round(item.total * 100) / 100,
+      })),
+      photos:
+        activePhotos.length > 0
+          ? activePhotos.map((photo) => ({
+              id: photo.id,
+              description: photo.description.trim() ? photo.description.trim() : null,
+              localUri: photo.localUri ?? null,
+              remoteUri: photo.storagePath,
+            }))
+          : undefined,
+      termsAndConditions: settings.termsAndConditions,
+      paymentDetails: settings.paymentDetails,
+    };
+  }, [
+    billingAddress,
+    computedLineItems,
+    jobAddress,
+    jobAddressSameAsBilling,
+    jobDetails,
+    pendingPhotoDeletes,
+    persistedData?.estimate,
+    photoDrafts,
+    selectedCustomer,
+    settings.paymentDetails,
+    settings.termsAndConditions,
+    totals.grandTotal,
+    totals.laborHours,
+    totals.laborRate,
+    totals.laborTotal,
+    totals.materialTotal,
+    totals.subtotal,
+    totals.taxTotal,
   ]);
 
   const fetchCustomers = useCallback(async (query: string) => {
@@ -987,28 +1092,22 @@ export default function CreateEstimateView({
     );
   }, []);
 
-  const handleCancel = useCallback(() => {
-    Alert.alert("Discard estimate?", "Your current changes will be lost.", [
-      { text: "Keep editing", style: "cancel" },
-      {
-        text: "Discard",
-        style: "destructive",
-        onPress: () => {
-          onCancel();
-        },
-      },
-    ]);
-  }, [onCancel]);
-
   const saveEstimate = useCallback(async (): Promise<SavedEstimateContext | null> => {
+    if (saving) {
+      return null;
+    }
+
+    setSaving(true);
     if (!userId) {
       setFormError("You need to be signed in to create a new estimate.");
       Alert.alert("Estimate", "You need to be signed in to create a new estimate.");
+      setSaving(false);
       return null;
     }
 
     if (!selectedCustomer) {
       setFormErrors({ customer: "Select a customer before saving." });
+      setSaving(false);
       return null;
     }
 
@@ -1317,6 +1416,8 @@ export default function CreateEstimateView({
       setFormError("We couldn't save your estimate. Please try again.");
       Alert.alert("Estimate", "We couldn't save your estimate. Please try again.");
       return null;
+    } finally {
+      setSaving(false);
     }
   }, [
     billingAddress,
@@ -1332,24 +1433,578 @@ export default function CreateEstimateView({
     selectedCustomer,
     taxRateValue,
     userId,
+    saving,
   ]);
 
-  const handleSaveAndContinue = useCallback(async () => {
-    if (saving) {
-      return;
+  const ensurePdfReady = useCallback(async (): Promise<EstimatePdfResult | null> => {
+    if (!pdfOptions) {
+      Alert.alert(
+        "Missing data",
+        "Add a customer and at least one line item before creating a PDF.",
+      );
+      return null;
     }
 
     try {
-      setSaving(true);
+      const pdf = await renderEstimatePdf(pdfOptions);
+      lastPdfRef.current = pdf;
+      return pdf;
+    } catch (error) {
+      console.error("Failed to generate PDF", error);
+      Alert.alert("Error", "Unable to prepare the PDF. Please try again.");
+      return null;
+    }
+  }, [pdfOptions]);
+
+  const ensureShareablePdf = useCallback(
+    async (pdf: EstimatePdfResult): Promise<EstimatePdfResult> => {
+      const estimateId = pdfOptions?.estimate.id ?? persistedData?.estimate.id;
+      if (!estimateId) {
+        return pdf;
+      }
+      if (pdf.publicUrl && pdf.storagePath) {
+        return pdf;
+      }
+      if (!process.env.EXPO_PUBLIC_SUPABASE_URL) {
+        return pdf;
+      }
+
+      try {
+        const uploaded = await uploadEstimatePdfToStorage(pdf, estimateId);
+        if (uploaded) {
+          const enriched: EstimatePdfResult = {
+            ...pdf,
+            storagePath: uploaded.storagePath,
+            publicUrl: uploaded.publicUrl,
+          };
+          lastPdfRef.current = enriched;
+          return enriched;
+        }
+      } catch (error) {
+        console.warn("Failed to upload estimate PDF for sharing", error);
+      }
+
+      return pdf;
+    },
+    [pdfOptions?.estimate.id, persistedData?.estimate.id],
+  );
+
+  const resolveAttachmentUri = useCallback(async (uri: string): Promise<string> => {
+    if (Platform.OS === "android" && typeof FileSystem.getContentUriAsync === "function") {
+      try {
+        const contentUri = await FileSystem.getContentUriAsync(uri);
+        if (contentUri) {
+          return contentUri;
+        }
+      } catch (error) {
+        console.warn("Failed to resolve attachment URI", error);
+      }
+    }
+    return uri;
+  }, []);
+
+  const markEstimateSent = useCallback(
+    async (channel: "email" | "sms") => {
+      const current = persistedData?.estimate ?? null;
+      const successMessage =
+        channel === "email"
+          ? "Estimate sent to your client via email."
+          : "Estimate sent to your client via text message.";
+
+      if (!current) {
+        Alert.alert("Estimate sent", successMessage);
+        return;
+      }
+
+      if (current.status?.toLowerCase() === "sent") {
+        Alert.alert("Estimate sent", successMessage);
+        return;
+      }
+
+      try {
+        const now = new Date().toISOString();
+        const nextVersion = (current.version ?? 0) + 1;
+        const db = await openDB();
+        await db.runAsync(
+          `UPDATE estimates
+           SET status = ?, version = ?, updated_at = ?
+           WHERE id = ?`,
+          ["sent", nextVersion, now, current.id],
+        );
+
+        const updatedEstimate: PersistedEstimateRecord = {
+          ...current,
+          status: "sent",
+          version: nextVersion,
+          updated_at: now,
+        };
+
+        setPersistedData((data) => (data ? { ...data, estimate: updatedEstimate } : data));
+
+        await queueChange("estimates", "update", sanitizeEstimateForQueue(updatedEstimate));
+        await runSync().catch((error) => {
+          console.warn("Failed to sync sent estimate", error);
+        });
+
+        Alert.alert("Estimate sent", successMessage);
+      } catch (error) {
+        console.error("Failed to update estimate status", error);
+        Alert.alert(
+          "Status",
+          `Your estimate was ${
+            channel === "email" ? "emailed" : "texted"
+          }, but we couldn't update the status automatically. Please review it manually.`,
+        );
+      }
+    },
+    [persistedData?.estimate, queueChange, runSync],
+  );
+
+  const sendEstimateViaEmail = useCallback(
+    async (pdf: EstimatePdfResult) => {
+      const estimateRecord = persistedData?.estimate ?? null;
+      if (!estimateRecord) {
+        Alert.alert("Save estimate", "Save the estimate before sending it to a customer.");
+        return;
+      }
+
+      const emailAddress = selectedCustomer?.email?.trim();
+      if (!emailAddress) {
+        Alert.alert(
+          "Missing email",
+          "Add an email address for this customer to share the estimate via email.",
+        );
+        return;
+      }
+
+      setSending(true);
+      try {
+        const shareablePdf = await ensureShareablePdf(pdf);
+        let attachmentUri: string | null = null;
+        if (shareablePdf.uri?.startsWith("file://")) {
+          attachmentUri = await resolveAttachmentUri(shareablePdf.uri);
+        }
+
+        const subjectText = `Estimate ${estimateRecord.id} from QuickQuote`;
+        const greetingName = selectedCustomer?.name?.trim() || "there";
+        const bodyLines = [
+          `Hi ${greetingName},`,
+          "",
+          "Please review your estimate from QuickQuote.",
+          `Total: ${formatCurrency(totals.grandTotal)}`,
+        ];
+        if (shareablePdf.publicUrl) {
+          bodyLines.push(`PDF: ${shareablePdf.publicUrl}`);
+        } else if (attachmentUri) {
+          bodyLines.push("The estimate PDF is attached for your convenience.");
+        } else {
+          bodyLines.push("Open QuickQuote to download the full PDF estimate.");
+        }
+        bodyLines.push("", "Thank you!");
+        const bodyPlain = bodyLines.join("\n");
+        const messagePreview =
+          bodyPlain.length > 240 ? `${bodyPlain.slice(0, 237)}...` : bodyPlain;
+
+        if (Platform.OS !== "web" && (await MailComposer.isAvailableAsync())) {
+          const composerResult = await MailComposer.composeAsync({
+            recipients: [emailAddress],
+            subject: subjectText,
+            body: bodyPlain,
+            attachments: attachmentUri ? [attachmentUri] : undefined,
+            isHtml: false,
+          });
+
+          await logEstimateDelivery({
+            estimateId: estimateRecord.id,
+            channel: "email",
+            recipient: emailAddress,
+            messagePreview,
+            metadata: {
+              pdfUri: shareablePdf.uri,
+              attachmentUri,
+              publicUrl: shareablePdf.publicUrl ?? null,
+              mailComposerStatus: composerResult.status ?? null,
+            },
+          });
+
+          if (composerResult.status === MailComposerStatus.SENT) {
+            await markEstimateSent("email");
+          } else if (composerResult.status === MailComposerStatus.CANCELLED) {
+            Alert.alert(
+              "Email cancelled",
+              "Email cancelled. You can try again when you're ready.",
+            );
+          } else {
+            Alert.alert(
+              "Email saved",
+              "Email draft saved. Send it from your mail app when ready.",
+            );
+          }
+          return;
+        }
+
+        const subject = encodeURIComponent(subjectText);
+        const body = encodeURIComponent(bodyPlain);
+        const mailto = `mailto:${encodeURIComponent(emailAddress)}?subject=${subject}&body=${body}`;
+
+        let canOpen = true;
+        if (Platform.OS !== "web") {
+          canOpen = await Linking.canOpenURL(mailto);
+        }
+        if (!canOpen) {
+          Alert.alert("Unavailable", "No email client is configured on this device.");
+          return;
+        }
+
+        await Linking.openURL(mailto);
+
+        if (Platform.OS === "web" && typeof document !== "undefined" && shareablePdf.uri) {
+          const link = document.createElement("a");
+          link.href = shareablePdf.uri;
+          link.download = shareablePdf.fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+
+        await logEstimateDelivery({
+          estimateId: estimateRecord.id,
+          channel: "email",
+          recipient: emailAddress,
+          messagePreview,
+          metadata: {
+            pdfUri: shareablePdf.uri,
+            publicUrl: shareablePdf.publicUrl ?? null,
+            mailto,
+          },
+        });
+
+        await markEstimateSent("email");
+      } catch (error) {
+        console.error("Failed to share via email", error);
+        Alert.alert("Error", "Unable to share the estimate via email.");
+      } finally {
+        setSending(false);
+      }
+    },
+    [
+      ensureShareablePdf,
+      logEstimateDelivery,
+      markEstimateSent,
+      persistedData?.estimate,
+      resolveAttachmentUri,
+      selectedCustomer?.email,
+      selectedCustomer?.name,
+      totals.grandTotal,
+    ],
+  );
+
+  const sendEstimateViaSms = useCallback(
+    async (pdf: EstimatePdfResult) => {
+      const estimateRecord = persistedData?.estimate ?? null;
+      if (!estimateRecord) {
+        Alert.alert("Save estimate", "Save the estimate before sending it to a customer.");
+        return;
+      }
+
+      const phoneNumber = selectedCustomer?.phone?.trim();
+      if (!phoneNumber) {
+        Alert.alert(
+          "Missing phone",
+          "Add a mobile number for this customer to share the estimate via SMS.",
+        );
+        return;
+      }
+
+      setSending(true);
+      try {
+        const smsSupported = await SMS.isAvailableAsync();
+        if (!smsSupported) {
+          Alert.alert("Unavailable", "SMS is not supported on this device.");
+          return;
+        }
+
+        const shareablePdf = await ensureShareablePdf(pdf);
+        let attachmentUri: string | null = null;
+        if (shareablePdf.uri?.startsWith("file://")) {
+          attachmentUri = await resolveAttachmentUri(shareablePdf.uri);
+        }
+
+        const messageParts = [
+          `Estimate ${estimateRecord.id}`,
+          `Total: ${formatCurrency(totals.grandTotal)}`,
+        ];
+        if (shareablePdf.publicUrl) {
+          messageParts.push(`PDF: ${shareablePdf.publicUrl}`);
+        } else if (attachmentUri) {
+          messageParts.push("The estimate PDF is attached.");
+        } else {
+          messageParts.push("Download the PDF from QuickQuote to review details.");
+        }
+        const message = messageParts.join("\n");
+
+        let smsResponse;
+        try {
+          smsResponse = await SMS.sendSMSAsync(
+            [phoneNumber],
+            message,
+            attachmentUri
+              ? {
+                  attachments: [
+                    {
+                      uri: attachmentUri,
+                      mimeType: "application/pdf",
+                      filename: shareablePdf.fileName,
+                    },
+                  ],
+                }
+              : undefined,
+          );
+        } catch (error) {
+          console.warn("Failed to send SMS with attachment", error);
+          smsResponse = await SMS.sendSMSAsync([phoneNumber], message);
+        }
+
+        await logEstimateDelivery({
+          estimateId: estimateRecord.id,
+          channel: "sms",
+          recipient: phoneNumber,
+          messagePreview: message.length > 240 ? `${message.slice(0, 237)}...` : message,
+          metadata: {
+            pdfUri: shareablePdf.uri,
+            publicUrl: shareablePdf.publicUrl ?? null,
+            smsResult: smsResponse?.result ?? null,
+          },
+        });
+
+        if (smsResponse?.result === "sent") {
+          await markEstimateSent("sms");
+        } else if (smsResponse?.result === "cancelled") {
+          Alert.alert("Text cancelled", "Text message cancelled before sending.");
+        } else {
+          Alert.alert(
+            "Check messages",
+            "Check your messaging app to finish sending this estimate.",
+          );
+        }
+      } catch (error) {
+        console.error("Failed to share via SMS", error);
+        Alert.alert("Error", "Unable to share the estimate via SMS.");
+      } finally {
+        setSending(false);
+      }
+    },
+    [
+      ensureShareablePdf,
+      logEstimateDelivery,
+      markEstimateSent,
+      persistedData?.estimate,
+      resolveAttachmentUri,
+      selectedCustomer?.phone,
+      totals.grandTotal,
+    ],
+  );
+
+  const handleSaveDraft = useCallback(async () => {
+    const context = await saveEstimate();
+    if (context) {
+      Alert.alert("Draft saved", "Your estimate has been saved as a draft.");
+    }
+  }, [saveEstimate]);
+
+  const handlePreviewPdf = useCallback(async () => {
+    if (pdfWorking) {
+      return;
+    }
+
+    const context = await saveEstimate();
+    if (!context) {
+      return;
+    }
+
+    setPdfWorking(true);
+    try {
+      const pdf = await ensurePdfReady();
+      if (!pdf) {
+        return;
+      }
+
+      if (Platform.OS === "web") {
+        if (typeof window === "undefined") {
+          Alert.alert("Unavailable", "Preview is not supported in this environment.");
+          return;
+        }
+        const previewWindow = window.open("", "_blank");
+        if (!previewWindow) {
+          Alert.alert("Popup blocked", "Allow popups to preview the estimate.");
+          return;
+        }
+        previewWindow.document.write(pdf.html);
+        previewWindow.document.close();
+        return;
+      }
+
+      await Print.printAsync({ html: pdf.html });
+    } catch (error) {
+      console.error("Failed to preview PDF", error);
+      Alert.alert("Error", "Unable to preview the PDF. Please try again.");
+    } finally {
+      setPdfWorking(false);
+    }
+  }, [ensurePdfReady, pdfWorking, saveEstimate]);
+
+  const handleSendToCustomer = useCallback(async () => {
+    if (sending) {
+      return;
+    }
+
+    const hasEmail = Boolean(selectedCustomer?.email?.trim());
+    const hasPhone = Boolean(selectedCustomer?.phone?.trim());
+    if (!hasEmail && !hasPhone) {
+      Alert.alert(
+        "Add client contact",
+        "Add an email address or mobile number before sending this estimate.",
+      );
+      return;
+    }
+
+    setSending(true);
+    try {
       const context = await saveEstimate();
       if (!context) {
         return;
       }
-      onCreated(context);
+
+      const pdf = await ensurePdfReady();
+      if (!pdf) {
+        return;
+      }
+
+      const buttons: AlertButton[] = [{ text: "Cancel", style: "cancel" }];
+      if (hasEmail) {
+        buttons.push({
+          text: hasPhone ? "Email" : "Send email",
+          onPress: () => {
+            void sendEstimateViaEmail(pdf);
+          },
+        });
+      }
+      if (hasPhone) {
+        buttons.push({
+          text: hasEmail ? "Text message" : "Send text",
+          onPress: () => {
+            void sendEstimateViaSms(pdf);
+          },
+        });
+      }
+
+      Alert.alert(
+        "Send estimate",
+        hasEmail && hasPhone
+          ? "Choose how you'd like to share the estimate."
+          : "Confirm how you'd like to send the estimate.",
+        buttons,
+      );
+    } catch (error) {
+      console.error("Failed to prepare estimate for sending", error);
+      Alert.alert("Estimate", "We couldn't send this estimate. Please try again.");
     } finally {
-      setSaving(false);
+      setSending(false);
     }
-  }, [onCreated, saveEstimate, saving]);
+  }, [
+    ensurePdfReady,
+    saveEstimate,
+    selectedCustomer?.email,
+    selectedCustomer?.phone,
+    sendEstimateViaEmail,
+    sendEstimateViaSms,
+    sending,
+  ]);
+
+  const handleDeleteEstimate = useCallback(() => {
+    if (deleting) {
+      return;
+    }
+
+    const current = persistedData?.estimate ?? null;
+    if (!current) {
+      Alert.alert("Delete estimate?", "This will discard your current draft.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            onCancel();
+          },
+        },
+      ]);
+      return;
+    }
+
+    Alert.alert("Delete estimate?", "This will remove the estimate and its contents.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          if (deleting) {
+            return;
+          }
+          setDeleting(true);
+          (async () => {
+            try {
+              const targetEstimateId = current.id;
+              const db = await openDB();
+              await db.execAsync("BEGIN TRANSACTION");
+              try {
+                await db.runAsync(
+                  `UPDATE estimates
+                   SET deleted_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP,
+                       version = COALESCE(version, 0) + 1
+                   WHERE id = ?`,
+                  [targetEstimateId],
+                );
+                await db.runAsync(
+                  `UPDATE estimate_items
+                   SET deleted_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP,
+                       version = COALESCE(version, 0) + 1
+                   WHERE estimate_id = ?`,
+                  [targetEstimateId],
+                );
+                await db.runAsync(
+                  `UPDATE photos
+                   SET deleted_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP,
+                       version = COALESCE(version, 0) + 1
+                   WHERE estimate_id = ?`,
+                  [targetEstimateId],
+                );
+                await db.execAsync("COMMIT");
+              } catch (transactionError) {
+                await db.execAsync("ROLLBACK");
+                throw transactionError;
+              }
+
+              await queueChange("estimates", "delete", { id: targetEstimateId });
+
+              await runSync().catch((error) => {
+                console.warn("Failed to sync estimate deletion", error);
+              });
+
+              onCancel();
+            } catch (error) {
+              console.error("Failed to delete estimate", error);
+              Alert.alert("Error", "Unable to delete this estimate. Please try again.");
+            } finally {
+              setDeleting(false);
+            }
+          })();
+        },
+      },
+    ]);
+  }, [deleting, onCancel, persistedData?.estimate, queueChange, runSync]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -1723,16 +2378,34 @@ export default function CreateEstimateView({
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, theme.spacing.lg) }]}>
           <View style={styles.footerButtons}>
             <Button
-              label={saving ? "Saving…" : "Save & Continue"}
-              onPress={handleSaveAndContinue}
+              label={saving ? "Saving…" : "Save Draft"}
+              onPress={handleSaveDraft}
               loading={saving}
-              disabled={saving}
+              disabled={saving || pdfWorking || sending || deleting}
             />
             <Button
-              label="Cancel"
+              label={sending ? "Preparing…" : "Send to Customer"}
+              onPress={handleSendToCustomer}
+              loading={sending}
+              disabled={saving || sending || pdfWorking || deleting}
+            />
+            <Button
+              label={pdfWorking ? "Preparing preview…" : "Preview PDF"}
               variant="ghost"
-              onPress={handleCancel}
-              disabled={saving}
+              alignment="inline"
+              onPress={handlePreviewPdf}
+              loading={pdfWorking}
+              disabled={pdfWorking || saving || sending || deleting}
+            />
+          </View>
+          <View style={styles.deleteSection}>
+            <Button
+              label={deleting ? "Deleting…" : "Delete Estimate"}
+              variant="danger"
+              alignment="full"
+              onPress={handleDeleteEstimate}
+              loading={deleting}
+              disabled={saving || deleting}
             />
           </View>
         </View>
