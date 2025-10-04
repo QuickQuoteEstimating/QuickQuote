@@ -211,6 +211,10 @@ export default function EstimatesScreen() {
     setLoading(false);
   }, [fetchEstimates]);
 
+  const handleCreateEstimate = useCallback(() => {
+    router.push({ pathname: "/(tabs)/estimates/[id]", params: { mode: "new" } });
+  }, []);
+
   const filteredEstimates = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
@@ -357,7 +361,7 @@ export default function EstimatesScreen() {
                   </Text>
                   <Button
                     label="Create Estimate"
-                    onPress={() => router.push("/(tabs)/estimates/new")}
+                    onPress={handleCreateEstimate}
                     accessibilityLabel="Create a new estimate"
                   />
                 </View>
@@ -375,17 +379,19 @@ export default function EstimatesScreen() {
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
         />
-        <View style={styles.primaryAction}>
-          <Button
-            label="Create Estimate"
-            onPress={() => router.push("/(tabs)/estimates/new")}
-            accessibilityLabel="Create a new estimate"
-          />
-        </View>
+        {filteredEstimates.length > 0 ? (
+          <View style={styles.createAction}>
+            <Button
+              label="Create Estimate"
+              onPress={handleCreateEstimate}
+              accessibilityLabel="Create a new estimate"
+            />
+          </View>
+        ) : null}
         {showFab ? (
           <FAB
             icon={<Feather name="plus" size={24} color={theme.colors.primaryText} />}
-            onPress={() => router.push("/(tabs)/estimates/new")}
+            onPress={handleCreateEstimate}
             accessibilityLabel="Create a new estimate"
             style={styles.fab}
           />
@@ -510,11 +516,9 @@ function createStyles(theme: Theme) {
     statusBadge: {
       backgroundColor: theme.colors.accentSoft,
     },
-    primaryAction: {
-      position: "absolute",
-      bottom: theme.spacing.xl,
-      left: theme.spacing.xl,
-      right: theme.spacing.xl,
+    createAction: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.lg,
     },
     fab: {
       position: "absolute",

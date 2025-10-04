@@ -14,7 +14,7 @@
 - Queue helpers persist pending changes, enabling later sync attempts. 【F:lib/sqlite.ts†L262-L289】
 - Root layout initializes the database and retries sync whenever the app becomes active to flush queued work. 【F:app/_layout.tsx†L131-L170】
 - Customer creation writes to SQLite immediately, queues the mutation, and triggers a sync when connectivity allows. 【F:components/CustomerForm.tsx†L41-L95】
-- Estimate creation/update mirrors the same pattern for estimates, line items, and photos, including retrying sync. 【F:app/(tabs)/estimates/new.tsx†L1120-L1335】
+- Estimate creation/update mirrors the same pattern for estimates, line items, and photos, including retrying sync. 【F:app/(tabs)/estimates/create-view.tsx†L1080-L1336】
 
 ## Soft Delete Coverage
 - Customer deletions soft-delete related estimates, line items, and photos, queue the mutations, and trigger sync. 【F:app/(tabs)/customers.tsx†L288-L382】

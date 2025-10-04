@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "react-native-get-random-values";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Switch,
+  Text,
   View,
   type ListRenderItem,
 } from "react-native";
@@ -22,6 +23,7 @@ import { MailComposerStatus } from "expo-mail-composer";
 import * as Print from "expo-print";
 import * as SMS from "expo-sms";
 import * as FileSystem from "expo-file-system/legacy";
+import CustomerForm from "../../../components/CustomerForm";
 import CustomerPicker from "../../../components/CustomerPicker";
 import {
   type EstimateItemFormSubmit,
@@ -76,6 +78,7 @@ import { Theme } from "../../../theme";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 import type { EstimateListItem, EstimateRecord } from "./index";
 import { v4 as uuidv4 } from "uuid";
+import CreateEstimateView, { SavedEstimateContext } from "./create-view";
 
 type PhotoRecord = {
   id: string;
@@ -247,6 +250,7 @@ const STATUS_OPTIONS = [
 
 type EstimateRouteParams = {
   id?: string | string[];
+  mode?: string | string[];
 };
 
 function getStatusTone(status: string | null | undefined): BadgeTone {
@@ -265,7 +269,12 @@ function getStatusTone(status: string | null | undefined): BadgeTone {
 
 export default function EditEstimateScreen() {
   const params = useLocalSearchParams<EstimateRouteParams>();
-  const estimateId = Array.isArray(params.id) ? params.id[0] ?? "" : params.id ?? "";
+  const navigation = useRouter();
+  const rawEstimateId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const initialEstimateId = rawEstimateId && rawEstimateId.length > 0 ? rawEstimateId : null;
+  const rawMode = Array.isArray(params.mode) ? params.mode[0] : params.mode;
+  const [estimateId, setEstimateId] = useState<string>(() => initialEstimateId ?? uuidv4());
+  const [isCreating, setIsCreating] = useState(!initialEstimateId || rawMode === "new");
   const { user, session } = useAuth();
   const { settings } = useSettings();
   const { theme } = useThemeContext();
@@ -321,6 +330,62 @@ export default function EditEstimateScreen() {
   const [sending, setSending] = useState(false);
   const [sendSuccessMessage, setSendSuccessMessage] = useState<string | null>(null);
   const [customerContact, setCustomerContact] = useState<CustomerContact | null>(null);
+
+  const handleCancelCreate = useCallback(() => {
+    navigation.back();
+  }, [navigation]);
+
+  const handleCreatedEstimate = useCallback(
+    (context: SavedEstimateContext) => {
+      clearEstimateFormDraft(estimateId);
+      setEstimateId(context.estimate.id);
+      draftRef.current = getEstimateFormDraft(context.estimate.id);
+      hasRestoredDraftRef.current = Boolean(draftRef.current);
+      const billingValue = context.billingAddress ?? context.customer.address ?? "";
+      const jobValue = context.jobAddress ?? billingValue;
+      jobCustomAddressRef.current = jobValue === billingValue ? "" : jobValue ?? "";
+      setEstimate(null);
+      estimateRef.current = null;
+      setCustomerContact(null);
+      setCustomerId(context.customer.id);
+      setEstimateDate(context.estimate.date ?? "");
+      const initialNotes = context.jobDetails ?? context.estimate.notes ?? "";
+      setNotes(initialNotes);
+      setStatus(context.estimate.status ?? "draft");
+      setBillingAddress(billingValue);
+      setJobAddress(jobValue ?? "");
+      setJobAddressSameAsBilling(jobValue === billingValue);
+      setItems([]);
+      setPhotos([]);
+      setPhotoDrafts({});
+      setLaborHoursText(
+        context.laborHours && context.laborHours > 0 ? String(context.laborHours) : "0",
+      );
+      setHourlyRateText(
+        context.laborRate && context.laborRate > 0
+          ? context.laborRate.toFixed(2)
+          : settings.hourlyRate.toFixed(2),
+      );
+      setTaxRateText(
+        context.taxRate && context.taxRate > 0
+          ? context.taxRate.toFixed(2)
+          : formatPercentageInput(settings.taxRate),
+      );
+      setSendSuccessMessage(null);
+      setLoading(true);
+      setIsCreating(false);
+      if (typeof navigation.setParams === "function") {
+        navigation.setParams({ id: context.estimate.id });
+      }
+    },
+    [
+      estimateId,
+      formatPercentageInput,
+      navigation,
+      settings.hourlyRate,
+      settings.taxRate,
+    ],
+  );
 
   const billingAddressRef = useRef(billingAddress);
   const jobAddressSameAsBillingRef = useRef(jobAddressSameAsBilling);
@@ -786,9 +851,9 @@ export default function EditEstimateScreen() {
           }
         },
       });
-      router.push("/(tabs)/estimates/item-editor");
+      navigation.push("/(tabs)/estimates/item-editor");
     },
-    [openEditor],
+    [navigation, openEditor],
   );
 
   const persistEstimateTotals = useCallback(
@@ -2042,7 +2107,7 @@ export default function EditEstimateScreen() {
         const record = recordRow ? normalizeEstimateListItemRow(recordRow) : undefined;
         if (!record) {
           Alert.alert("Not found", "Estimate could not be found.", [
-            { text: "OK", onPress: () => router.back() },
+            { text: "OK", onPress: () => navigation.back() },
           ]);
           return;
         }
@@ -2165,12 +2230,19 @@ export default function EditEstimateScreen() {
       }
     };
 
+    if (isCreating) {
+      setLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
     if (estimateId) {
       loadEstimate();
     } else {
       setLoading(false);
       Alert.alert("Missing estimate", "No estimate ID was provided.", [
-        { text: "OK", onPress: () => router.back() },
+        { text: "OK", onPress: () => navigation.back() },
       ]);
     }
 
@@ -2179,6 +2251,7 @@ export default function EditEstimateScreen() {
     };
   }, [
     estimateId,
+    isCreating,
     persistEstimateTotals,
     applyPhotoState,
     settings.hourlyRate,
@@ -2245,7 +2318,7 @@ export default function EditEstimateScreen() {
               console.error("Failed to sync estimate deletion", syncError);
             });
 
-            router.replace("/(tabs)/estimates");
+            navigation.replace("/(tabs)/estimates");
           } catch (error) {
             console.error("Failed to delete estimate", error);
             Alert.alert("Error", "Unable to delete this estimate. Please try again.");
@@ -2255,7 +2328,7 @@ export default function EditEstimateScreen() {
         })();
       },
     );
-  }, [deleting, estimateId]);
+  }, [deleting, estimateId, navigation]);
 
   const handleSaveDraft = useCallback(async () => {
     const updated = await saveEstimate();
@@ -2273,7 +2346,7 @@ export default function EditEstimateScreen() {
   }, [handlePreviewPdf, saveEstimate]);
 
   useEffect(() => {
-    if (!estimateId) {
+    if (!estimateId || isCreating) {
       return;
     }
     setEstimateFormDraft(estimateId, {
@@ -2302,6 +2375,7 @@ export default function EditEstimateScreen() {
     hourlyRateText,
     notes,
     photoDrafts,
+    isCreating,
     status,
     taxRateText,
   ]);
@@ -2317,6 +2391,16 @@ export default function EditEstimateScreen() {
       preserveDraftRef.current = false;
     };
   }, [estimateId]);
+
+  if (isCreating) {
+    return (
+      <CreateEstimateView
+        estimateId={estimateId}
+        onCreated={handleCreatedEstimate}
+        onCancel={handleCancelCreate}
+      />
+    );
+  }
 
   if (loading) {
     return (

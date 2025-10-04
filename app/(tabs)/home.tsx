@@ -559,7 +559,7 @@ export default function Home() {
       <View style={[styles.footer, { paddingBottom: bottomPadding }]}>
         <Button
           label="Create Estimate"
-          onPress={() => router.push("/(tabs)/estimates/new")}
+          onPress={() => router.push({ pathname: "/(tabs)/estimates/[id]", params: { mode: "new" } })}
         />
       </View>
     </View>

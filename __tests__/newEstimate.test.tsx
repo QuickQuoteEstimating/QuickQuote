@@ -116,12 +116,24 @@ jest.mock("../lib/sync", () => ({
   runSync: jest.fn().mockResolvedValue(undefined),
 }));
 
-import NewEstimateScreen from "../app/(tabs)/estimates/new";
+import CreateEstimateView from "../app/(tabs)/estimates/create-view";
 import { openDB, queueChange } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
 import { listSavedItems } from "../lib/savedItems";
 
-describe("NewEstimateScreen", () => {
+let onCreatedMock: jest.Mock;
+let onCancelMock: jest.Mock;
+
+const renderCreateEstimate = () =>
+  render(
+    <CreateEstimateView
+      estimateId="temp-estimate-id"
+      onCreated={onCreatedMock}
+      onCancel={onCancelMock}
+    />,
+  );
+
+describe("CreateEstimateView", () => {
   beforeEach(() => {
     alertSpy.mockClear();
     mockRunAsync.mockReset();
@@ -149,10 +161,12 @@ describe("NewEstimateScreen", () => {
       updated_at: "2024-01-01T00:00:00.000Z",
       deleted_at: null,
     });
+    onCreatedMock = jest.fn();
+    onCancelMock = jest.fn();
   });
 
   it("renders markup totals when adding a line item", async () => {
-    const screen = render(<NewEstimateScreen />);
+    const screen = renderCreateEstimate();
 
     fireEvent.press(screen.getByLabelText("Add line item"));
     await waitFor(() => {
@@ -184,7 +198,7 @@ describe("NewEstimateScreen", () => {
   });
 
   it("shows a validation message when no customer is selected", async () => {
-    const screen = render(<NewEstimateScreen />);
+    const screen = renderCreateEstimate();
 
     const saveButton = screen
       .UNSAFE_getAllByType(Button)
@@ -198,7 +212,7 @@ describe("NewEstimateScreen", () => {
   });
 
   it("saves new line items to the library when requested", async () => {
-    const screen = render(<NewEstimateScreen />);
+    const screen = renderCreateEstimate();
 
     fireEvent.press(screen.getByLabelText("Add line item"));
     await waitFor(() => {
@@ -238,7 +252,7 @@ describe("NewEstimateScreen", () => {
     authState.user = null;
     authState.session = null;
 
-    const screen = render(<NewEstimateScreen />);
+    const screen = renderCreateEstimate();
 
     const jobTitleInput = await waitFor(() => {
       const inputs = screen.UNSAFE_getAllByType(TextInput);
@@ -295,7 +309,7 @@ describe("NewEstimateScreen", () => {
     );
     expect(mockRunAsync).not.toHaveBeenCalled();
     expect(queueChange).not.toHaveBeenCalled();
-    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(onCreatedMock).not.toHaveBeenCalled();
   });
 
   it("opens the item editor with saved item defaults", async () => {
@@ -313,7 +327,7 @@ describe("NewEstimateScreen", () => {
       },
     ]);
 
-    const screen = render(<NewEstimateScreen />);
+    const screen = renderCreateEstimate();
     const savedItemButton = await screen.findByTestId("picker-item-saved-1");
     fireEvent.press(savedItemButton);
 
