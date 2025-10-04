@@ -202,7 +202,7 @@ describe("CreateEstimateView", () => {
 
     const saveButton = screen
       .UNSAFE_getAllByType(Button)
-      .find((instance) => instance.props.label === "Save & Continue");
+      .find((instance) => instance.props.label === "Save Draft");
     await act(async () => {
       await saveButton?.props.onPress?.();
     });
@@ -297,7 +297,7 @@ describe("CreateEstimateView", () => {
     });
     const saveButton = screen
       .UNSAFE_getAllByType(Button)
-      .find((instance) => instance.props.label === "Save & Continue");
+      .find((instance) => instance.props.label === "Save Draft");
     await act(async () => {
       await saveButton?.props.onPress?.();
     });
