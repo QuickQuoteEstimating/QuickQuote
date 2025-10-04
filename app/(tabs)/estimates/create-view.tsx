@@ -98,7 +98,7 @@ type PersistedEstimateRecord = {
 
 type PersistedEstimateItem = EstimateItemRecord;
 
-type SavedEstimateContext = {
+export type SavedEstimateContext = {
   estimate: PersistedEstimateRecord;
   items: PersistedEstimateItem[];
   customer: CustomerOption;
@@ -119,6 +119,12 @@ type SavedEstimateContext = {
 type FormErrors = {
   customer?: string;
   lineItems?: string;
+};
+
+type CreateEstimateViewProps = {
+  estimateId: string;
+  onCreated: (context: SavedEstimateContext) => void;
+  onCancel: () => void;
 };
 
 function formatCurrency(value: number): string {
@@ -460,7 +466,11 @@ function createStyles(theme: Theme) {
   });
 }
 
-export default function NewEstimateScreen() {
+export default function CreateEstimateView({
+  estimateId,
+  onCreated,
+  onCancel,
+}: CreateEstimateViewProps) {
   const { user, session } = useAuth();
   const { settings } = useSettings();
   const { openEditor } = useItemEditor();
@@ -479,7 +489,7 @@ export default function NewEstimateScreen() {
     return Math.round(rate * 100) / 100;
   }, [settings.taxRate]);
 
-  const draftEstimateIdRef = useRef<string>(uuidv4());
+  const draftEstimateIdRef = useRef<string>(estimateId);
 
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
@@ -984,13 +994,11 @@ export default function NewEstimateScreen() {
         text: "Discard",
         style: "destructive",
         onPress: () => {
-          if (typeof navigation.back === "function") {
-            navigation.back();
-          }
+          onCancel();
         },
       },
     ]);
-  }, [navigation]);
+  }, [onCancel]);
 
   const saveEstimate = useCallback(async (): Promise<SavedEstimateContext | null> => {
     if (!userId) {
@@ -1337,13 +1345,11 @@ export default function NewEstimateScreen() {
       if (!context) {
         return;
       }
-      if (typeof navigation.replace === "function") {
-        navigation.replace(`/(tabs)/estimates/${context.estimate.id}`);
-      }
+      onCreated(context);
     } finally {
       setSaving(false);
     }
-  }, [navigation, saveEstimate, saving]);
+  }, [onCreated, saveEstimate, saving]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
