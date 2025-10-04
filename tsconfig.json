@@ -1,21 +1,25 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "types": [
-      "jest",
-      "react",
-      "expo-router"
-    ],
     "jsx": "react-jsx",
     "skipLibCheck": true,
     "strict": true,
-    "noEmit": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "moduleResolution": "node16",
     "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "moduleResolution": "bundler",
     "target": "esnext",
-    "module": "Node16"
+    "module": "esnext",
+    "types": [
+      "expo",
+      "jest",
+      "react",
+      "react-dom",
+      "react-native",
+      "expo-router"
+    ]
   },
   "include": ["**/*.ts", "**/*.tsx"]
 }
