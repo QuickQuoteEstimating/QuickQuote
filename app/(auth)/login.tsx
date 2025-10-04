@@ -3,13 +3,15 @@ import { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   TextInput,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
@@ -37,7 +39,6 @@ export default function LoginScreen() {
         email: email.trim().toLowerCase(),
         password,
       });
-
       if (error) throw error;
 
       router.replace("/(tabs)/home");
@@ -49,67 +50,71 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
+    >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <KeyboardAwareScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          enableOnAndroid={true}
-          extraScrollHeight={24}
-        >
-          <Card style={styles.card}>
-            <View style={styles.logoContainer}>
-              <BrandLogo size={80} />
-            </View>
-            <Title style={styles.title}>Welcome back</Title>
-            <Subtitle style={styles.subtitle}>
-              Sign in to manage estimates, customers, and your team from anywhere.
-            </Subtitle>
-            <Input
-              ref={emailRef}
-              autoCapitalize="none"
-              autoComplete="email"
-              autoCorrect={false}
-              keyboardType="email-address"
-              placeholder="you@example.com"
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => passwordRef.current?.focus()}
-            />
-            <Input
-              ref={passwordRef}
-              autoCapitalize="none"
-              autoComplete="password"
-              placeholder="••••••••"
-              secureTextEntry
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              returnKeyType="done"
-              blurOnSubmit={true}
-              onSubmitEditing={handleLogin}
-            />
-            <Button
-              label="Sign in"
-              onPress={handleLogin}
-              loading={loading}
-              accessibilityLabel="Sign in to QuickQuote"
-            />
-            <View style={styles.linksRow}>
-              <Link href="/(auth)/forgot-password">
-                <Body style={styles.link}>Forgot password?</Body>
-              </Link>
-              <Link href="/(auth)/signup">
-                <Body style={styles.link}>Create account</Body>
-              </Link>
-            </View>
-          </Card>
-        </KeyboardAwareScrollView>
+        <SafeAreaView style={styles.safeArea}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <Card style={styles.card}>
+              <View style={styles.logoContainer}>
+                <BrandLogo size={80} />
+              </View>
+              <Title style={styles.title}>Welcome back</Title>
+              <Subtitle style={styles.subtitle}>
+                Sign in to manage estimates, customers, and your team from anywhere.
+              </Subtitle>
+
+              <Input
+                ref={emailRef}
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                placeholder="you@example.com"
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => passwordRef.current?.focus()}
+              />
+              <Input
+                ref={passwordRef}
+                autoCapitalize="none"
+                autoComplete="password"
+                secureTextEntry
+                placeholder="••••••••"
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+              />
+              <Button
+                label="Sign in"
+                onPress={handleLogin}
+                loading={loading}
+                accessibilityLabel="Sign in to QuickQuote"
+              />
+
+              <View style={styles.linksRow}>
+                <Link href="/(auth)/forgot-password">
+                  <Body style={styles.link}>Forgot password?</Body>
+                </Link>
+                <Link href="/(auth)/signup">
+                  <Body style={styles.link}>Create account</Body>
+                </Link>
+              </View>
+            </Card>
+          </ScrollView>
+        </SafeAreaView>
       </TouchableWithoutFeedback>
-    </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -138,6 +143,7 @@ function createStyles(theme: Theme) {
     },
     subtitle: {
       textAlign: "center",
+      color: theme.colors.secondaryText,
     },
     linksRow: {
       flexDirection: "row",

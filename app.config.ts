@@ -15,9 +15,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     backgroundColor: "#ffffff",
   },
   ios: {
-    supportsTablet: true,
-  },
-  android: {
+  supportsTablet: true,
+  "bundleIdentifier": "com.quickquote.app"
+},
+android: {
     package: "com.quickquote.app", // 👈 REQUIRED
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
