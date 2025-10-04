@@ -11,7 +11,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
@@ -26,6 +26,9 @@ export default function LoginScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const emailRef = useRef<TextInput | null>(null);
   const passwordRef = useRef<TextInput | null>(null);
+  const insets = useSafeAreaInsets();
+  const keyboardBehavior = Platform.OS === "ios" ? "padding" : "height";
+  const keyboardVerticalOffset = Platform.OS === "ios" ? insets.top : 0;
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -50,17 +53,21 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
-    >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <SafeAreaView style={styles.safeArea}>
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView
+        behavior={keyboardBehavior}
+        keyboardVerticalOffset={keyboardVerticalOffset}
+        style={styles.keyboardAvoiding}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={styles.touchableContainer}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+              contentInsetAdjustmentBehavior="always"
+              showsVerticalScrollIndicator={false}
+            >
             <Card style={styles.card}>
               <View style={styles.logoContainer}>
                 <BrandLogo size={80} />
@@ -111,10 +118,11 @@ export default function LoginScreen() {
                 </Link>
               </View>
             </Card>
-          </ScrollView>
-        </SafeAreaView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+            </ScrollView>
+          </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -124,11 +132,18 @@ function createStyles(theme: Theme) {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
+    keyboardAvoiding: {
+      flex: 1,
+    },
+    touchableContainer: {
+      flex: 1,
+    },
     scrollContent: {
       flexGrow: 1,
       justifyContent: "center",
       paddingHorizontal: theme.spacing.xl,
       paddingVertical: theme.spacing.xl,
+      paddingBottom: theme.spacing.xxl,
     },
     card: {
       gap: theme.spacing.lg,
