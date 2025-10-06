@@ -30,6 +30,7 @@ export default function LoginScreen() {
       Alert.alert("Missing info", "Enter your email and password to continue.");
       return;
     }
+
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -46,17 +47,16 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-    >
-      <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+      >
         <ScrollView
-          style={styles.root}
           contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="always"
           showsVerticalScrollIndicator={false}
         >
           <Card style={styles.card}>
@@ -67,7 +67,6 @@ export default function LoginScreen() {
             <Subtitle style={styles.subtitle}>
               Sign in to manage estimates, customers, and your team from anywhere.
             </Subtitle>
-
             <Input
               ref={emailRef}
               autoCapitalize="none"
@@ -94,14 +93,7 @@ export default function LoginScreen() {
               returnKeyType="done"
               onSubmitEditing={handleLogin}
             />
-
-            <Button
-              label="Sign in"
-              onPress={handleLogin}
-              loading={loading}
-              accessibilityLabel="Sign in to QuickQuote"
-            />
-
+            <Button label="Sign in" onPress={handleLogin} loading={loading} />
             <View style={styles.linksRow}>
               <Link href="/(auth)/forgot-password">
                 <Body style={styles.link}>Forgot password?</Body>
@@ -111,30 +103,46 @@ export default function LoginScreen() {
               </Link>
             </View>
           </Card>
-
-          <View style={{ height: 24 }} />
         </ScrollView>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    root: { flex: 1, backgroundColor: theme.colors.background },
+    safeArea: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
     scrollContent: {
+      flexGrow: 1,
+      justifyContent: "center",
       paddingHorizontal: theme.spacing.xl,
       paddingVertical: theme.spacing.xl,
     },
-    card: { gap: theme.spacing.lg },
-    logoContainer: { alignItems: "center", marginBottom: theme.spacing.xs },
-    title: { textAlign: "center", color: theme.colors.primaryText },
-    subtitle: { textAlign: "center" },
+    card: {
+      gap: theme.spacing.lg,
+    },
+    logoContainer: {
+      alignItems: "center",
+      marginBottom: theme.spacing.xs,
+    },
+    title: {
+      textAlign: "center",
+      color: theme.colors.primaryText,
+    },
+    subtitle: {
+      textAlign: "center",
+    },
     linksRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
     },
-    link: { color: theme.colors.accent, fontWeight: "600" },
+    link: {
+      color: theme.colors.accent,
+      fontWeight: "600",
+    },
   });
 }

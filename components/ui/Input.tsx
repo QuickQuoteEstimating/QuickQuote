@@ -106,6 +106,11 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
           style={[styles.input, multiline ? styles.multilineInput : null, inputStyle]}
           onFocus={handleFocus}
           onBlur={handleBlur}
+          focusable={true}
+          accessible={true}
+          accessibilityLabel={label}
+          accessibilityHint={caption}
+          accessibilityState={{ disabled: textInputProps.editable === false,  }}
         />
         {rightElement ? (
           <View style={[styles.adornment, styles.rightAdornment]}>{rightElement}</View>

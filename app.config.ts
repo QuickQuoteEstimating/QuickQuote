@@ -19,15 +19,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   "bundleIdentifier": "com.quickquote.app"
 },
 android: {
-    package: "com.quickquote.app", // 👈 REQUIRED
-    adaptiveIcon: {
-      foregroundImage: "./assets/adaptive-icon.png",
-      backgroundColor: "#ffffff",
-    },
-    edgeToEdgeEnabled: true,
-    predictiveBackGestureEnabled: false,
-    softwareKeyboardLayoutMode: "resize",
+  package: "com.bstreeter.quickquote",
+  adaptiveIcon: {
+    foregroundImage: "./assets/adaptive-icon.png",
+    backgroundColor: "#ffffff",
   },
+  softwareKeyboardLayoutMode: "pan", // <— important: avoids jumpy resize issues
+  permissions: [],
+},
+
   web: {
     favicon: "./assets/favicon.png",
   },
