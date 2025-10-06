@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { SettingsProvider } from "../context/SettingsContext";
 import { initLocalDB } from "../lib/sqlite";
@@ -160,11 +161,13 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <SafeAreaProvider>
-        <SettingsProvider>
-          <AuthProvider>
-            <RootNavigator />
-          </AuthProvider>
-        </SettingsProvider>
+        <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+          <SettingsProvider>
+            <AuthProvider>
+              <RootNavigator />
+            </AuthProvider>
+          </SettingsProvider>
+        </KeyboardProvider>
       </SafeAreaProvider>
     </ThemeProvider>
   );

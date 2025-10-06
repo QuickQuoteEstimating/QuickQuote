@@ -1,15 +1,7 @@
 import { Link, router } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import type {
   KeyboardTypeOptions,
   ReturnKeyTypeOptions,
@@ -18,6 +10,7 @@ import type {
   ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import LogoPicker from "../../components/LogoPicker";
@@ -95,14 +88,10 @@ export default function SignupScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-    >
-      <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root}>
+      <KeyboardStickyView style={styles.keyboard}>
         <ScrollView
-          style={styles.root}
+          style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="always"
@@ -228,14 +217,16 @@ export default function SignupScreen() {
 
           <View style={{ height: 24 }} />
         </ScrollView>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+      </KeyboardStickyView>
+    </SafeAreaView>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.colors.background },
+    keyboard: { flex: 1 },
+    scroll: { flex: 1 },
     scrollContent: {
       paddingHorizontal: theme.spacing.xl,
       paddingVertical: theme.spacing.xl,

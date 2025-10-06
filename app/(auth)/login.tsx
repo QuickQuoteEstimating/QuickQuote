@@ -1,15 +1,8 @@
 import { Link, router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
@@ -48,11 +41,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
-      >
+      <KeyboardStickyView style={styles.keyboard}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -104,7 +93,7 @@ export default function LoginScreen() {
             </View>
           </Card>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardStickyView>
     </SafeAreaView>
   );
 }
@@ -114,6 +103,9 @@ function createStyles(theme: Theme) {
     safeArea: {
       flex: 1,
       backgroundColor: theme.colors.background,
+    },
+    keyboard: {
+      flex: 1,
     },
     scrollContent: {
       flexGrow: 1,
