@@ -6,7 +6,7 @@ import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
-import { ScreenWrapper } from "../../components/ScreenWrapper";
+import { KeyboardScreen } from "../../components/KeyboardScreen";
 
 const RESET_REDIRECT = process.env.EXPO_PUBLIC_SUPABASE_RESET_REDIRECT;
 
@@ -41,7 +41,7 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <ScreenWrapper>
+    <KeyboardScreen>
       <View style={styles.content}>
         <Card style={styles.card}>
           <View style={styles.logoContainer}>
@@ -77,7 +77,7 @@ export default function ForgotPasswordScreen() {
           </View>
         </Card>
       </View>
-    </ScreenWrapper>
+    </KeyboardScreen>
   );
 }
 
@@ -87,6 +87,7 @@ function createStyles(theme: Theme) {
       flex: 1,
       justifyContent: "center",
       backgroundColor: theme.colors.background,
+      padding: theme.spacing.xl,
     },
     card: {
       gap: theme.spacing.lg,
