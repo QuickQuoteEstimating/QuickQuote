@@ -6,7 +6,7 @@ import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
-import { KeyboardScreen } from "../../components/KeyboardScreen";
+import KeyboardWrapper from "../../components/KeyboardWrapper";
 
 const RESET_REDIRECT = process.env.EXPO_PUBLIC_SUPABASE_RESET_REDIRECT;
 
@@ -41,7 +41,7 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <KeyboardScreen>
+    <KeyboardWrapper>
       <View style={styles.content}>
         <Card style={styles.card}>
           <View style={styles.logoContainer}>
@@ -62,6 +62,8 @@ export default function ForgotPasswordScreen() {
             label="Email"
             value={email}
             onChangeText={setEmail}
+            returnKeyType="done"
+            onSubmitEditing={handleReset}
           />
 
           <Button
@@ -77,7 +79,7 @@ export default function ForgotPasswordScreen() {
           </View>
         </Card>
       </View>
-    </KeyboardScreen>
+    </KeyboardWrapper>
   );
 }
 
