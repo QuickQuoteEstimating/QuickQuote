@@ -1,8 +1,16 @@
 import { Link, router } from "expo-router";
 import { useMemo, useRef, useState } from "react";
-import { Alert, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  Keyboard,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
@@ -15,6 +23,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
   const emailRef = useRef<TextInput | null>(null);
   const passwordRef = useRef<TextInput | null>(null);
 
@@ -41,100 +50,91 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardStickyView style={styles.keyboard}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+      >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          showsVerticalScrollIndicator={false}
-        >
-          <Card style={styles.card}>
-            <View style={styles.logoContainer}>
-              <BrandLogo size={80} />
-            </View>
-            <Title style={styles.title}>Welcome back</Title>
-            <Subtitle style={styles.subtitle}>
-              Sign in to manage estimates, customers, and your team from anywhere.
-            </Subtitle>
-            <Input
-              ref={emailRef}
-              autoCapitalize="none"
-              autoComplete="email"
-              autoCorrect={false}
-              keyboardType="email-address"
-              placeholder="you@example.com"
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => passwordRef.current?.focus()}
-            />
-            <Input
-              ref={passwordRef}
-              autoCapitalize="none"
-              autoComplete="password"
-              placeholder="••••••••"
-              secureTextEntry
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              returnKeyType="done"
-              onSubmitEditing={handleLogin}
-            />
-            <Button label="Sign in" onPress={handleLogin} loading={loading} />
-            <View style={styles.linksRow}>
-              <Link href="/(auth)/forgot-password">
-                <Body style={styles.link}>Forgot password?</Body>
-              </Link>
-              <Link href="/(auth)/signup">
-                <Body style={styles.link}>Create account</Body>
-              </Link>
-            </View>
-          </Card>
-        </ScrollView>
-      </KeyboardStickyView>
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="always"
+            showsVerticalScrollIndicator={false}
+          >
+            <Card style={styles.card}>
+              <View style={styles.logoContainer}>
+                <BrandLogo size={80} />
+              </View>
+
+              <Title style={styles.title}>Welcome back</Title>
+              <Subtitle style={styles.subtitle}>
+                Sign in to manage estimates, customers, and your team from anywhere.
+              </Subtitle>
+
+              <Input
+                ref={emailRef}
+                autoCapitalize="none"
+                autoComplete="email"
+                autoCorrect={false}
+                keyboardType="email-address"
+                placeholder="you@example.com"
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => passwordRef.current?.focus()}
+              />
+
+              <Input
+                ref={passwordRef}
+                autoCapitalize="none"
+                autoComplete="password"
+                placeholder="••••••••"
+                secureTextEntry
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+              />
+
+              <Button label="Sign in" onPress={handleLogin} loading={loading} />
+
+              <View style={styles.linksRow}>
+                <Link href="/(auth)/forgot-password">
+                  <Body style={styles.link}>Forgot password?</Body>
+                </Link>
+                <Link href="/(auth)/signup">
+                  <Body style={styles.link}>Create account</Body>
+                </Link>
+              </View>
+            </Card>
+          </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    safeArea: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    keyboard: {
-      flex: 1,
-    },
+    flex: { flex: 1 },
+    safeArea: { flex: 1, backgroundColor: theme.colors.background },
     scrollContent: {
       flexGrow: 1,
       justifyContent: "center",
       paddingHorizontal: theme.spacing.xl,
       paddingVertical: theme.spacing.xl,
+      backgroundColor: theme.colors.background,
     },
-    card: {
-      gap: theme.spacing.lg,
-    },
-    logoContainer: {
-      alignItems: "center",
-      marginBottom: theme.spacing.xs,
-    },
-    title: {
-      textAlign: "center",
-      color: theme.colors.primaryText,
-    },
-    subtitle: {
-      textAlign: "center",
-    },
+    card: { gap: theme.spacing.lg },
+    logoContainer: { alignItems: "center", marginBottom: theme.spacing.xs },
+    title: { textAlign: "center", color: theme.colors.primaryText },
+    subtitle: { textAlign: "center" },
     linksRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
     },
-    link: {
-      color: theme.colors.accent,
-      fontWeight: "600",
-    },
+    link: { color: theme.colors.accent, fontWeight: "600" },
   });
 }

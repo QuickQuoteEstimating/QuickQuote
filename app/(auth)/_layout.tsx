@@ -18,12 +18,14 @@ export default function AuthLayout() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        keyboardHandlingEnabled: true,
-      }}
-    />
+<Stack
+  screenOptions={{
+    headerShown: false,
+    animation: "none",
+    detachPreviousScreen: false,
+  }}
+/>
+
   );
 }
 

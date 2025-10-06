@@ -2,12 +2,10 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-import { useColorScheme } from "react-native";
 import { dark, light, type Theme, type ThemeMode } from "./index";
 
 export type ThemeContextValue = {
@@ -23,14 +21,8 @@ const ThemeContext = createContext<ThemeContextValue>({
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const colorScheme = useColorScheme();
-  const [mode, setMode] = useState<ThemeMode>(colorScheme === "dark" ? "dark" : "light");
-
-  useEffect(() => {
-    if (colorScheme === "dark" || colorScheme === "light") {
-      setMode(colorScheme);
-    }
-  }, [colorScheme]);
+  // 👇 Default mode locked to "light"
+  const [mode, setMode] = useState<ThemeMode>("light");
 
   const toggleTheme = useCallback(() => {
     setMode((prev) => (prev === "dark" ? "light" : "dark"));
@@ -38,7 +30,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<ThemeContextValue>(() => {
     const theme = mode === "dark" ? dark : light;
-
     return {
       theme,
       isDark: mode === "dark",

@@ -21,6 +21,7 @@ export type ThemeRadii = {
 };
 
 export type ThemeColors = {
+  accentMuted: any;
   background: string;
   surface: string;
   surfaceAlt: string;

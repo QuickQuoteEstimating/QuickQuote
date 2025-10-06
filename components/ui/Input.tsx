@@ -1,4 +1,4 @@
-import {
+import React, {
   ForwardedRef,
   ReactNode,
   forwardRef,
@@ -6,11 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { ComponentProps } from "react";
 import {
-  BlurEvent,
-  FocusEvent,
-  Platform,
   StyleProp,
   StyleSheet,
   Text,
@@ -19,18 +15,14 @@ import {
   TextStyle,
   View,
   ViewStyle,
+  Platform,
+  NativeSyntheticEvent,
+  TextInputFocusEventData,
+  FocusEvent,
+  BlurEvent,
 } from "react-native";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
-
-type BaseAutoComplete = ComponentProps<typeof TextInput>["autoComplete"];
-
-declare module "react-native" {
-  interface TextInputProps {
-    autoCapitalize?: "none" | "sentences" | "words" | "characters";
-    autoComplete?: BaseAutoComplete;
-  }
-}
 
 export interface InputProps extends TextInputProps {
   label?: string;
@@ -40,9 +32,6 @@ export interface InputProps extends TextInputProps {
   rightElement?: ReactNode;
   containerStyle?: StyleProp<ViewStyle>;
   inputStyle?: StyleProp<TextStyle>;
-  multiline?: boolean;
-  onFocus?: (e: FocusEvent) => void;
-  onBlur?: (e: BlurEvent) => void;
 }
 
 export const Input = forwardRef<TextInput, InputProps>(function Input(
@@ -59,63 +48,60 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
     onBlur,
     ...textInputProps
   }: InputProps,
-  ref: ForwardedRef<TextInput>,
+  ref: ForwardedRef<TextInput>
 ) {
   const { theme } = useThemeContext();
-  const styles = useMemo(() => createStyles(theme), [theme]);
   const [isFocused, setFocused] = useState(false);
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const handleFocus = useCallback(
+  // ✅ Correctly typed handlers for React Native (avoids web FocusEvent conflicts)
+  const handleFocus: TextInputProps["onFocus"] = useCallback(
     (event: FocusEvent) => {
       setFocused(true);
       onFocus?.(event);
     },
-    [onFocus],
+    [onFocus]
   );
 
-  const handleBlur = useCallback(
+  const handleBlur: TextInputProps["onBlur"] = useCallback(
     (event: BlurEvent) => {
       setFocused(false);
       onBlur?.(event);
     },
-    [onBlur],
+    [onBlur]
   );
-
-  const fieldState = useMemo(() => {
-    if (error) {
-      return styles.errorState;
-    }
-    if (isFocused) {
-      return styles.focusedState;
-    }
-    return null;
-  }, [error, isFocused, styles.errorState, styles.focusedState]);
 
   return (
     <View style={[styles.container, containerStyle]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View style={[styles.fieldShell, multiline ? styles.multilineShell : null, fieldState]}>
+
+      <View
+        style={[
+          styles.fieldShell,
+          multiline && styles.multilineShell,
+          isFocused && styles.focusedState,
+          error && styles.errorState,
+        ]}
+      >
         {leftElement ? <View style={styles.adornment}>{leftElement}</View> : null}
+
         <TextInput
           ref={ref}
+          style={[styles.input, multiline && styles.multilineInput, inputStyle]}
           placeholderTextColor={theme.colors.mutedText}
-          blurOnSubmit={multiline ? false : true}
-          returnKeyType={multiline ? "default" : "done"}
-          {...textInputProps}
           multiline={multiline}
-          style={[styles.input, multiline ? styles.multilineInput : null, inputStyle]}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          focusable={true}
-          accessible={true}
-          accessibilityLabel={label}
-          accessibilityHint={caption}
-          accessibilityState={{ disabled: textInputProps.editable === false,  }}
+          {...textInputProps}
         />
+
         {rightElement ? (
-          <View style={[styles.adornment, styles.rightAdornment]}>{rightElement}</View>
+          <View style={[styles.adornment, styles.rightAdornment]}>
+            {rightElement}
+          </View>
         ) : null}
       </View>
+
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
       {!error && caption ? <Text style={styles.caption}>{caption}</Text> : null}
     </View>
@@ -151,7 +137,9 @@ function createStyles(theme: Theme) {
       flex: 1,
       fontSize: 16,
       color: theme.colors.secondaryText,
-      paddingVertical: theme.spacing.sm,
+      paddingVertical: Platform.OS === "ios" ? theme.spacing.sm : 0,
+      paddingHorizontal: 0,
+      textAlignVertical: "center",
     },
     multilineInput: {
       textAlignVertical: "top",
@@ -175,9 +163,9 @@ function createStyles(theme: Theme) {
     focusedState: {
       borderColor: theme.colors.accent,
       shadowColor: theme.colors.accent,
-      shadowOpacity: Platform.OS === "ios" ? 0.16 : 0,
-      shadowOffset: { width: 0, height: theme.spacing.sm },
-      shadowRadius: theme.spacing.xl,
+      shadowOpacity: Platform.OS === "ios" ? 0.1 : 0,
+      shadowOffset: { width: 0, height: 1 },
+      shadowRadius: 3,
     },
     errorState: {
       borderColor: theme.colors.danger,

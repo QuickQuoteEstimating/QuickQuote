@@ -35,171 +35,112 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [needsBootstrapRetry, setNeedsBootstrapRetry] = useState(false);
   const [signOutLoading, setSignOutLoading] = useState(false);
+
   const bootstrappedUserRef = useRef<string | null>(null);
   const bootstrapInFlightRef = useRef<Promise<void> | null>(null);
   const isMountedRef = useRef(true);
+  const currentUserIdRef = useRef<string | null>(null);
 
+  // Mount guard
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
     };
   }, []);
 
+  // ✅ Initial session fetch
   useEffect(() => {
     let isMounted = true;
 
     const init = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error("Failed to read stored session", error);
-        }
-        if (!isMounted) {
-          return;
-        }
-        setSession(data?.session ?? null);
+        if (error) console.error("Failed to read stored session", error);
+        if (isMounted) setSession(data?.session ?? null);
       } catch (error) {
         console.error("Unexpected auth init error", error);
       } finally {
-        if (isMounted) {
-          setIsLoadingSession(false);
-        }
+        if (isMounted) setIsLoadingSession(false);
       }
     };
-
-    const { data: authSubscription } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-
-        const signedOutLike =
-          event === "SIGNED_OUT" || (!newSession && !!bootstrappedUserRef.current);
-        if (signedOutLike) {
-          bootstrappedUserRef.current = null;
-          try {
-            await clearLocalData();
-          } catch (error) {
-            console.error("Failed to clear local data on sign out", error);
-          }
-        }
-      },
-    );
 
     init();
 
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      // ⚡ only update if changed
+      if (newSession?.user?.id !== currentUserIdRef.current) {
+        currentUserIdRef.current = newSession?.user?.id ?? null;
+        setSession(newSession);
+      }
+    });
+
     return () => {
       isMounted = false;
-      authSubscription.subscription.unsubscribe();
+      subscription.subscription.unsubscribe();
     };
   }, []);
 
-  const startBootstrap = useCallback(
-    async (userId: string, { silent }: { silent?: boolean } = {}) => {
-      if (!userId) {
-        return;
-      }
+  // ✅ Bootstrap logic (memoized)
+  const startBootstrap = useCallback(async (userId: string, { silent }: { silent?: boolean } = {}) => {
+    if (!userId || bootstrapInFlightRef.current) return bootstrapInFlightRef.current;
 
-      if (bootstrapInFlightRef.current) {
-        return bootstrapInFlightRef.current;
-      }
+    if (isMountedRef.current) setIsBootstrapping(true);
 
-      console.log(`Bootstrapping local data for user ${userId}${silent ? " (silent)" : ""}`);
+    const bootstrapPromise = bootstrapUserData(userId)
+      .then(() => {
+        bootstrappedUserRef.current = userId;
+        if (isMountedRef.current) setNeedsBootstrapRetry(false);
+      })
+      .catch((error) => {
+        console.error("Failed to bootstrap local data", error);
+        if (isMountedRef.current) setNeedsBootstrapRetry(true);
+        if (!silent)
+          Alert.alert("Sync Error", "We couldn't refresh your data. Pull down to refresh later.");
+      })
+      .finally(() => {
+        if (isMountedRef.current) setIsBootstrapping(false);
+        bootstrapInFlightRef.current = null;
+      });
 
-      if (isMountedRef.current) {
-        setIsBootstrapping(true);
-      }
+    bootstrapInFlightRef.current = bootstrapPromise;
+    return bootstrapPromise;
+  }, []);
 
-      const bootstrapPromise = bootstrapUserData(userId)
-        .then(() => {
-          console.log(`Bootstrap completed for user ${userId}`);
-          bootstrappedUserRef.current = userId;
-          if (isMountedRef.current) {
-            setNeedsBootstrapRetry(false);
-          }
-        })
-        .catch((error) => {
-          console.error("Failed to bootstrap local data", error);
-          if (isMountedRef.current) {
-            setNeedsBootstrapRetry(true);
-          }
-          if (!silent) {
-            Alert.alert(
-              "Sync Error",
-              "We couldn't refresh your data. Pull down to refresh after reconnecting.",
-            );
-          }
-          throw error;
-        })
-        .finally(() => {
-          if (isMountedRef.current) {
-            setIsBootstrapping(false);
-          }
-          bootstrapInFlightRef.current = null;
-        });
-
-      bootstrapInFlightRef.current = bootstrapPromise;
-      return bootstrapPromise;
-    },
-    [],
-  );
-
+  // ✅ Retry handler
   const retryBootstrap = useCallback(async () => {
     const userId = session?.user?.id;
-    if (!userId) {
-      console.log("retryBootstrap called without an authenticated user");
-      return;
-    }
-
-    console.log(`Manual bootstrap retry requested for user ${userId}`);
+    if (!userId) return;
     await startBootstrap(userId);
   }, [session?.user?.id, startBootstrap]);
 
+  // ✅ Auto bootstrap when session changes
   useEffect(() => {
     const userId = session?.user?.id;
-    if (!userId) {
-      return;
-    }
-
-    if (bootstrappedUserRef.current === userId) {
-      return;
-    }
-
-    startBootstrap(userId).catch(() => {
-      // Errors are handled within startBootstrap; we intentionally swallow them here.
-    });
+    if (!userId || bootstrappedUserRef.current === userId) return;
+    startBootstrap(userId).catch(() => {});
   }, [session?.user?.id, startBootstrap]);
 
+  // ✅ Appstate retry on resume
   useEffect(() => {
-    if (!needsBootstrapRetry) {
-      return;
-    }
+    if (!needsBootstrapRetry) return;
 
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (nextAppState === "active") {
+    const handleAppStateChange = (state: AppStateStatus) => {
+      if (state === "active") {
         const userId = session?.user?.id;
-        if (!userId) {
-          return;
-        }
-        console.log("App returned to foreground, retrying bootstrap");
-        startBootstrap(userId, { silent: true }).catch(() => {
-          // Errors are handled inside startBootstrap.
-        });
+        if (userId) startBootstrap(userId, { silent: true }).catch(() => {});
       }
     };
 
-    const subscription = AppState.addEventListener("change", handleAppStateChange);
-
-    return () => {
-      subscription.remove();
-    };
+    const sub = AppState.addEventListener("change", handleAppStateChange);
+    return () => sub.remove();
   }, [needsBootstrapRetry, session?.user?.id, startBootstrap]);
 
+  // ✅ Sign out
   const handleSignOut = useCallback(async () => {
     setSignOutLoading(true);
     try {
       const { error } = await supabase.auth.signOut();
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       await clearLocalData();
       bootstrappedUserRef.current = null;
     } catch (error: any) {
@@ -210,6 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  // ✅ Stable memoized value (prevents rerenders)
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
@@ -220,15 +162,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       needsBootstrapRetry,
       retryBootstrap,
     }),
-    [
-      session,
-      isLoadingSession,
-      isBootstrapping,
-      handleSignOut,
-      signOutLoading,
-      needsBootstrapRetry,
-      retryBootstrap,
-    ],
+    [session, isLoadingSession, isBootstrapping, signOutLoading, needsBootstrapRetry, retryBootstrap]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -236,8 +170,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 }

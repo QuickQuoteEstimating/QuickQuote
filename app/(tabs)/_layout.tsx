@@ -9,6 +9,7 @@ export default function TabsLayout() {
   const { session, isLoading } = useAuth();
   const insets = useSafeAreaInsets();
   const { theme } = useThemeContext();
+
   const palette = {
     background: theme.colors.surface,
     card: theme.colors.surfaceAlt,
@@ -16,16 +17,19 @@ export default function TabsLayout() {
     primaryText: theme.colors.primaryText,
     muted: theme.colors.mutedText,
     border: theme.colors.border,
+    overlay: theme.colors.overlay,
   };
 
+  // Show a simple loading state while session is being determined
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={palette.accent} />
       </View>
     );
   }
 
+  // Redirect to login if not signed in
   if (!session) {
     return <Redirect href="/(auth)/login" />;
   }
@@ -43,19 +47,19 @@ export default function TabsLayout() {
         },
         tabBarStyle: {
           backgroundColor: palette.background,
-          borderTopWidth: 1,
+          borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: palette.border,
-          shadowColor: theme.colors.overlay,
-          shadowOpacity: 0.06,
+          shadowColor: palette.overlay,
+          shadowOpacity: 0.08,
           shadowOffset: { width: 0, height: -4 },
-          shadowRadius: 12,
-          paddingHorizontal: 24,
-          paddingTop: 12,
+          shadowRadius: 8,
+          paddingHorizontal: 20,
+          paddingTop: 10,
           paddingBottom: Math.max(insets.bottom, 12),
-          height: 70 + Math.max(insets.bottom, 12),
+          height: 64 + Math.max(insets.bottom, 12),
         },
         tabBarItemStyle: {
-          borderRadius: 12,
+          borderRadius: 10,
           marginHorizontal: 6,
         },
         tabBarActiveBackgroundColor: palette.card,
@@ -97,7 +101,11 @@ export default function TabsLayout() {
         options={{
           title: "Settings",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "settings" : "settings-outline"} color={color} size={24} />
+            <Ionicons
+              name={focused ? "settings" : "settings-outline"}
+              color={color}
+              size={24}
+            />
           ),
         }}
       />
