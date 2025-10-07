@@ -172,5 +172,6 @@ function createStyles(theme: Theme) {
     },
   });
 }
+Input.displayName = "Input";
+export default React.memo(Input);
 
-export default Input;

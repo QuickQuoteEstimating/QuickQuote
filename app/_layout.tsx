@@ -19,12 +19,6 @@ export default function RootLayout() {
       }
     };
 
-    init();
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") init();
-    });
-
-    return () => sub.remove();
   }, []);
 
   return (

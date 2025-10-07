@@ -31,7 +31,7 @@ android: {
   web: {
     favicon: "./assets/favicon.png",
   },
-  plugins: [["expo-router"], "expo-secure-store", "expo-sqlite"],
+  plugins: [["expo-router"], "expo-secure-store", "expo-sqlite", "expo-font"],
   experiments: {
     ...(config.experiments ?? {}),
     typedRoutes: true,

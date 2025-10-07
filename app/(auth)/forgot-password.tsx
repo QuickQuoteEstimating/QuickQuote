@@ -1,6 +1,6 @@
 import { Link } from "expo-router";
-import { useMemo, useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { useMemo, useState, useRef } from "react";
+import { Alert, StyleSheet, View, TextInput } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
@@ -15,6 +15,7 @@ export default function ForgotPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const emailRef = useRef<TextInput | null>(null);
 
   const handleReset = async () => {
     if (!email) {
@@ -47,13 +48,15 @@ export default function ForgotPasswordScreen() {
           <View style={styles.logoContainer}>
             <BrandLogo size={80} />
           </View>
+
           <Title style={styles.title}>Reset your password</Title>
           <Subtitle style={styles.subtitle}>
-            Enter the email linked to your account and we'll send reset
+            Enter the email linked to your account and we’ll send reset
             instructions.
           </Subtitle>
 
           <Input
+            ref={emailRef}
             autoCapitalize="none"
             autoComplete="email"
             autoCorrect={false}
@@ -91,27 +94,11 @@ function createStyles(theme: Theme) {
       backgroundColor: theme.colors.background,
       padding: theme.spacing.xl,
     },
-    card: {
-      gap: theme.spacing.lg,
-    },
-    logoContainer: {
-      alignItems: "center",
-      marginBottom: theme.spacing.xs,
-    },
-    title: {
-      textAlign: "center",
-      color: theme.colors.primaryText,
-    },
-    subtitle: {
-      textAlign: "center",
-    },
-    linksRow: {
-      flexDirection: "row",
-      justifyContent: "center",
-    },
-    link: {
-      color: theme.colors.accent,
-      fontWeight: "600",
-    },
+    card: { gap: theme.spacing.lg },
+    logoContainer: { alignItems: "center", marginBottom: theme.spacing.xs },
+    title: { textAlign: "center", color: theme.colors.primaryText },
+    subtitle: { textAlign: "center" },
+    linksRow: { flexDirection: "row", justifyContent: "center" },
+    link: { color: theme.colors.accent, fontWeight: "600" },
   });
 }

@@ -1,5 +1,5 @@
 import { Link, router } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Alert, StyleSheet, TextInput, View } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { BrandLogo } from "../../components/BrandLogo";
@@ -9,21 +9,24 @@ import { useThemeContext } from "../../theme/ThemeProvider";
 import KeyboardWrapper from "../../components/KeyboardWrapper";
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
+  const [loading, setLoading] = useState(false);
   const emailRef = useRef<TextInput | null>(null);
   const passwordRef = useRef<TextInput | null>(null);
+  const [form, setForm] = useState({ email: "", password: "" });
 
-  const handleLogin = async () => {
+  const handleChange = useCallback((key: "email" | "password", value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const handleLogin = useCallback(async () => {
+    const { email, password } = form;
     if (!email || !password) {
       Alert.alert("Missing info", "Enter your email and password to continue.");
       return;
     }
-
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -37,7 +40,7 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [form]);
 
   return (
     <KeyboardWrapper>
@@ -60,10 +63,12 @@ export default function LoginScreen() {
             keyboardType="email-address"
             placeholder="you@example.com"
             label="Email"
-            value={email}
-            onChangeText={setEmail}
+            value={form.email}
+            onChangeText={(v) => handleChange("email", v)}
             returnKeyType="next"
             blurOnSubmit={false}
+            onFocus={() => console.log("Email input focused")}
+            onBlur={() => console.log("Email input blurred")}
             onSubmitEditing={() => passwordRef.current?.focus()}
           />
 
@@ -74,9 +79,11 @@ export default function LoginScreen() {
             placeholder="••••••••"
             secureTextEntry
             label="Password"
-            value={password}
-            onChangeText={setPassword}
+            value={form.password}
+            onChangeText={(v) => handleChange("password", v)}
             returnKeyType="done"
+            onFocus={() => console.log("Password input focused")}
+            onBlur={() => console.log("Password input blurred")}
             onSubmitEditing={handleLogin}
           />
 

@@ -8,32 +8,43 @@ import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
 import KeyboardWrapper from "../../components/KeyboardWrapper";
 
-export default function LoginScreen() {
+export default function SignupScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const emailRef = useRef<TextInput | null>(null);
   const passwordRef = useRef<TextInput | null>(null);
+  const confirmPasswordRef = useRef<TextInput | null>(null);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Missing info", "Enter your email and password to continue.");
+  const handleSignup = async () => {
+    if (!email || !password || !confirmPassword) {
+      Alert.alert("Missing info", "Please fill out all fields.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert("Passwords do not match", "Make sure both passwords are the same.");
       return;
     }
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
       });
       if (error) throw error;
-      router.replace("/(tabs)/home");
+
+      Alert.alert(
+        "Check your inbox",
+        "We sent a confirmation email. Confirm your address and then sign in."
+      );
+      router.replace("/(auth)/login");
     } catch (error: any) {
-      Alert.alert("Login failed", error.message ?? "Please try again.");
+      Alert.alert("Sign up failed", error.message ?? "Please try again.");
     } finally {
       setLoading(false);
     }
@@ -47,9 +58,9 @@ export default function LoginScreen() {
             <BrandLogo size={80} />
           </View>
 
-          <Title style={styles.title}>Welcome back</Title>
+          <Title style={styles.title}>Create your account</Title>
           <Subtitle style={styles.subtitle}>
-            Sign in to manage estimates, customers, and your team from anywhere.
+            Sign up to start managing your estimates and customers.
           </Subtitle>
 
           <Input
@@ -69,25 +80,32 @@ export default function LoginScreen() {
 
           <Input
             ref={passwordRef}
-            autoCapitalize="none"
-            autoComplete="password"
-            placeholder="••••••••"
+            placeholder="Create a password"
             secureTextEntry
             label="Password"
             value={password}
             onChangeText={setPassword}
-            returnKeyType="done"
-            onSubmitEditing={handleLogin}
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => confirmPasswordRef.current?.focus()}
           />
 
-          <Button label="Sign in" onPress={handleLogin} loading={loading} />
+          <Input
+            ref={confirmPasswordRef}
+            placeholder="Confirm password"
+            secureTextEntry
+            label="Confirm password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            returnKeyType="done"
+            onSubmitEditing={handleSignup}
+          />
+
+          <Button label="Sign up" onPress={handleSignup} loading={loading} />
 
           <View style={styles.linksRow}>
-            <Link href="/(auth)/forgot-password">
-              <Body style={styles.link}>Forgot password?</Body>
-            </Link>
-            <Link href="/(auth)/signup">
-              <Body style={styles.link}>Create account</Body>
+            <Link href="/(auth)/login">
+              <Body style={styles.link}>Already have an account?</Body>
             </Link>
           </View>
         </Card>
@@ -110,7 +128,7 @@ function createStyles(theme: Theme) {
     subtitle: { textAlign: "center" },
     linksRow: {
       flexDirection: "row",
-      justifyContent: "space-between",
+      justifyContent: "center",
       alignItems: "center",
     },
     link: { color: theme.colors.accent, fontWeight: "600" },

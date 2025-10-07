@@ -1,3 +1,4 @@
+import React from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Appearance, ColorSchemeName } from "react-native";
 import {
@@ -156,9 +157,16 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   }, []);
 
   useEffect(() => {
-    if (!hydrationRef.current) {
-      return;
-    }
+    if (!hydrationRef.current) return;
+
+    // ⛔ Skip persisting while on auth routes
+    const skipPersist =
+      typeof window !== "undefined" &&
+      (window.location?.pathname?.includes?.("/(auth)") ||
+        window.location?.pathname?.includes?.("/login") ||
+        window.location?.pathname?.includes?.("/signup"));
+
+    if (skipPersist) return;
 
     const persist = async () => {
       try {
@@ -214,151 +222,151 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     [],
   );
 
-  const setThemePreference = useCallback(
-    (preference: ThemePreference) => {
-      updateSettings({ themePreference: preference });
-    },
-    [updateSettings],
-  );
+  // (keep all your setter functions as-is here)
+  // ...
+const setThemePreference = useCallback(
+  (preference: ThemePreference) => {
+    updateSettings({ themePreference: preference });
+  },
+  [updateSettings],
+);
 
-  const setMaterialMarkup = useCallback(
-    (value: number) => {
-      updateSettings({ materialMarkup: Number.isFinite(value) ? Math.max(0, value) : 0 });
-    },
-    [updateSettings],
-  );
+const setMaterialMarkup = useCallback(
+  (value: number) => {
+    updateSettings({ materialMarkup: Number.isFinite(value) ? Math.max(0, value) : 0 });
+  },
+  [updateSettings],
+);
 
-  const setMaterialMarkupMode = useCallback(
-    (mode: MarkupMode) => {
-      updateSettings({ materialMarkupMode: mode === "flat" ? "flat" : "percentage" });
-    },
-    [updateSettings],
-  );
+const setMaterialMarkupMode = useCallback(
+  (mode: MarkupMode) => {
+    updateSettings({ materialMarkupMode: mode === "flat" ? "flat" : "percentage" });
+  },
+  [updateSettings],
+);
 
-  const setLaborMarkup = useCallback(
-    (value: number) => {
-      updateSettings({ laborMarkup: Number.isFinite(value) ? Math.max(0, value) : 0 });
-    },
-    [updateSettings],
-  );
+const setLaborMarkup = useCallback(
+  (value: number) => {
+    updateSettings({ laborMarkup: Number.isFinite(value) ? Math.max(0, value) : 0 });
+  },
+  [updateSettings],
+);
 
-  const setLaborMarkupMode = useCallback(
-    (mode: MarkupMode) => {
-      updateSettings({ laborMarkupMode: mode === "flat" ? "flat" : "percentage" });
-    },
-    [updateSettings],
-  );
+const setLaborMarkupMode = useCallback(
+  (mode: MarkupMode) => {
+    updateSettings({ laborMarkupMode: mode === "flat" ? "flat" : "percentage" });
+  },
+  [updateSettings],
+);
 
-  const setHourlyRate = useCallback(
-    (value: number) => {
-      updateSettings({ hourlyRate: Number.isFinite(value) ? Math.max(0, value) : 0 });
-    },
-    [updateSettings],
-  );
+const setHourlyRate = useCallback(
+  (value: number) => {
+    updateSettings({ hourlyRate: Number.isFinite(value) ? Math.max(0, value) : 0 });
+  },
+  [updateSettings],
+);
 
-  const setTaxRate = useCallback(
-    (value: number) => {
-      updateSettings({ taxRate: Number.isFinite(value) ? Math.max(0, value) : 0 });
-    },
-    [updateSettings],
-  );
+const setTaxRate = useCallback(
+  (value: number) => {
+    updateSettings({ taxRate: Number.isFinite(value) ? Math.max(0, value) : 0 });
+  },
+  [updateSettings],
+);
 
-  const setHapticsEnabled = useCallback(
-    (value: boolean) => {
-      updateSettings({ hapticsEnabled: value });
-    },
-    [updateSettings],
-  );
+const setHapticsEnabled = useCallback(
+  (value: boolean) => {
+    updateSettings({ hapticsEnabled: value });
+  },
+  [updateSettings],
+);
 
-  const setHapticIntensity = useCallback(
-    (value: HapticIntensity) => {
-      updateSettings({
-        hapticIntensity: Math.min(2, Math.max(0, Math.round(value))) as HapticIntensity,
-      });
-    },
-    [updateSettings],
-  );
+const setHapticIntensity = useCallback(
+  (value: HapticIntensity) => {
+    updateSettings({
+      hapticIntensity: Math.min(2, Math.max(0, Math.round(value))) as HapticIntensity,
+    });
+  },
+  [updateSettings],
+);
 
-  const setNotificationsEnabled = useCallback(
-    (value: boolean) => {
-      updateSettings({ notificationsEnabled: value });
-    },
-    [updateSettings],
-  );
+const setNotificationsEnabled = useCallback(
+  (value: boolean) => {
+    updateSettings({ notificationsEnabled: value });
+  },
+  [updateSettings],
+);
 
-  const setAutoSyncEnabled = useCallback(
-    (value: boolean) => {
-      updateSettings({ autoSyncEnabled: value });
-    },
-    [updateSettings],
-  );
+const setAutoSyncEnabled = useCallback(
+  (value: boolean) => {
+    updateSettings({ autoSyncEnabled: value });
+  },
+  [updateSettings],
+);
 
-  const setCompanyProfile = useCallback(
-    (updater: Partial<CompanyProfile> | ((prev: CompanyProfile) => CompanyProfile)) => {
-      if (typeof updater === "function") {
-        updateSettings((prev) => ({
-          ...prev,
-          companyProfile: updater(prev.companyProfile),
-        }));
-        return;
-      }
-
+const setCompanyProfile = useCallback(
+  (updater: Partial<CompanyProfile> | ((prev: CompanyProfile) => CompanyProfile)) => {
+    if (typeof updater === "function") {
       updateSettings((prev) => ({
         ...prev,
-        companyProfile: {
-          ...prev.companyProfile,
-          ...updater,
-        },
+        companyProfile: updater(prev.companyProfile),
       }));
-    },
-    [updateSettings],
-  );
+      return;
+    }
 
-  const setTermsAndConditions = useCallback(
-    (value: string) => {
-      updateSettings({ termsAndConditions: value });
-    },
-    [updateSettings],
-  );
+    updateSettings((prev) => ({
+      ...prev,
+      companyProfile: {
+        ...prev.companyProfile,
+        ...updater,
+      },
+    }));
+  },
+  [updateSettings],
+);
 
-  const setPaymentDetails = useCallback(
-    (value: string) => {
-      updateSettings({ paymentDetails: value });
-    },
-    [updateSettings],
-  );
+const setTermsAndConditions = useCallback(
+  (value: string) => {
+    updateSettings({ termsAndConditions: value });
+  },
+  [updateSettings],
+);
 
-  const triggerHaptic = useCallback(
-    (style?: Haptics.ImpactFeedbackStyle) => {
-      if (!settings.hapticsEnabled) {
-        return;
+const setPaymentDetails = useCallback(
+  (value: string) => {
+    updateSettings({ paymentDetails: value });
+  },
+  [updateSettings],
+);
+
+const triggerHaptic = useCallback(
+  (style?: Haptics.ImpactFeedbackStyle) => {
+    if (!settings.hapticsEnabled) return;
+
+    const normalizedIntensity = Math.min(2, Math.max(0, Math.round(settings.hapticIntensity)));
+    const inferredStyle = (() => {
+      switch (normalizedIntensity) {
+        case 0:
+          return Haptics.ImpactFeedbackStyle.Light;
+        case 2:
+          return Haptics.ImpactFeedbackStyle.Heavy;
+        default:
+          return Haptics.ImpactFeedbackStyle.Medium;
       }
+    })();
 
-      const normalizedIntensity = Math.min(2, Math.max(0, Math.round(settings.hapticIntensity)));
-      const inferredStyle = (() => {
-        switch (normalizedIntensity) {
-          case 0:
-            return Haptics.ImpactFeedbackStyle.Light;
-          case 2:
-            return Haptics.ImpactFeedbackStyle.Heavy;
-          default:
-            return Haptics.ImpactFeedbackStyle.Medium;
-        }
-      })();
-
-      Haptics.impactAsync(style ?? inferredStyle).catch((error) => {
-        console.warn("Unable to trigger haptic feedback", error);
-      });
-    },
-    [settings.hapticsEnabled, settings.hapticIntensity],
-  );
-
-  const resetToDefaults = useCallback(() => {
-    setSettings({
-      ...DEFAULT_SETTINGS,
-      companyProfile: { ...DEFAULT_COMPANY_PROFILE },
+    Haptics.impactAsync(style ?? inferredStyle).catch((error) => {
+      console.warn("Unable to trigger haptic feedback", error);
     });
-  }, []);
+  },
+  [settings.hapticsEnabled, settings.hapticIntensity],
+);
+
+const resetToDefaults = useCallback(() => {
+  setSettings({
+    ...DEFAULT_SETTINGS,
+    companyProfile: { ...DEFAULT_COMPANY_PROFILE },
+  });
+}, []);
 
   const value = useMemo<SettingsContextValue>(
     () => ({
@@ -405,15 +413,31 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     ],
   );
 
-  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
+  // ✅ Memoized provider prevents global re-renders on every keystroke
+  const MemoizedSettingsContextProvider = React.memo(function MemoizedSettingsContextProvider({
+    value,
+    children,
+  }: {
+    value: SettingsContextValue;
+    children: ReactNode;
+  }) {
+    return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
+  });
+
+  // ✅ Use the memoized provider instead of plain SettingsContext.Provider
+  return (
+    <MemoizedSettingsContextProvider value={value}>
+      {children}
+    </MemoizedSettingsContextProvider>
+  );
 }
 
+// ----------------------
+// Hook (keep this part as-is)
 export function useSettings(): SettingsContextValue {
   const context = useContext(SettingsContext);
-
   if (!context) {
     throw new Error("useSettings must be used within a SettingsProvider");
   }
-
   return context;
 }

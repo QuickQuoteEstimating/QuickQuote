@@ -18,18 +18,23 @@ export default function AuthLayout() {
   }
 
   return (
-<Stack
-  screenOptions={{
-    headerShown: false,
-    animation: "none",
-    detachPreviousScreen: false,
-  }}
-/>
-
+    <View style={styles.root}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: "none",
+          detachInactiveScreens: false,
+        }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "#fff", // helps prevent flash during keyboard transition
+  },
   loadingContainer: {
     alignItems: "center",
     flex: 1,
