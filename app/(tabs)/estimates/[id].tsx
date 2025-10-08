@@ -7,6 +7,7 @@ import {
   AlertButton,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Linking,
   Platform,
   ScrollView,
@@ -23,6 +24,7 @@ import { MailComposerStatus } from "expo-mail-composer";
 import * as Print from "expo-print";
 import * as SMS from "expo-sms";
 import * as FileSystem from "expo-file-system/legacy";
+import { SafeAreaView } from "react-native-safe-area-context";
 import CustomerForm from "../../../components/CustomerForm";
 import CustomerPicker from "../../../components/CustomerPicker";
 import {
@@ -2417,42 +2419,48 @@ export default function EditEstimateScreen() {
   const sendingToClient = sending;
 
   return (
-    <View style={styles.screenContainer}>
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <Card style={styles.headerCard}>
-          <ListItem
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoiding}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 70 : 0}
+      >
+        <View style={styles.screenContainer}>
+          <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+            <Card style={styles.headerCard}>
+            <ListItem
             title="Edit Estimate"
             subtitle="Update pricing, attach photos, and send a polished quote in seconds."
             style={styles.headerIntro}
             titleStyle={styles.headerTitle}
             subtitleStyle={styles.headerSubtitle}
-          />
-          <View style={styles.headerField}>
+            />
+            <View style={styles.headerField}>
             <Body style={styles.headerLabel}>Customer</Body>
             <CustomerPicker selectedCustomer={customerId} onSelect={(id) => setCustomerId(id)} />
-          </View>
-          <Input
+            </View>
+            <Input
             label="Date"
             placeholder="YYYY-MM-DD"
             value={estimateDate}
             onChangeText={setEstimateDate}
             autoCapitalize="none"
-          />
-        </Card>
+            />
+          </Card>
 
-        <Card style={styles.card}>
-          <Title style={styles.sectionTitle}>Job Location &amp; Billing</Title>
-          <Subtitle style={styles.sectionSubtitle}>
+          <Card style={styles.card}>
+            <Title style={styles.sectionTitle}>Job Location &amp; Billing</Title>
+            <Subtitle style={styles.sectionSubtitle}>
             Keep service and billing addresses current for this project.
-          </Subtitle>
-          <Input
+            </Subtitle>
+            <Input
             label="Billing address"
             placeholder="Where should invoices be sent?"
             value={billingAddress}
             onChangeText={setBillingAddress}
             multiline
-          />
-          <View style={styles.toggleRow}>
+            />
+            <View style={styles.toggleRow}>
             <View style={styles.toggleLabelGroup}>
               <Body style={styles.toggleLabel}>Job site same as billing</Body>
               <Body style={styles.toggleCaption}>
@@ -2465,8 +2473,8 @@ export default function EditEstimateScreen() {
               trackColor={{ false: colors.border, true: colors.accentSoft }}
               thumbColor={jobAddressSameAsBilling ? colors.accent : undefined}
             />
-          </View>
-          {!jobAddressSameAsBilling ? (
+            </View>
+            {!jobAddressSameAsBilling ? (
             <Input
               label="Job site address"
               placeholder="Where is the work happening?"
@@ -2474,21 +2482,21 @@ export default function EditEstimateScreen() {
               onChangeText={handleJobAddressChange}
               multiline
             />
-          ) : null}
-        </Card>
+            ) : null}
+          </Card>
 
-        <Card style={styles.photosCard}>
-          <View style={styles.photosHeader}>
+          <Card style={styles.photosCard}>
+            <View style={styles.photosHeader}>
             <Title style={styles.sectionTitle}>Photos</Title>
             <Subtitle style={styles.sectionSubtitle}>
               Give your crew context with job site reference shots.
             </Subtitle>
-          </View>
-          {photos.length === 0 ? (
+            </View>
+            {photos.length === 0 ? (
             <View style={styles.emptyCard}>
               <Body style={styles.emptyText}>No photos attached yet.</Body>
             </View>
-          ) : (
+            ) : (
             <View style={styles.photosList}>
               {photos.map((photo) => {
                 const draft = photoDrafts[photo.id] ?? "";
@@ -2541,8 +2549,8 @@ export default function EditEstimateScreen() {
                 );
               })}
             </View>
-          )}
-          {photos.length > 0 ? (
+            )}
+            {photos.length > 0 ? (
             <Button
               label={photoSyncing ? "Syncing photos..." : "Sync photos"}
               onPress={handleRetryPhotoSync}
@@ -2550,23 +2558,23 @@ export default function EditEstimateScreen() {
               loading={photoSyncing}
               variant="secondary"
             />
-          ) : null}
-          <Button
+            ) : null}
+            <Button
             label={addingPhoto ? "Adding photo..." : "Add Photo"}
             onPress={handleAddPhoto}
             disabled={addingPhoto}
             loading={addingPhoto}
-          />
-        </Card>
+            />
+          </Card>
 
-        <Card style={styles.lineItemsCard}>
-          <View style={styles.lineItemsHeader}>
+          <Card style={styles.lineItemsCard}>
+            <View style={styles.lineItemsHeader}>
             <Title style={styles.sectionTitle}>Estimate items</Title>
             <Subtitle style={styles.sectionSubtitle}>
               Track the work you&apos;re quoting. Saved items help you move fast.
             </Subtitle>
-          </View>
-          <FlatList<EstimateItemRecord>
+            </View>
+            <FlatList<EstimateItemRecord>
             data={items}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
@@ -2578,8 +2586,8 @@ export default function EditEstimateScreen() {
                 <Body style={styles.emptyText}>No items added yet.</Body>
               </View>
             }
-          />
-          <Button
+            />
+            <Button
             label="Add line item"
             onPress={() =>
               openItemEditorScreen({
@@ -2593,19 +2601,19 @@ export default function EditEstimateScreen() {
               })
             }
             style={styles.lineItemAddButton}
-          />
-        </Card>
+            />
+          </Card>
 
-        <Card style={styles.card}>
-          <Title style={styles.sectionTitle}>Labor &amp; tax</Title>
-          <Input
+          <Card style={styles.card}>
+            <Title style={styles.sectionTitle}>Labor &amp; tax</Title>
+            <Input
             label="Project hours"
             placeholder="0"
             value={laborHoursText}
             onChangeText={setLaborHoursText}
             keyboardType="decimal-pad"
-          />
-          <Input
+            />
+            <Input
             label="Hourly rate"
             placeholder="0.00"
             value={hourlyRateText}
@@ -2613,20 +2621,20 @@ export default function EditEstimateScreen() {
             keyboardType="decimal-pad"
             leftElement={<Body style={styles.inputAdornment}>$</Body>}
             caption={`Labor charge (not shown to customers): ${formatCurrency(totals.laborTotal)}`}
-          />
-          <Input
+            />
+            <Input
             label="Tax rate"
             placeholder="0"
             value={taxRateText}
             onChangeText={setTaxRateText}
             keyboardType="decimal-pad"
             rightElement={<Body style={styles.inputAdornment}>%</Body>}
-          />
-        </Card>
+            />
+          </Card>
 
-        <Card style={styles.card}>
-          <Title style={styles.sectionTitle}>Estimate summary</Title>
-          <View style={styles.summaryList}>
+          <Card style={styles.card}>
+            <Title style={styles.sectionTitle}>Estimate summary</Title>
+            <View style={styles.summaryList}>
             <View style={styles.summaryRow}>
               <Body style={styles.summaryLabel}>Materials</Body>
               <Body style={styles.summaryValue}>{formatCurrency(totals.materialTotal)}</Body>
@@ -2643,12 +2651,12 @@ export default function EditEstimateScreen() {
               <Subtitle style={styles.summaryTotalLabel}>Project total</Subtitle>
               <Title style={styles.summaryTotalValue}>{formatCurrency(totals.grandTotal)}</Title>
             </View>
-          </View>
-        </Card>
+            </View>
+          </Card>
 
-        <Card style={styles.card}>
-          <Title style={styles.sectionTitle}>Status &amp; notes</Title>
-          <View style={styles.fieldGroup}>
+          <Card style={styles.card}>
+            <Title style={styles.sectionTitle}>Status &amp; notes</Title>
+            <View style={styles.fieldGroup}>
             <Body style={styles.fieldLabel}>Status</Body>
             <View style={styles.pickerShell}>
               <Picker selectedValue={status} onValueChange={(value) => setStatus(value)}>
@@ -2657,8 +2665,8 @@ export default function EditEstimateScreen() {
                 ))}
               </Picker>
             </View>
-          </View>
-          <View style={styles.fieldGroup}>
+            </View>
+            <View style={styles.fieldGroup}>
             <Input
               label="Notes / Job description"
               placeholder="Add private notes for your team"
@@ -2669,19 +2677,19 @@ export default function EditEstimateScreen() {
               textAlignVertical="top"
               inputStyle={styles.notesInput}
             />
-          </View>
-        </Card>
-        <View style={previewStyles.previewSection}>
-          <Title style={previewStyles.previewTitle}>Send to client preview</Title>
-          <Subtitle style={previewStyles.previewSubtitle}>
+            </View>
+          </Card>
+          <View style={previewStyles.previewSection}>
+            <Title style={previewStyles.previewTitle}>Send to client preview</Title>
+            <Subtitle style={previewStyles.previewSubtitle}>
             Double-check the essentials before sharing the full PDF with your client.
-          </Subtitle>
-          {sendSuccessMessage ? (
+            </Subtitle>
+            {sendSuccessMessage ? (
             <View style={previewStyles.successBanner}>
               <Body style={previewStyles.successText}>{sendSuccessMessage}</Body>
             </View>
-          ) : null}
-          <Card style={previewStyles.previewCard}>
+            ) : null}
+            <Card style={previewStyles.previewCard}>
             <View style={previewStyles.previewHeader}>
               <View style={previewStyles.brandBlock}>
                 <Title style={previewStyles.brandName}>QuickQuote</Title>
@@ -2769,11 +2777,15 @@ export default function EditEstimateScreen() {
                 </Body>
               )}
             </View>
-          </Card>
-          <Body style={previewStyles.previewHint}>
+            </Card>
+            <Body style={previewStyles.previewHint}>
             This summary mirrors the PDF your client receives when you send the estimate.
-          </Body>
-          <View style={previewStyles.previewActions}>
+            </Body>
+          </View>
+          </ScrollView>
+        </View>
+        <View style={styles.footer}>
+          <View style={styles.footerButtons}>
             <Button
               label={saving ? "Saving…" : "Save Draft"}
               onPress={handleSaveDraft}
@@ -2793,23 +2805,21 @@ export default function EditEstimateScreen() {
               onPress={handleSaveAndPreview}
               disabled={pdfWorking || saving || deleting || sendingToClient}
               loading={pdfWorking}
-              style={previewStyles.previewLink}
-              contentStyle={previewStyles.previewLinkContent}
+              style={styles.footerPreviewButton}
+              contentStyle={styles.footerPreviewButtonContent}
+            />
+            <Button
+              label={deleting ? "Deleting…" : "Delete Estimate"}
+              variant="danger"
+              onPress={handleDeleteEstimate}
+              disabled={saving || deleting}
+              loading={deleting}
+              alignment="full"
             />
           </View>
         </View>
-        <View style={styles.deleteSection}>
-          <Button
-            label={deleting ? "Deleting…" : "Delete Estimate"}
-            variant="danger"
-            onPress={handleDeleteEstimate}
-            disabled={saving || deleting}
-            loading={deleting}
-            alignment="full"
-          />
-        </View>
-      </ScrollView>
-    </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -3009,24 +3019,19 @@ function createPreviewStyles(theme: Theme) {
       textAlign: "center",
       maxWidth: 520,
     },
-    previewActions: {
-      width: "100%",
-      maxWidth: 520,
-      gap: spacing.md,
-    },
-    previewLink: {
-      alignSelf: "center",
-    },
-    previewLinkContent: {
-      paddingVertical: spacing.xs,
-      paddingHorizontal: spacing.md,
-    },
   });
 }
 
 function createStyles(theme: Theme) {
   const { colors, spacing, radii } = theme;
   return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    keyboardAvoiding: {
+      flex: 1,
+    },
     loadingState: {
       flex: 1,
       justifyContent: "center",
@@ -3249,10 +3254,26 @@ function createStyles(theme: Theme) {
       color: colors.primaryText,
       fontSize: 22,
     },
-    deleteSection: {
-      alignSelf: "stretch",
-      marginTop: spacing.md,
-      marginBottom: spacing.lg,
+    footer: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.xl,
+    },
+    footerButtons: {
+      width: "100%",
+      maxWidth: 520,
+      alignSelf: "center",
+      gap: spacing.md,
+    },
+    footerPreviewButton: {
+      alignSelf: "center",
+    },
+    footerPreviewButtonContent: {
+      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
     },
   });
 }
