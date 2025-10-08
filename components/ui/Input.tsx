@@ -2,11 +2,12 @@ import React, {
   ForwardedRef,
   ReactNode,
   forwardRef,
-  useCallback,
+  memo,
   useMemo,
-  useState,
+  useCallback,
 } from "react";
 import {
+  Platform,
   StyleProp,
   StyleSheet,
   Text,
@@ -15,11 +16,6 @@ import {
   TextStyle,
   View,
   ViewStyle,
-  Platform,
-  NativeSyntheticEvent,
-  TextInputFocusEventData,
-  FocusEvent,
-  BlurEvent,
 } from "react-native";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
@@ -34,7 +30,10 @@ export interface InputProps extends TextInputProps {
   inputStyle?: StyleProp<TextStyle>;
 }
 
-export const Input = forwardRef<TextInput, InputProps>(function Input(
+type FocusEvt = Parameters<NonNullable<TextInputProps["onFocus"]>>[0];
+type BlurEvt  = Parameters<NonNullable<TextInputProps["onBlur"]>>[0];
+
+const InputImpl = forwardRef<TextInput, InputProps>(function Input(
   {
     label,
     caption,
@@ -51,54 +50,47 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   ref: ForwardedRef<TextInput>
 ) {
   const { theme } = useThemeContext();
-  const [isFocused, setFocused] = useState(false);
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  // ✅ Correctly typed handlers for React Native (avoids web FocusEvent conflicts)
-  const handleFocus: TextInputProps["onFocus"] = useCallback(
-    (event: FocusEvent) => {
-      setFocused(true);
-      onFocus?.(event);
+  // Pass-through handlers without triggering local state updates
+  const handleFocus = useCallback(
+    (e: FocusEvt) => {
+      onFocus?.(e);
     },
     [onFocus]
   );
-
-  const handleBlur: TextInputProps["onBlur"] = useCallback(
-    (event: BlurEvent) => {
-      setFocused(false);
-      onBlur?.(event);
+  const handleBlur = useCallback(
+    (e: BlurEvt) => {
+      onBlur?.(e);
     },
     [onBlur]
+  );
+
+  const inputFinalStyle = useMemo(
+    () => [styles.input, multiline && styles.multilineInput, inputStyle],
+    [styles.input, styles.multilineInput, inputStyle, multiline]
   );
 
   return (
     <View style={[styles.container, containerStyle]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
 
-      <View
-        style={[
-          styles.fieldShell,
-          multiline && styles.multilineShell,
-          isFocused && styles.focusedState,
-          error && styles.errorState,
-        ]}
-      >
+      <View style={[styles.fieldShell, multiline && styles.multilineShell, error && styles.errorState]}>
         {leftElement ? <View style={styles.adornment}>{leftElement}</View> : null}
 
         <TextInput
           ref={ref}
-          style={[styles.input, multiline && styles.multilineInput, inputStyle]}
+          style={inputFinalStyle}
           placeholderTextColor={theme.colors.mutedText}
           multiline={multiline}
           onFocus={handleFocus}
           onBlur={handleBlur}
+          // keep our handlers, then spread remaining props
           {...textInputProps}
         />
 
         {rightElement ? (
-          <View style={[styles.adornment, styles.rightAdornment]}>
-            {rightElement}
-          </View>
+          <View style={[styles.adornment, styles.rightAdornment]}>{rightElement}</View>
         ) : null}
       </View>
 
@@ -108,16 +100,13 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   );
 });
 
+export const Input = memo(InputImpl);
+export default Input;
+
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    container: {
-      gap: theme.spacing.xs,
-    },
-    label: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.colors.mutedText,
-    },
+    container: { gap: theme.spacing.xs },
+    label: { fontSize: 14, fontWeight: "600", color: theme.colors.mutedText },
     fieldShell: {
       flexDirection: "row",
       alignItems: "center",
@@ -129,10 +118,7 @@ function createStyles(theme: Theme) {
       minHeight: theme.spacing.xxl + theme.spacing.lg,
       gap: theme.spacing.sm,
     },
-    multilineShell: {
-      alignItems: "flex-start",
-      paddingVertical: theme.spacing.sm,
-    },
+    multilineShell: { alignItems: "flex-start", paddingVertical: theme.spacing.sm },
     input: {
       flex: 1,
       fontSize: 16,
@@ -141,37 +127,11 @@ function createStyles(theme: Theme) {
       paddingHorizontal: 0,
       textAlignVertical: "center",
     },
-    multilineInput: {
-      textAlignVertical: "top",
-      minHeight: theme.spacing.xxl * 3,
-    },
-    caption: {
-      fontSize: 12,
-      color: theme.colors.mutedText,
-    },
-    errorText: {
-      fontSize: 12,
-      color: theme.colors.danger,
-    },
-    adornment: {
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    rightAdornment: {
-      marginLeft: "auto",
-    },
-    focusedState: {
-      borderColor: theme.colors.accent,
-      shadowColor: theme.colors.accent,
-      shadowOpacity: Platform.OS === "ios" ? 0.1 : 0,
-      shadowOffset: { width: 0, height: 1 },
-      shadowRadius: 3,
-    },
-    errorState: {
-      borderColor: theme.colors.danger,
-    },
+    multilineInput: { textAlignVertical: "top", minHeight: theme.spacing.xxl * 3 },
+    caption: { fontSize: 12, color: theme.colors.mutedText },
+    errorText: { fontSize: 12, color: theme.colors.danger },
+    adornment: { justifyContent: "center", alignItems: "center" },
+    rightAdornment: { marginLeft: "auto" },
+    errorState: { borderColor: theme.colors.danger },
   });
 }
-Input.displayName = "Input";
-export default React.memo(Input);
-

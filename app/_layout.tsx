@@ -19,6 +19,12 @@ export default function RootLayout() {
       }
     };
 
+    init();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") init();
+    });
+
+    return () => sub.remove();
   }, []);
 
   return (
@@ -26,8 +32,13 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <SettingsProvider>
           <AuthProvider>
-            <Stack 
-            screenOptions={{ headerShown: false }} />
+<Stack
+  screenOptions={{
+    headerShown: false,
+    animation: "none",
+  }}
+/>
+
           </AuthProvider>
         </SettingsProvider>
       </SafeAreaProvider>
