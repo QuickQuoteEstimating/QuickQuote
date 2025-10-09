@@ -2,20 +2,43 @@ import { supabase } from "./supabase";
 import { getQueuedChanges, clearQueuedChange, Change } from "./sqlite";
 import { syncPhotoBinaries } from "./storage";
 
-// ✅ Process a single change
+// ✅ Process a single change safely for Supabase sync
 async function processChange(change: Change) {
-  console.log("📤 Processing change:", change);
+  console.log("🧩 Processing change:", change);
 
   try {
     const payload = JSON.parse(change.payload);
+    // Add a fallback title if missing
+if (!payload.title || payload.title === "") {
+  payload.title = "Untitled Estimate";
+}
 
     let result;
 
+    // Sanitize payload — remove any placeholder IDs
+    if (payload.id === "[id]" || payload.id === null || payload.id === undefined) {
+      delete payload.id;
+    }
+
     if (change.op === "insert") {
+      // Let Supabase handle ID generation
       result = await supabase.from(change.table_name).insert(payload);
     } else if (change.op === "update") {
-      result = await supabase.from(change.table_name).update(payload).eq("id", payload.id);
+      // Ensure we have a valid ID before updating
+      if (!payload.id || payload.id === "[id]") {
+        console.warn("⚠️ Skipping update: invalid or missing ID in payload", payload);
+        return;
+      }
+      result = await supabase
+        .from(change.table_name)
+        .update(payload)
+        .eq("id", payload.id);
     } else if (change.op === "delete") {
+      // Only delete when a valid ID is present
+      if (!payload.id || payload.id === "[id]") {
+        console.warn("⚠️ Skipping delete: invalid or missing ID in payload");
+        return;
+      }
       result = await supabase.from(change.table_name).delete().eq("id", payload.id);
     } else {
       console.warn("⚠️ Unknown operation:", change.op);
@@ -25,19 +48,17 @@ async function processChange(change: Change) {
     if (result.error) {
       console.error(
         `❌ Supabase error for ${change.op} on ${change.table_name}:`,
-        result.error.message,
+        result.error.message
       );
       return; // stop here so we don’t clear the change
     }
 
-    console.log(`✅ Supabase ${change.op} success:`, result.data);
-
-    // ✅ clear only if success
-    await clearQueuedChange(change.id);
+    console.log(`✅ ${change.op} successful for ${change.table_name}`);
   } catch (err) {
-    console.error("💥 Unexpected sync error:", err);
+    console.error("💥 Failed to process change:", err);
   }
 }
+
 
 // ✅ Run full sync
 export async function runSync() {

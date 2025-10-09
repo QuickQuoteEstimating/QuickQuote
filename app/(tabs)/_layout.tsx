@@ -55,12 +55,12 @@ export default function TabsLayout() {
           shadowRadius: 8,
           paddingHorizontal: 20,
           paddingTop: 10,
-          paddingBottom: Math.max(insets.bottom, 12),
-          height: 64 + Math.max(insets.bottom, 12),
+          paddingBottom: insets.bottom,
+          height: 60 + insets.bottom,
         },
         tabBarItemStyle: {
           borderRadius: 10,
-          marginHorizontal: 6,
+          marginHorizontal: 4,
         },
         tabBarActiveBackgroundColor: palette.card,
       }}

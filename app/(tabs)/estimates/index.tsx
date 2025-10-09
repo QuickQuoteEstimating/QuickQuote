@@ -211,9 +211,10 @@ export default function EstimatesScreen() {
     setLoading(false);
   }, [fetchEstimates]);
 
-  const handleCreateEstimate = useCallback(() => {
-    router.push({ pathname: "/(tabs)/estimates/[id]", params: { mode: "new" } });
-  }, []);
+const handleCreateEstimate = useCallback(() => {
+  router.navigate("/(tabs)/estimates/[id]?mode=new");
+}, []);
+
 
   const filteredEstimates = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -257,7 +258,7 @@ export default function EstimatesScreen() {
         <ListItem
           title={item.customer_name?.trim() || "Untitled estimate"}
           subtitle={subtitle}
-          onPress={() => router.push(`/(tabs)/estimates/${item.id}`)}
+          onPress={() => router.navigate(`/(tabs)/estimates/${item.id}`)}
           badge={
             <View style={styles.itemMeta}>
               <Text style={styles.itemAmount}>{formatCurrency(item.total)}</Text>

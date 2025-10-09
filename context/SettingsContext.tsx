@@ -90,12 +90,12 @@ const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
 
 const DEFAULT_SETTINGS: SettingsState = {
   themePreference: "system",
-  materialMarkup: 15,
+  materialMarkup: 35,
   materialMarkupMode: "percentage",
   laborMarkup: 20,
   laborMarkupMode: "percentage",
-  hourlyRate: 85,
-  taxRate: 8,
+  hourlyRate: 100,
+  taxRate: 6.35,
   hapticsEnabled: true,
   hapticIntensity: 1,
   notificationsEnabled: true,

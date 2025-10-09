@@ -4,12 +4,14 @@ import { ItemEditorProvider } from "../../../context/ItemEditorContext";
 export default function EstimatesLayout() {
   return (
     <ItemEditorProvider>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="new" options={{ title: "New Estimate", presentation: "modal" }} />
-        <Stack.Screen name="[id]" options={{ title: "Edit Estimate", presentation: "modal" }} />
-        <Stack.Screen name="item-editor" options={{ title: "Item" }} />
-        <Stack.Screen name="saved-items" options={{ title: "Saved Items" }} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: "none",
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="[id]" />
       </Stack>
     </ItemEditorProvider>
   );

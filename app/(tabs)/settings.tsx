@@ -312,116 +312,155 @@ export default function Settings() {
             }
             style={styles.listItem}
           />
-          <View style={styles.listDivider} />
-          <ListItem
-            title="Default tax rate"
-            subtitle="Tap to adjust how new estimates handle sales tax."
-            onPress={() => setIsEditingTaxRate((prev) => !prev)}
-            badge={
-              <Badge style={styles.badge} textStyle={styles.badgeTextMuted}>{`${settings.taxRate}%`}</Badge>
-            }
-            style={styles.listItem}
-          />
-        </View>
-        <View style={styles.buttonRow}>
-          <Button
-            label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            alignment="inline"
-            onPress={toggleTheme}
-          />
-        </View>
-        {isEditingTaxRate ? (
-          <Input
-            label="Sales tax percentage"
-            value={taxRateInput}
-            onChangeText={setTaxRateInput}
-            onBlur={() => handleUpdateTaxRate(taxRateInput)}
-            keyboardType="decimal-pad"
-            rightElement={<Text style={styles.inputAdornment}>%</Text>}
-          />
-        ) : null}
-        <View style={styles.inlineFieldGroup}>
-          <View style={styles.markupGroup}>
-            <Input
-              label={`Material markup (${settings.materialMarkupMode === "percentage" ? "%" : "$"})`}
-              value={materialMarkupInput}
-              onChangeText={setMaterialMarkupInput}
-              onBlur={() => handleUpdateMarkup(materialMarkupInput, settings.materialMarkupMode, setMaterialMarkup)}
-              keyboardType="decimal-pad"
-              leftElement={
-                settings.materialMarkupMode === "flat" ? (
-                  <Text style={styles.inputAdornment}>$</Text>
-                ) : undefined
-              }
-              rightElement={
-                settings.materialMarkupMode === "percentage" ? (
-                  <Text style={styles.inputAdornment}>%</Text>
-                ) : undefined
-              }
-            />
-            <Button
-              label={
-                settings.materialMarkupMode === "percentage"
-                  ? "Use flat markup"
-                  : "Use percentage markup"
-              }
-              variant="ghost"
-              alignment="inline"
-              onPress={() => {
-                const nextMode: MarkupMode =
-                  settings.materialMarkupMode === "percentage" ? "flat" : "percentage";
-                setMaterialMarkupMode(nextMode);
-                setMaterialMarkupInput(formatMarkupInput(settings.materialMarkup, nextMode));
-              }}
-              style={styles.markupToggle}
-              textStyle={styles.markupToggleLabel}
-            />
-          </View>
-          <View style={styles.markupGroup}>
-            <Input
-              label={`Labor markup (${settings.laborMarkupMode === "percentage" ? "%" : "$"})`}
-              value={laborMarkupInput}
-              onChangeText={setLaborMarkupInput}
-              onBlur={() => handleUpdateMarkup(laborMarkupInput, settings.laborMarkupMode, setLaborMarkup)}
-              keyboardType="decimal-pad"
-              leftElement={
-                settings.laborMarkupMode === "flat" ? (
-                  <Text style={styles.inputAdornment}>$</Text>
-                ) : undefined
-              }
-              rightElement={
-                settings.laborMarkupMode === "percentage" ? (
-                  <Text style={styles.inputAdornment}>%</Text>
-                ) : undefined
-              }
-            />
-            <Button
-              label={
-                settings.laborMarkupMode === "percentage"
-                  ? "Use flat markup"
-                  : "Use percentage markup"
-              }
-              variant="ghost"
-              alignment="inline"
-              onPress={() => {
-                const nextMode: MarkupMode =
-                  settings.laborMarkupMode === "percentage" ? "flat" : "percentage";
-                setLaborMarkupMode(nextMode);
-                setLaborMarkupInput(formatMarkupInput(settings.laborMarkup, nextMode));
-              }}
-              style={styles.markupToggle}
-              textStyle={styles.markupToggleLabel}
-            />
-          </View>
-        </View>
-        <Input
-          label="Hourly rate"
-          value={hourlyRateInput}
-          onChangeText={setHourlyRateInput}
-          onBlur={() => handleUpdateHourlyRate(hourlyRateInput)}
-          keyboardType="decimal-pad"
-          leftElement={<Text style={styles.inputAdornment}>$</Text>}
-        />
+<View style={styles.listDivider} />
+</View>
+{/* ===== Pricing Settings ===== */}
+<View style={{ marginTop: 20, padding: 16, backgroundColor: theme.colors.surface, borderRadius: 8 }}>
+  <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 4 }}>Pricing Settings</Text>
+  <Text style={{ color: "#666", marginBottom: 12 }}>
+    These values are used for your internal calculations only. Customers never see them.
+  </Text>
+
+  {/* Sales Tax */}
+  <ListItem
+    title="Default Tax Rate"
+    subtitle="How new estimates handle sales tax."
+    onPress={() => setIsEditingTaxRate((prev) => !prev)}
+    badge={
+      <Badge style={styles.badge} textStyle={styles.badgeTextMuted}>
+        {`${settings.taxRate}%`}
+      </Badge>
+    }
+    style={styles.listItem}
+  />
+  {isEditingTaxRate ? (
+    <Input
+      label="Sales Tax Percentage"
+      value={taxRateInput}
+      onChangeText={setTaxRateInput}
+      onBlur={() => handleUpdateTaxRate(taxRateInput)}
+      keyboardType="decimal-pad"
+      rightElement={<Text style={styles.inputAdornment}>%</Text>}
+      style={{ marginTop: 8 }}
+    />
+  ) : null}
+
+  {/* Hourly Rate */}
+  <Input
+    label="Default Hourly Rate"
+    placeholder="e.g. 85.00"
+    keyboardType="decimal-pad"
+    value={hourlyRateInput}
+    onChangeText={setHourlyRateInput}
+    onBlur={() => handleUpdateHourlyRate(hourlyRateInput)}
+    leftElement={<Text style={styles.inputAdornment}>$</Text>}
+    style={{ marginTop: 20 }}
+  />
+
+  {/* Markup Settings */}
+  <View style={styles.inlineFieldGroup}>
+    <View style={styles.markupGroup}>
+      <Input
+        label={`Material Markup (${settings.materialMarkupMode === "percentage" ? "%" : "$"})`}
+        value={materialMarkupInput}
+        onChangeText={setMaterialMarkupInput}
+        onBlur={() =>
+          handleUpdateMarkup(
+            materialMarkupInput,
+            settings.materialMarkupMode,
+            setMaterialMarkup
+          )
+        }
+        keyboardType="decimal-pad"
+        leftElement={
+          settings.materialMarkupMode === "flat" ? (
+            <Text style={styles.inputAdornment}>$</Text>
+          ) : undefined
+        }
+        rightElement={
+          settings.materialMarkupMode === "percentage" ? (
+            <Text style={styles.inputAdornment}>%</Text>
+          ) : undefined
+        }
+      />
+      <Button
+        label={
+          settings.materialMarkupMode === "percentage"
+            ? "Use flat markup"
+            : "Use percentage markup"
+        }
+        variant="ghost"
+        alignment="inline"
+        onPress={() => {
+          const nextMode: MarkupMode =
+            settings.materialMarkupMode === "percentage" ? "flat" : "percentage";
+          setMaterialMarkupMode(nextMode);
+          setMaterialMarkupInput(
+            formatMarkupInput(settings.materialMarkup, nextMode)
+          );
+        }}
+        style={styles.markupToggle}
+        textStyle={styles.markupToggleLabel}
+      />
+    </View>
+
+    <View style={styles.markupGroup}>
+      <Input
+        label={`Labor Markup (${settings.laborMarkupMode === "percentage" ? "%" : "$"})`}
+        value={laborMarkupInput}
+        onChangeText={setLaborMarkupInput}
+        onBlur={() =>
+          handleUpdateMarkup(
+            laborMarkupInput,
+            settings.laborMarkupMode,
+            setLaborMarkup
+          )
+        }
+        keyboardType="decimal-pad"
+        leftElement={
+          settings.laborMarkupMode === "flat" ? (
+            <Text style={styles.inputAdornment}>$</Text>
+          ) : undefined
+        }
+        rightElement={
+          settings.laborMarkupMode === "percentage" ? (
+            <Text style={styles.inputAdornment}>%</Text>
+          ) : undefined
+        }
+      />
+      <Button
+        label={
+          settings.laborMarkupMode === "percentage"
+            ? "Use flat markup"
+            : "Use percentage markup"
+        }
+        variant="ghost"
+        alignment="inline"
+        onPress={() => {
+          const nextMode: MarkupMode =
+            settings.laborMarkupMode === "percentage" ? "flat" : "percentage";
+          setLaborMarkupMode(nextMode);
+          setLaborMarkupInput(
+            formatMarkupInput(settings.laborMarkup, nextMode)
+          );
+        }}
+        style={styles.markupToggle}
+        textStyle={styles.markupToggleLabel}
+      />
+    </View>
+  </View>
+</View>
+
+
+{/* ===== Theme Settings ===== */}
+<View style={styles.buttonRow}>
+  <Button
+    label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+    alignment="inline"
+    onPress={toggleTheme}
+  />
+</View>
+
         <Text style={styles.sectionHeading}>Estimate fine print</Text>
         <Input
           label="Terms & conditions"
