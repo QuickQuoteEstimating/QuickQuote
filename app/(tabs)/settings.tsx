@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import Constants from "expo-constants";
-import Slider from "@react-native-community/slider";
+import { Slider } from "@miblanchard/react-native-slider";
 
 import { Badge, Button, Card, Input, ListItem } from "../../components/ui";
 import LogoPicker from "../../components/LogoPicker";
@@ -24,6 +24,7 @@ import { useThemeContext } from "../../theme/ThemeProvider";
 const HAPTIC_LABELS = ["Subtle", "Balanced", "Bold"];
 
 export default function Settings() {
+  const [sliderValue, setSliderValue] = useState<number>(0.5);
   const { theme, isDark, toggleTheme } = useThemeContext();
   const { user, signOut, signOutLoading, needsBootstrapRetry } = useAuth();
   const {
@@ -263,19 +264,21 @@ export default function Settings() {
             <View style={styles.sliderSection}>
               <Text style={styles.sliderLabel}>Adjust how strong interactions should feel.</Text>
               <Slider
-                accessibilityLabel="Haptic intensity"
-                minimumValue={0}
-                maximumValue={HAPTIC_LABELS.length - 1}
-                step={1}
-                value={settings.hapticIntensity}
-                onSlidingComplete={(value) => {
-                  const intensity = Math.round(value) as HapticIntensity;
-                  setHapticIntensity(intensity);
-                  triggerHaptic();
-                }}
-                minimumTrackTintColor={theme.colors.accent}
-                maximumTrackTintColor={theme.colors.border}
-              />
+  minimumValue={0}
+  maximumValue={HAPTIC_LABELS.length - 1}
+  step={1}
+  value={[settings.hapticIntensity]} // wrap in array
+  onSlidingComplete={(valueArray: number[] | number) => {
+    const intensity = Array.isArray(valueArray)
+      ? Math.round(valueArray[0])
+      : Math.round(valueArray);
+    setHapticIntensity(intensity as HapticIntensity);
+    triggerHaptic();
+  }}
+  minimumTrackTintColor={theme.colors.accent}
+  maximumTrackTintColor={theme.colors.border}
+/>
+
             </View>
           ) : null}
           <View style={styles.listDivider} />

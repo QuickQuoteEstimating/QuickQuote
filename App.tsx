@@ -5,3 +5,12 @@ if (typeof globalThis.ReadableStream === "undefined") {
 }
 
 import "expo-router/entry";
+
+import { resetLocalDatabase } from "./lib/sqlite";
+import { useEffect } from "react";
+
+useEffect(() => {
+  // TEMP: run this once to wipe and re-init the local DB
+  resetLocalDatabase();
+}, []);
+
