@@ -9,3 +9,12 @@ export function formatPercentageInput(value: number): string {
   }
   return normalized.toString();
 }
+
+export function formatCurrency(value: number, currency: string = "USD"): string {
+  if (isNaN(value)) return "$0.00";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+  }).format(value);
+}

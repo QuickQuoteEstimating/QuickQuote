@@ -1,47 +1,129 @@
+// lib/sync.ts
 import { supabase } from "./supabase";
 import { getQueuedChanges, clearQueuedChange, Change } from "./sqlite";
 import { syncPhotoBinaries } from "./storage";
 
-// ✅ Process a single change safely for Supabase sync
+// Whitelists per table to avoid sending extra keys to Supabase
+const ALLOWED_KEYS: Record<Change["table_name"], string[]> = {
+  customers: [
+    "id",
+    "user_id",
+    "name",
+    "email",
+    "phone",
+    "address",
+    "notes",
+    "version",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+  ],
+  estimates: [
+    "id",
+    "user_id",
+    "customer_id",
+    "date",
+    "total",
+    "material_total",
+    "labor_hours",
+    "labor_rate",
+    "labor_total",
+    "subtotal",
+    "tax_rate",
+    "tax_total",
+    "notes",
+    "billing_address",
+    "job_address",
+    "job_details",
+    "status",
+    "version",
+    "updated_at",
+    "deleted_at",
+  ],
+  estimate_items: [
+    "id",
+    "estimate_id",
+    "description",
+    "quantity",
+    "unit_price",
+    "base_total",
+    "total",
+    "apply_markup",
+    "catalog_item_id",
+    "version",
+    "updated_at",
+    "deleted_at",
+  ],
+  photos: [
+    "id",
+    "estimate_id",
+    "uri",
+    "local_uri",
+    "description",
+    "version",
+    "updated_at",
+    "deleted_at",
+  ],
+  saved_items: [
+    "id",
+    "user_id",
+    "name",
+    "default_quantity",
+    "default_unit_price",
+    "default_markup_applicable",
+    "version",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+  ],
+  item_catalog: ["id", "name", "unit_price", "deleted_at"],
+};
+
+function sanitizePayload(table: Change["table_name"], payload: any) {
+  const allowed = ALLOWED_KEYS[table];
+  const clean: Record<string, unknown> = {};
+  for (const k of allowed) {
+    if (k in payload) clean[k] = payload[k];
+  }
+  return clean;
+}
+
 async function processChange(change: Change) {
   console.log("🧩 Processing change:", change);
 
   try {
-    const payload = JSON.parse(change.payload);
-    // Add a fallback title if missing
-if (!payload.title || payload.title === "") {
-  payload.title = "Untitled Estimate";
-}
+    const raw = JSON.parse(change.payload);
 
-    let result;
+    // Never send phantom keys like "title"
+    delete raw.title;
 
-    // Sanitize payload — remove any placeholder IDs
-    if (payload.id === "[id]" || payload.id === null || payload.id === undefined) {
-      delete payload.id;
+    // Remove placeholder ids
+    if (raw.id === "[id]" || raw.id === null || raw.id === undefined) {
+      delete raw.id;
     }
 
+    const payload = sanitizePayload(change.table_name, raw);
+
+    let result:
+      | Awaited<ReturnType<typeof supabase["from"]>> // just for TS happiness
+      | any;
+
     if (change.op === "insert") {
-      // Let Supabase handle ID generation
       result = await supabase.from(change.table_name).insert(payload);
     } else if (change.op === "update") {
-      // Ensure we have a valid ID before updating
-      if (!payload.id || payload.id === "[id]") {
-        console.warn("⚠️ Skipping update: invalid or missing ID in payload", payload);
+      if (!raw.id) {
+        console.warn("⚠️ Skipping update: missing ID", raw);
         return;
       }
-      result = await supabase
-        .from(change.table_name)
-        .update(payload)
-        .eq("id", payload.id);
+      result = await supabase.from(change.table_name).update(payload).eq("id", raw.id);
     } else if (change.op === "delete") {
-      // Only delete when a valid ID is present
-      if (!payload.id || payload.id === "[id]") {
-        console.warn("⚠️ Skipping delete: invalid or missing ID in payload");
+      if (!raw.id) {
+        console.warn("⚠️ Skipping delete: missing ID", raw);
         return;
       }
-      result = await supabase.from(change.table_name).delete().eq("id", payload.id);
+      result = await supabase.from(change.table_name).delete().eq("id", raw.id);
     } else {
-      console.warn("⚠️ Unknown operation:", change.op);
+      console.warn("⚠️ Unknown op:", change.op);
       return;
     }
 
@@ -50,20 +132,18 @@ if (!payload.title || payload.title === "") {
         `❌ Supabase error for ${change.op} on ${change.table_name}:`,
         result.error.message
       );
-      return; // stop here so we don’t clear the change
+      return; // keep it in the queue so we can inspect again later
     }
 
     console.log(`✅ ${change.op} successful for ${change.table_name}`);
+    await clearQueuedChange(change.id);
   } catch (err) {
     console.error("💥 Failed to process change:", err);
   }
 }
 
-
-// ✅ Run full sync
 export async function runSync() {
   console.log("🔄 Running sync...");
-
   const changes = await getQueuedChanges();
   console.log(`📋 Found ${changes.length} queued change(s)`);
 

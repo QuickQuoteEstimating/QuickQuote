@@ -1,85 +1,138 @@
-# QuickQuote
+QuickQuote
 
-This project is an [Expo](https://expo.dev/) application that uses the Expo Router for navigation
-alongside Supabase-backed authentication and local SQLite persistence. The project configuration targets
-the latest stable Expo SDK (51) and the corresponding React Native 0.74 release.
+QuickQuote is an Expo
+ mobile application built with the Expo Router for navigation, Supabase-backed authentication, and local SQLite persistence for reliable offline use.
+It targets Expo SDK 54 and React Native 0.81.4, providing a modern, full-stack estimate management experience for contractors and service pros.
 
-## Getting started
+🧰 Getting Started
 
-1. Copy the provided `.env.example` file to `.env` and fill in your Supabase project details.
-   Without these values the app boots in a degraded mode and any Supabase call throws an
-   explicit configuration error.
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+Set up your environment file
 
-## Daily workflow
+cp .env.example .env
 
-Follow these steps each time you log in to work on the project:
 
-1. **Sync with `main`:**
-   ```bash
-   git checkout main
-   git pull origin main
-   ```
-2. **Create or switch to your feature branch:**
-   ```bash
-   git checkout -b <feature-branch>
-   # or, if the branch already exists
-   git checkout <feature-branch>
-   ```
-3. **Run the development server to verify the project still boots:**
-   ```bash
-   npm run start
-   ```
-   The command runs Expo in offline mode so that the Metro bundler starts even when external network requests fail (for example, when the CLI cannot reach Expo's version service). You should now see the familiar QR code and device options in the terminal. Leave the server running while you work so the app reloads as you make changes.
-4. **Implement your changes.** Save files frequently and monitor the terminal for TypeScript or bundler errors.
-5. **Run the automated tests before committing:**
-   ```bash
-   npm test
-   ```
-6. **Review the git status and stage your work:**
-   ```bash
-   git status
-   git add <files>
-   ```
-7. **Commit with a descriptive message and push to GitHub:**
-   ```bash
-   git commit -m "<summary of changes>"
-   git push origin <feature-branch>
-   ```
-8. **Open a pull request** on GitHub targeting `main`, ensure CI passes, and request review.
+Then open .env and fill in your Supabase project details.
 
-## Viewing the mobile app
+ℹ️ Without valid keys, the app will start in a limited “offline-only” mode and Supabase calls will fail with configuration warnings.
 
-The project uses [Expo](https://expo.dev/) for local development. After running `npm run start`, the Expo CLI prints a QR code and URL:
+Install dependencies
 
-- **Physical device:** Install the Expo Go app on your iOS or Android device. Scan the QR code (Android) or use the Expo Go camera (iOS) to load the project over the local network.
-- **Android emulator:** With an Android emulator running, press `a` in the Expo CLI terminal or run `npm run android` to open the project.
-- **iOS simulator (macOS only):** Press `i` in the Expo CLI terminal or run `npm run ios`.
-- **Web preview:** Press `w` in the Expo CLI terminal or run `npm run web` to launch the Expo web build in a browser.
-- **Architecture compatibility:** Expo Go currently ships without the React Native New Architecture enabled. Keep `newArchEnabled` disabled in `app.config.ts` when developing with Expo Go, otherwise the client will fail to download the JavaScript bundle.
+yarn install
 
-If you change native modules or dependencies, stop the dev server (`Ctrl+C`) and restart it to ensure updates are picked up.
 
-## Running tests
+We use Yarn (Berry) for dependency management.
+All package scripts and workflows should use yarn, not npm.
 
-The project relies on Jest and React Native Testing Library. Execute the entire test suite with:
+🚀 Daily Development Workflow
 
-```bash
-npm test
-```
+Each time you start work:
 
-Jest runs in watch mode by default; press `q` to quit once the suite passes. Always ensure tests complete successfully before committing.
+Sync your local branch with main:
 
-## Estimate builder highlights
+git checkout main
+git pull origin main
 
-- **Saved line items:** While editing an estimate you can store frequently used line items in the Saved Items library. The picker in the line item editor lets you quickly drop those templates into new estimates, and updating a saved entry keeps it available across every job.
-- **Labor charge summary:** The generated PDF now rolls up labor into a single "Labor charge" row within the totals stack so clients focus on the grand total without wading through hourly math.
-- **Photo exports:** Any photos you attach to an estimate are embedded in the PDF at the end of the document, organized in a responsive grid and compressed for a reasonable file size.
 
-## Useful resources
+Create or switch to your feature branch:
 
-- [Expo documentation](https://docs.expo.dev/)
-- [Expo Router documentation](https://docs.expo.dev/routing/introduction/)
+git checkout -b <feature-branch>
+# or switch if it already exists
+git checkout <feature-branch>
+
+
+Start the development server:
+
+yarn start
+
+
+This runs the Expo CLI in offline-friendly mode so it works even if external services are unavailable.
+You’ll see a QR code and device options appear in the terminal — keep this running for automatic reloads.
+
+Build, test, and debug as you go.
+Save often and watch the terminal for TypeScript or bundler messages.
+
+Run the test suite before committing:
+
+yarn test
+
+
+Stage and commit your changes:
+
+git add <files>
+git commit -m "Add customer form validation"
+
+
+Push and open a Pull Request:
+
+git push origin <feature-branch>
+
+
+Create a PR into main, confirm all checks pass, and request review.
+
+📱 Running the App
+
+Once you’ve started the dev server with yarn start, you can preview QuickQuote in multiple environments:
+
+Physical device:
+Install the Expo Go app, then scan the QR code (Android) or use the camera (iOS).
+
+Android Emulator:
+
+yarn android
+
+
+or press a in the Expo CLI terminal.
+
+iOS Simulator (macOS only):
+
+yarn ios
+
+
+or press i in the terminal.
+
+Web Preview:
+
+yarn web
+
+
+or press w to open in a browser.
+
+⚠️ Note: Expo Go currently doesn’t support the new React Native architecture.
+Keep newArchEnabled set to false in app.config.ts for full compatibility.
+
+If you add or remove native dependencies, stop and restart the dev server to ensure Metro picks up changes.
+
+🧪 Running Tests
+
+QuickQuote uses Jest with React Native Testing Library for automated tests.
+
+Run all tests with:
+
+yarn test
+
+
+Jest runs in watch mode — press q to exit when done.
+✅ Always ensure the test suite passes before pushing changes.
+
+🧾 Estimate Builder Highlights
+
+Saved Line Items:
+Save frequently used materials or services to your personal item library for quick reuse in future estimates.
+
+Labor Roll-Up:
+Labor costs are summarized neatly in the PDF output, keeping the focus on the total value for your client.
+
+Photo Attachments:
+Snap and attach project photos — they’re automatically compressed and added to the end of your exported estimate PDF.
+
+🔗 Useful Resources
+
+Expo Documentation
+
+Expo Router Docs
+
+Yarn (Berry) Docs
+
+Supabase Docs
+
+SQLite in Expo

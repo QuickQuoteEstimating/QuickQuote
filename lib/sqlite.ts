@@ -3,19 +3,13 @@ import * as SQLite from "expo-sqlite";
 import * as FileSystem from "expo-file-system";
 import { v4 as uuidv4 } from "uuid";
 
-// -------------------------------------------------------------
-// 📂 File system setup
-// ------------------------------------------------------------
-// safely type and export directories
-const documentDirectory: string =
-  (FileSystem as any).documentDirectory ??
-  (FileSystem as any).cacheDirectory ??
-  "";
-
-export { documentDirectory };
+// Some SDK typings don't expose these properties; cast to any for safety.
+const FS: any = FileSystem;
+export const documentDirectory: string =
+  FS.documentDirectory ?? FS.cacheDirectory ?? "";
 
 // -------------------------------------------------------------
-// 📋 Helper types
+// Types
 // -------------------------------------------------------------
 export type TableColumn = { name: string };
 
@@ -44,25 +38,34 @@ export type DeliveryLogRecord = {
 };
 
 // -------------------------------------------------------------
-// 🗃️ Database Singleton
+// DB singleton (use standard location: <documentDir>/SQLite/quickquote.db)
 // -------------------------------------------------------------
 let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export async function openDB(): Promise<SQLite.SQLiteDatabase> {
   if (!_dbPromise) {
+    // Use just the filename so Expo stores it under .../SQLite/quickquote.db
     _dbPromise = SQLite.openDatabaseAsync("quickquote.db");
   }
   return _dbPromise;
 }
 
+// Debug helper: log CREATE TABLE for customers
+export async function debugCustomersSchema() {
+  const db = await openDB();
+  const result = await db.getAllAsync<{ name: string; sql: string }>(
+    "SELECT name, sql FROM sqlite_master WHERE type='table' AND name='customers';"
+  );
+  console.log("🧩 Local customers table schema:", result);
+}
+
 // -------------------------------------------------------------
-// 🏗️ Initialize Local Database
+// Initialize schema
 // -------------------------------------------------------------
 export async function initLocalDB(): Promise<void> {
   const db = await openDB();
   await db.execAsync("PRAGMA foreign_keys = ON;");
 
-  // --- Sync Queue ---
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS sync_queue (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +76,6 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  // --- Customers ---
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS customers (
       id TEXT PRIMARY KEY,
@@ -89,7 +91,6 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  // --- Estimates ---
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS estimates (
       id TEXT PRIMARY KEY,
@@ -116,7 +117,6 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  // --- Item Catalog ---
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS item_catalog (
       id TEXT PRIMARY KEY,
@@ -126,7 +126,6 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  // --- Estimate Items ---
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS estimate_items (
       id TEXT PRIMARY KEY,
@@ -145,7 +144,6 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  // --- Photos ---
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS photos (
       id TEXT PRIMARY KEY,
@@ -160,7 +158,6 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  // --- Saved Items ---
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS saved_items (
       id TEXT PRIMARY KEY,
@@ -176,7 +173,6 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  // --- Delivery Logs ---
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS delivery_logs (
       id TEXT PRIMARY KEY,
@@ -194,12 +190,12 @@ export async function initLocalDB(): Promise<void> {
 }
 
 // -------------------------------------------------------------
-// 🔄 Offline Sync Helpers
+// Sync queue helpers
 // -------------------------------------------------------------
 export async function queueChange(
   table: Change["table_name"],
   op: Change["op"],
-  payload: any
+  payload: unknown
 ): Promise<void> {
   const db = await openDB();
   const now = new Date().toISOString();
@@ -212,10 +208,9 @@ export async function queueChange(
 
 export async function getQueuedChanges(): Promise<Change[]> {
   const db = await openDB();
-  const rows = await db.getAllAsync<Change>(
+  return db.getAllAsync<Change>(
     "SELECT id, table_name, op, payload, created_at FROM sync_queue ORDER BY created_at ASC"
   );
-  return rows;
 }
 
 export async function clearQueuedChange(id: number): Promise<void> {
@@ -224,7 +219,7 @@ export async function clearQueuedChange(id: number): Promise<void> {
 }
 
 // -------------------------------------------------------------
-// 📨 Delivery Logging
+// Delivery logging
 // -------------------------------------------------------------
 export async function logEstimateDelivery(params: {
   estimateId: string;
@@ -254,20 +249,26 @@ export async function logEstimateDelivery(params: {
 }
 
 // -------------------------------------------------------------
-// 🧹 Reset Local Database
+// Reset local DB (delete both possible locations just in case)
 // -------------------------------------------------------------
 export async function resetLocalDatabase(): Promise<void> {
   try {
-    const dbPath = `${documentDirectory}SQLite/quickquote.db`;
-    console.log("🧹 Attempting to delete local DB:", dbPath);
+    const primary = `${documentDirectory}SQLite/quickquote.db`;
+    const fallback = `${(FS.cacheDirectory ?? "")}SQLite/quickquote.db`;
+    console.log("🧹 Attempting to delete local DB:", { primary, fallback });
 
-    const fileInfo = await FileSystem.getInfoAsync(dbPath);
-    if (fileInfo.exists) {
-      await FileSystem.deleteAsync(dbPath, { idempotent: true });
-      console.log("✅ Local DB file deleted.");
-    }
+    const tryDelete = async (path: string) => {
+      const info = await FileSystem.getInfoAsync(path);
+      if (info.exists) {
+        await FileSystem.deleteAsync(path, { idempotent: true });
+        console.log("✅ Deleted:", path);
+      }
+    };
 
-    // Re-initialize DB
+    await tryDelete(primary);
+    await tryDelete(fallback);
+
+    // Re-initialize schema
     await initLocalDB();
 
     const db = await openDB();
@@ -276,10 +277,7 @@ export async function resetLocalDatabase(): Promise<void> {
     const tables = await db.getAllAsync<{ name: string }>(
       "SELECT name FROM sqlite_master WHERE type='table'"
     );
-    console.log(
-      "📋 Current tables after reset:",
-      tables.map((t) => t.name)
-    );
+    console.log("📋 Current tables after reset:", tables.map((t) => t.name));
     console.log("✅ Database reset complete!");
   } catch (err) {
     console.error("❌ Error resetting local DB:", err);

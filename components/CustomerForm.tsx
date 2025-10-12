@@ -7,6 +7,7 @@ import { openDB, queueChange } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
 import { useAuth } from "../context/AuthContext";
 import { Button, Card, Input } from "./ui";
+import { router } from "expo-router";
 import type { CustomerRecord } from "../types/customers";
 
 type Props = {
@@ -20,10 +21,17 @@ export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = tr
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [address, setAddress] = useState("");
+
+  // 🏠 Address parts
+  const [street, setStreet] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [zip, setZip] = useState("");
+
   const [notes, setNotes] = useState("");
   const { user, session } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [justSavedCustomer, setJustSavedCustomer] = useState<CustomerRecord | null>(null);
   const styles = useMemo(() => createStyles(), []);
 
   async function saveCustomer() {
@@ -38,6 +46,9 @@ export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = tr
       return;
     }
 
+    // Combine address fields into one clean line
+    const fullAddress = [street, city, state, zip].filter(Boolean).join(", ") || null;
+
     const now = new Date().toISOString();
     const newCustomer: CustomerRecord = {
       id: uuidv4(),
@@ -45,14 +56,13 @@ export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = tr
       name: name.trim(),
       phone: phone?.trim() || null,
       email: email?.trim() || null,
-      address: address?.trim() || null,
+      address: fullAddress,
       notes: notes?.trim() || null,
       version: 1,
       updated_at: now,
       deleted_at: null,
     };
 
-    // Local mirror (so it appears immediately in pickers/lists)
     try {
       setSaving(true);
       const db = await openDB();
@@ -71,21 +81,24 @@ export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = tr
           newCustomer.version ?? 1,
           newCustomer.updated_at ?? now,
           newCustomer.deleted_at ?? null,
-        ],
+        ]
       );
 
-      // Queue for server sync
       await queueChange("customers", "insert", newCustomer);
       await runSync();
 
       Alert.alert("Success", "Customer saved (will sync when online).");
-      if (onSaved) onSaved(newCustomer);
+      setJustSavedCustomer(newCustomer);
+      onSaved?.(newCustomer);
 
-      // reset form
+      // Reset form fields
       setName("");
       setPhone("");
       setEmail("");
-      setAddress("");
+      setStreet("");
+      setCity("");
+      setState("");
+      setZip("");
       setNotes("");
     } catch (error) {
       console.error("Failed to save customer", error);
@@ -123,13 +136,15 @@ export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = tr
         textContentType="emailAddress"
         returnKeyType="next"
       />
-      <Input
-        label="Address"
-        placeholder="123 Elm St"
-        value={address}
-        onChangeText={setAddress}
-        returnKeyType="next"
-      />
+
+      {/* 🏠 Address Fields */}
+      <View style={styles.addressGroup}>
+        <Input label="Street" placeholder="123 Main Street" value={street} onChangeText={setStreet} />
+        <Input label="City" placeholder="Springfield" value={city} onChangeText={setCity} />
+        <Input label="State" placeholder="RI" value={state} onChangeText={setState} />
+        <Input label="ZIP Code" placeholder="02893" value={zip} onChangeText={setZip} keyboardType="numeric" />
+      </View>
+
       <Input
         label="Account notes"
         placeholder="Project preferences, gate codes, etc."
@@ -137,6 +152,7 @@ export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = tr
         onChangeText={setNotes}
         multiline
       />
+
       <View style={styles.actions}>
         <Button
           label="Save Customer"
@@ -145,7 +161,7 @@ export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = tr
           disabled={saving}
           alignment="full"
         />
-        {onCancel ? (
+        {onCancel && (
           <Button
             label="Cancel"
             variant="secondary"
@@ -153,8 +169,23 @@ export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = tr
             disabled={saving}
             alignment="full"
           />
-        ) : null}
+        )}
       </View>
+
+      {/* ✅ Create Estimate Button after saving */}
+      {justSavedCustomer && (
+        <View style={styles.estimateButtonWrapper}>
+          <Button
+            label={`Create Estimate for ${justSavedCustomer.name}`}
+            variant="ghost"
+            alignment="full"
+            onPress={() => {
+              setJustSavedCustomer(null);
+              router.push("/(tabs)/estimates");
+            }}
+          />
+        </View>
+      )}
     </>
   );
 
@@ -170,8 +201,15 @@ function createStyles() {
     card: {
       gap: 16,
     },
+    addressGroup: {
+      gap: 12,
+    },
     actions: {
       gap: 12,
+      marginTop: 8,
+    },
+    estimateButtonWrapper: {
+      marginTop: 16,
     },
   });
 }

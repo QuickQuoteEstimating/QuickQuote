@@ -3,7 +3,6 @@ import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   RefreshControl,
@@ -14,7 +13,7 @@ import {
 import type { ListRenderItem } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomerForm from "../../components/CustomerForm";
-import { Badge, Button, Card, FAB, Input, ListItem } from "../../components/ui";
+import { Badge, Button, Card, Input, ListItem } from "../../components/ui";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
 import { confirmDelete } from "../../lib/confirmDelete";
@@ -32,19 +31,29 @@ type EditCustomerFormProps = {
 function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustomerFormProps) {
   const { theme } = useThemeContext();
   const styles = useMemo(() => createEditStyles(theme), [theme]);
-  const [name, setName] = useState<string>(customer.name);
-  const [phone, setPhone] = useState<string>(customer.phone ?? "");
-  const [email, setEmail] = useState<string>(customer.email ?? "");
-  const [address, setAddress] = useState<string>(customer.address ?? "");
-  const [notes, setNotes] = useState<string>(customer.notes ?? "");
-  const [saving, setSaving] = useState<boolean>(false);
+  const [name, setName] = useState(customer.name);
+  const [phone, setPhone] = useState(customer.phone ?? "");
+  const [email, setEmail] = useState(customer.email ?? "");
+  const [notes, setNotes] = useState(customer.notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const [street, setStreet] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [zip, setZip] = useState("");
 
   useEffect(() => {
     setName(customer.name);
     setPhone(customer.phone ?? "");
     setEmail(customer.email ?? "");
-    setAddress(customer.address ?? "");
     setNotes(customer.notes ?? "");
+    if (customer.address) {
+      const parts = customer.address.split(",").map((p) => p.trim());
+      setStreet(parts[0] ?? "");
+      setCity(parts[1] ?? "");
+      const stateZip = parts[2]?.split(" ") ?? [];
+      setState(stateZip[0] ?? "");
+      setZip(stateZip[1] ?? "");
+    }
   }, [customer]);
 
   const saveChanges = useCallback(async () => {
@@ -58,8 +67,8 @@ function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustome
       const trimmedName = name.trim();
       const trimmedPhone = phone.trim() || null;
       const trimmedEmail = email.trim() || null;
-      const trimmedAddress = address.trim() || null;
       const trimmedNotes = notes.trim() || null;
+      const fullAddress = [street, city, state, zip].filter(Boolean).join(", ") || null;
       const updatedAt = new Date().toISOString();
       const nextVersion = (customer.version ?? 1) + 1;
 
@@ -72,12 +81,12 @@ function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustome
           trimmedName,
           trimmedPhone,
           trimmedEmail,
-          trimmedAddress,
+          fullAddress,
           trimmedNotes,
           nextVersion,
           updatedAt,
           customer.id,
-        ],
+        ]
       );
 
       const updatedCustomer: CustomerRecord = {
@@ -85,7 +94,7 @@ function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustome
         name: trimmedName,
         phone: trimmedPhone,
         email: trimmedEmail,
-        address: trimmedAddress,
+        address: fullAddress ?? "",
         notes: trimmedNotes,
         version: nextVersion,
         updated_at: updatedAt,
@@ -103,7 +112,7 @@ function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustome
     } finally {
       setSaving(false);
     }
-  }, [address, customer, email, name, notes, phone, onSaved]);
+  }, [name, phone, email, notes, street, city, state, zip, customer, onSaved]);
 
   return (
     <Card style={styles.card}>
@@ -111,82 +120,56 @@ function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustome
         <Text style={styles.title}>Edit customer</Text>
         <Badge style={styles.editBadge}>Updating</Badge>
       </View>
+
+      <Input label="Name" placeholder="Customer name" value={name} onChangeText={setName} />
+      <Input label="Phone" placeholder="(555) 123-4567" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+      <Input label="Email" placeholder="you@example.com" value={email} onChangeText={setEmail} keyboardType="email-address" />
+
+      <View style={{ gap: 12 }}>
+        <Input label="Street" value={street} onChangeText={setStreet} placeholder="123 Main Street" />
+        <Input label="City" value={city} onChangeText={setCity} placeholder="Springfield" />
+        <Input label="State" value={state} onChangeText={setState} placeholder="RI" />
+        <Input label="ZIP Code" value={zip} onChangeText={setZip} placeholder="02893" keyboardType="numeric" />
+      </View>
+
       <Input
-        label="Name"
-        placeholder="Customer name"
-        value={name}
-        onChangeText={setName}
-        autoCapitalize="words"
-      />
-      <Input
-        label="Phone"
-        placeholder="(555) 123-4567"
-        value={phone}
-        onChangeText={setPhone}
-        keyboardType="phone-pad"
-      />
-      <Input
-        label="Email"
-        placeholder="you@example.com"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-      <Input
-        label="Address"
-        placeholder="Job site or billing address"
-        value={address}
-        onChangeText={setAddress}
-      />
-      <Input
-        label="Account notes"
+        label="Notes"
         placeholder="Notes, preferences, or job history"
         value={notes}
         onChangeText={setNotes}
         multiline
       />
+
       <View style={styles.actions}>
+        <Button label={saving ? "Saving…" : "Save"} onPress={saveChanges} loading={saving} disabled={saving} alignment="full" />
+        <Button label="Cancel" variant="secondary" onPress={onCancel} disabled={saving} alignment="full" />
         <Button
-          label={saving ? "Saving…" : "Save"}
-          onPress={saveChanges}
-          loading={saving}
-          disabled={saving}
-          alignment="full"
-        />
-        <Button
-          label="Cancel"
-          variant="secondary"
-          onPress={onCancel}
-          disabled={saving}
+          label="Create Estimate"
+          variant="primary"
+          onPress={() => router.push("/(tabs)/estimates")}
           alignment="full"
         />
       </View>
+
       <View style={styles.deleteSection}>
-        <Button
-          label="Delete"
-          variant="danger"
-          onPress={() => onDelete(customer)}
-          disabled={saving}
-          alignment="full"
-        />
+        <Button label="Delete" variant="danger" onPress={() => onDelete(customer)} disabled={saving} alignment="full" />
       </View>
     </Card>
   );
 }
 
+// --- MAIN CUSTOMERS SCREEN ---
 export default function Customers() {
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchInput, setSearchInput] = useState<string>("");
-  const [showAddForm, setShowAddForm] = useState<boolean>(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<CustomerRecord | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const previousCustomersRef = useRef<CustomerRecord[] | null>(null);
 
   const loadCustomers = useCallback(async (): Promise<void> => {
     try {
@@ -196,398 +179,127 @@ export default function Customers() {
         `SELECT id, user_id, name, phone, email, address, notes, version, updated_at, deleted_at
          FROM customers
          WHERE deleted_at IS NULL
-         ORDER BY name COLLATE NOCASE ASC`,
+         ORDER BY name COLLATE NOCASE ASC`
       );
       setCustomers(rows);
-      setSelectedCustomerId((current) => {
-        if (current && rows.some((row) => row.id === current)) {
-          return current;
-        }
-        return rows.length > 0 ? rows[0].id : null;
-      });
+      if (!selectedCustomerId && rows.length > 0) {
+        setSelectedCustomerId(rows[0].id);
+      }
     } catch (err) {
       console.error("Failed to load customers", err);
       setError("We couldn’t load your customers. Pull to refresh or try again.");
+    } finally {
+      setLoading(false);
     }
-  }, []);
-
-  const reloadCustomers = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    await loadCustomers();
-    setLoading(false);
-  }, [loadCustomers]);
+  }, [selectedCustomerId]);
 
   useEffect(() => {
-    void reloadCustomers();
-  }, [reloadCustomers]);
+    void loadCustomers();
+  }, [loadCustomers]);
 
-  const onRefresh = useCallback(async (): Promise<void> => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadCustomers();
     setRefreshing(false);
   }, [loadCustomers]);
 
-  const filteredCustomers = useMemo<CustomerRecord[]>(() => {
-    const query = searchInput.trim().toLowerCase();
-    if (!query) {
-      return customers;
-    }
-
-    const normalize = (value?: string | null) => {
-      if (typeof value === "string") {
-        return value.toLowerCase().trim();
-      }
-      if (value === null || value === undefined) {
-        return "";
-      }
-      return String(value).toLowerCase().trim();
-    };
-
-    return customers.filter((customer) => {
-      const nameMatch = normalize(customer.name).includes(query);
-      const emailMatch = normalize(customer.email).includes(query);
-      const phoneMatch = normalize(customer.phone).includes(query);
-      const addressMatch = normalize(customer.address).includes(query);
-      const notesMatch = normalize(customer.notes).includes(query);
-      return nameMatch || emailMatch || phoneMatch || addressMatch || notesMatch;
-    });
+  const filteredCustomers = useMemo(() => {
+    const q = searchInput.trim().toLowerCase();
+    if (!q) return customers;
+    const normalize = (v?: string | null) => (v ? v.toLowerCase().trim() : "");
+    return customers.filter((c) =>
+      [c.name, c.email, c.phone, c.address, c.notes].map(normalize).some((v) => v.includes(q))
+    );
   }, [customers, searchInput]);
 
-  useEffect(() => {
-    if (!searchInput.trim()) {
-      return;
-    }
-
-    if (filteredCustomers.length === 0) {
-      setSelectedCustomerId(null);
-      return;
-    }
-
-    setSelectedCustomerId((current) => {
-      if (current && filteredCustomers.some((customer) => customer.id === current)) {
-        return current;
-      }
-      return filteredCustomers[0]?.id ?? null;
-    });
-  }, [filteredCustomers, searchInput]);
-
-  const selectedCustomer = useMemo<CustomerRecord | null>(
-    () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
-    [customers, selectedCustomerId],
-  );
-
-  const selectedCustomerEmail = selectedCustomer?.email?.trim() ?? "";
-  const selectedCustomerPhone = selectedCustomer?.phone?.trim() ?? "";
-  const selectedCustomerAddress = selectedCustomer?.address?.trim() ?? "";
-  const selectedCustomerNotes = selectedCustomer?.notes?.trim() ?? "";
-
-  const getDisplayName = useCallback((customer: CustomerRecord) => {
-    const trimmed = customer.name.trim();
-    return trimmed ? trimmed : "Unnamed customer";
-  }, []);
-
-  const handleSelectCustomer = useCallback((customerId: string) => {
-    setShowAddForm(false);
-    setEditingCustomer(null);
-    setSelectedCustomerId(customerId);
-  }, []);
+  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) ?? null;
 
   const handleDelete = useCallback(
     (customer: CustomerRecord) => {
-      confirmDelete(
-        "Delete this Customer?",
-        "This action cannot be undone. This will permanently delete this record and all related data. Are you sure?",
-        () => {
-          void (async () => {
-            previousCustomersRef.current = customers;
-            let estimateIds: string[] = [];
-            let transactionStarted = false;
-
-            try {
-              const db = await openDB();
-
-              await db.execAsync("BEGIN");
-              transactionStarted = true;
-
-              try {
-                const estimateRows = await db.getAllAsync<{ id: string }>(
-                  `SELECT id FROM estimates WHERE customer_id = ? AND deleted_at IS NULL`,
-                  [customer.id],
-                );
-                estimateIds = estimateRows.map((row) => row.id);
-
-                await db.runAsync(
-                  `UPDATE customers
-                   SET deleted_at = CURRENT_TIMESTAMP,
-                       updated_at = CURRENT_TIMESTAMP,
-                       version = COALESCE(version, 0) + 1
-                   WHERE id = ?`,
-                  [customer.id],
-                );
-
-                await db.runAsync(
-                  `UPDATE estimates
-                   SET deleted_at = CURRENT_TIMESTAMP,
-                       updated_at = CURRENT_TIMESTAMP,
-                       version = COALESCE(version, 0) + 1
-                   WHERE customer_id = ?
-                     AND deleted_at IS NULL`,
-                  [customer.id],
-                );
-
-                if (estimateIds.length) {
-                  const placeholders = estimateIds.map(() => "?").join(", ");
-
-                  await db.runAsync(
-                    `UPDATE estimate_items
-                     SET deleted_at = CURRENT_TIMESTAMP,
-                         updated_at = CURRENT_TIMESTAMP,
-                         version = COALESCE(version, 0) + 1
-                     WHERE estimate_id IN (${placeholders})
-                       AND deleted_at IS NULL`,
-                    estimateIds,
-                  );
-
-                  await db.runAsync(
-                    `UPDATE photos
-                     SET deleted_at = CURRENT_TIMESTAMP,
-                         updated_at = CURRENT_TIMESTAMP,
-                         version = COALESCE(version, 0) + 1
-                     WHERE estimate_id IN (${placeholders})
-                       AND deleted_at IS NULL`,
-                    estimateIds,
-                  );
-                }
-
-                await db.execAsync("COMMIT");
-                transactionStarted = false;
-              } catch (transactionError) {
-                if (transactionStarted) {
-                  await db.execAsync("ROLLBACK");
-                  transactionStarted = false;
-                }
-                throw transactionError;
-              }
-
-              const deletedCustomerPayload: Pick<CustomerRecord, "id"> = { id: customer.id };
-              await queueChange("customers", "delete", deletedCustomerPayload);
-              await Promise.all(
-                estimateIds.map((estimateId) => queueChange("estimates", "delete", { id: estimateId })),
-              );
-
-              try {
-                await runSync();
-              } catch (syncError) {
-                console.error("Failed to sync customer deletion", syncError);
-              }
-
-              setCustomers((current) => current.filter((existing) => existing.id !== customer.id));
-              setEditingCustomer((current) => (current?.id === customer.id ? null : current));
-              setSelectedCustomerId((current) => (current === customer.id ? null : current));
-
-              router.replace("/(tabs)/customers");
-              await reloadCustomers();
-            } catch (deleteError) {
-              console.error("Failed to delete customer", deleteError);
-              Alert.alert("Error", "Unable to delete customer. Please try again.");
-              if (previousCustomersRef.current) {
-                setCustomers(previousCustomersRef.current);
-              }
-              await reloadCustomers();
-            } finally {
-              previousCustomersRef.current = null;
-            }
-          })();
-        },
-      );
+      confirmDelete("Delete this Customer?", "This action cannot be undone.", async () => {
+        try {
+          const db = await openDB();
+          await db.runAsync(
+            `UPDATE customers SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP, version = COALESCE(version, 0) + 1 WHERE id = ?`,
+            [customer.id]
+          );
+          await queueChange("customers", "delete", { id: customer.id });
+          await runSync();
+          setCustomers((cur) => cur.filter((c) => c.id !== customer.id));
+          router.replace("/(tabs)/customers");
+        } catch (e) {
+          console.error("Delete failed", e);
+          Alert.alert("Error", "Unable to delete customer.");
+        }
+      });
     },
-    [customers, reloadCustomers],
+    []
   );
-
-  const renderCustomerItem = useCallback<ListRenderItem<CustomerRecord>>(
-    ({ item }) => {
-      const subtitle = item.phone?.trim() || item.email?.trim() || "No contact info yet";
-      const hasNotes = Boolean(item.notes?.trim());
-
-      return (
-        <ListItem
-          title={getDisplayName(item)}
-          subtitle={subtitle}
-          onPress={() => handleSelectCustomer(item.id)}
-          style={[
-            styles.listItem,
-            item.id === selectedCustomerId ? styles.listItemActive : null,
-          ]}
-          badge={hasNotes ? <Badge style={styles.notesBadge}>Notes</Badge> : undefined}
-        />
-      );
-    },
-    [getDisplayName, handleSelectCustomer, selectedCustomerId, styles.listItem, styles.listItemActive, styles.notesBadge],
-  );
-
-  const itemSeparator = useCallback((): ReactElement => <View style={styles.separator} />, [
-    styles.separator,
-  ]);
-
-  const listEmptyComponent = useMemo<ReactElement | null>(() => {
-    if (loading) {
-      return null;
-    }
-
-    return (
-      <View style={styles.emptyContainer}>
-        <Card style={styles.emptyCard} elevated={false}>
-          <Text style={styles.emptyTitle}>No customers yet</Text>
-          <Text style={styles.emptyBody}>
-            Add your first customer to start estimating faster.
-          </Text>
-          <Button
-            label="Add customer"
-            onPress={() => {
-              setShowAddForm(true);
-              setEditingCustomer(null);
-              setSelectedCustomerId(null);
-            }}
-          />
-        </Card>
-      </View>
-    );
-  }, [loading, styles.emptyBody, styles.emptyCard, styles.emptyContainer, styles.emptyTitle]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <FlatList<CustomerRecord>
-          data={loading ? ([] as CustomerRecord[]) : filteredCustomers}
-          keyExtractor={(item) => item.id}
-          renderItem={renderCustomerItem}
-          ItemSeparatorComponent={itemSeparator}
+          data={loading ? [] : filteredCustomers}
+          keyExtractor={(i) => i.id}
+          renderItem={({ item }) => (
+            <ListItem
+              title={item.name || "Unnamed customer"}
+              subtitle={item.phone || item.email || "No contact info"}
+              onPress={() => {
+                setEditingCustomer(null);
+                setShowAddForm(false);
+                setSelectedCustomerId(item.id);
+              }}
+              style={[
+                styles.listItem,
+                item.id === selectedCustomerId ? styles.listItemActive : null,
+              ]}
+            />
+          )}
           ListHeaderComponent={
             <View style={styles.listHeader}>
-              <View style={styles.headerTextBlock}>
-                <Text style={styles.headerTitle}>Customers</Text>
-                <Text style={styles.headerSubtitle}>
-                  Keep every relationship organized with quick notes and contact details.
-                </Text>
-              </View>
+              <Text style={styles.headerTitle}>Customers</Text>
               <Card style={styles.searchCard}>
                 <Input
                   label="Search customers…"
-                  placeholder="Search customers…"
                   value={searchInput}
                   onChangeText={setSearchInput}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                  returnKeyType="search"
-                  caption="Search by name, email, phone, address, or notes."
+                  placeholder="Search by name, email, phone, or notes"
                 />
               </Card>
 
-              {loading ? (
-                <Card style={styles.statusCard} elevated={false}>
-                  <ActivityIndicator color={theme.colors.accent} />
-                  <Text style={styles.statusText}>Loading customers…</Text>
-                </Card>
-              ) : null}
-
-              {error ? (
-                <Card style={styles.statusCard} elevated={false}>
-                  <Text style={styles.statusText}>{error}</Text>
-                  <Button label="Retry" onPress={() => void reloadCustomers()} />
-                </Card>
-              ) : null}
-
-              {selectedCustomer ? (
+              {selectedCustomer && (
                 <Card style={styles.detailCard}>
-                  <View style={styles.detailHeader}>
-                    <Text style={styles.detailName}>{getDisplayName(selectedCustomer)}</Text>
-                    {selectedCustomerNotes ? (
-                      <Badge style={styles.notesBadge}>Notes</Badge>
-                    ) : null}
-                  </View>
-                  <View style={styles.detailBody}>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Email</Text>
-                      <Text style={styles.detailValue}>
-                        {selectedCustomerEmail || "Not provided"}
-                      </Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Phone</Text>
-                      <Text style={styles.detailValue}>
-                        {selectedCustomerPhone || "Not provided"}
-                      </Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Address</Text>
-                      <Text style={styles.detailValue}>
-                        {selectedCustomerAddress || "Not provided"}
-                      </Text>
-                    </View>
-                    {selectedCustomerNotes ? (
-                      <View style={[styles.detailRow, styles.notesRow]}>
-                        <Text style={styles.detailLabel}>Notes</Text>
-                        <Text style={styles.detailValue}>{selectedCustomerNotes}</Text>
-                      </View>
-                    ) : null}
-                  </View>
+                  <Text style={styles.detailName}>{selectedCustomer.name}</Text>
+                  <Text style={styles.detailValue}>{selectedCustomer.email || selectedCustomer.phone}</Text>
+                  <Text style={styles.detailValue}>{selectedCustomer.address || "No address provided"}</Text>
+                  {selectedCustomer.notes ? <Text style={styles.detailValue}>{selectedCustomer.notes}</Text> : null}
                   <View style={styles.detailActions}>
-                    <Button
-                      label="Edit customer"
-                      variant="secondary"
-                      onPress={() => {
-                        setEditingCustomer(selectedCustomer);
-                        setShowAddForm(false);
-                      }}
-                    />
-                    <Button
-                      label="Delete customer"
-                      variant="ghost"
-                      onPress={() => handleDelete(selectedCustomer)}
-                      textStyle={styles.deleteLabel}
-                    />
+                    <Button label="Edit" variant="secondary" onPress={() => setEditingCustomer(selectedCustomer)} />
+                    <Button label="Delete" variant="ghost" onPress={() => handleDelete(selectedCustomer)} textStyle={styles.deleteLabel} />
                   </View>
                 </Card>
-              ) : null}
+              )}
 
-              {showAddForm ? (
+              {showAddForm && (
                 <CustomerForm
-                  onSaved={(customer) => {
-                    setShowAddForm(false);
-                    setEditingCustomer(null);
-                    setCustomers((prev) => {
-                      const next = [customer, ...prev.filter((row) => row.id !== customer.id)];
-                      return next.sort((a, b) =>
-                        a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-                      );
-                    });
-                    setSelectedCustomerId(customer.id);
-                    void reloadCustomers();
-                  }}
+                  onSaved={() => void loadCustomers()}
                   onCancel={() => setShowAddForm(false)}
                   style={styles.inlineForm}
                 />
-              ) : null}
+              )}
 
-              {editingCustomer ? (
+              {editingCustomer && (
                 <EditCustomerForm
                   customer={editingCustomer}
                   onCancel={() => setEditingCustomer(null)}
-                  onSaved={(updated) => {
-                    setEditingCustomer(null);
-                    setCustomers((prev) =>
-                      prev.map((existing) => (existing.id === updated.id ? updated : existing)),
-                    );
-                    setSelectedCustomerId(updated.id);
-                    void reloadCustomers();
-                  }}
+                  onSaved={() => void loadCustomers()}
                   onDelete={handleDelete}
                 />
-              ) : null}
+              )}
             </View>
           }
-          ListEmptyComponent={listEmptyComponent}
-          contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -596,20 +308,32 @@ export default function Customers() {
               colors={[theme.colors.accent]}
             />
           }
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />
 
-        <FAB
-          accessibilityLabel="Add customer"
-          icon={<Feather name="plus" size={24} color={theme.colors.primaryText} />}
-          onPress={() => {
-            setShowAddForm(true);
-            setEditingCustomer(null);
-            setSelectedCustomerId(null);
-          }}
-          palette="highlight"
-          style={styles.fab}
-        />
+        {/* ✅ Centered Add Customer Pill */}
+        <View style={styles.centeredButtonContainer}>
+         <Button
+  label="Create Estimate"
+  variant="primary"
+  style={{ backgroundColor: theme.colors.accent }}
+  textStyle={{ color: "#fff" }}
+  onPress={() =>
+    selectedCustomer &&
+    router.push({
+      pathname: "/(tabs)/estimates/[id]",
+      params: {
+        id: "new",
+        customer_id: selectedCustomer.id,
+        name: selectedCustomer.name,
+        mode: "new",
+      },
+    })
+  }
+/>
+
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -617,161 +341,42 @@ export default function Customers() {
 
 function createStyles(theme: Theme) {
   return StyleSheet.create({
-    safeArea: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    listContent: {
-      paddingHorizontal: theme.spacing.xl,
-      paddingTop: theme.spacing.xl,
-      paddingBottom: theme.spacing.xxl * 2,
-    },
-    listHeader: {
-      gap: theme.spacing.xxl,
-    },
-    headerTextBlock: {
-      gap: theme.spacing.sm,
-    },
-    headerTitle: {
-      fontSize: 28,
-      fontWeight: "700",
-      color: theme.colors.primaryText,
-    },
-    headerSubtitle: {
-      fontSize: 16,
-      color: theme.colors.mutedText,
-      lineHeight: 22,
-    },
-    searchCard: {
-      gap: theme.spacing.lg,
-    },
-    statusCard: {
+    safeArea: { flex: 1, backgroundColor: theme.colors.background },
+    container: { flex: 1 },
+    listContent: { padding: theme.spacing.xl },
+    listHeader: { gap: theme.spacing.xl },
+    headerTitle: { fontSize: 28, fontWeight: "700", color: theme.colors.primaryText },
+    searchCard: { gap: theme.spacing.md },
+    detailCard: { gap: theme.spacing.md, padding: theme.spacing.md },
+    detailName: { fontSize: 20, fontWeight: "700", color: theme.colors.secondaryText },
+    detailValue: { fontSize: 16, color: theme.colors.secondaryText },
+    detailActions: { flexDirection: "row", gap: theme.spacing.sm, flexWrap: "wrap" },
+    deleteLabel: { color: theme.colors.danger },
+    listItem: { borderRadius: theme.radii.md },
+    listItemActive: { borderColor: theme.colors.accent, borderWidth: 1 },
+    emptyContainer: { paddingVertical: theme.spacing.xl, alignItems: "center" },
+    inlineForm: { marginTop: theme.spacing.lg },
+    centeredButtonContainer: {
       alignItems: "center",
-      gap: theme.spacing.sm,
+      justifyContent: "center",
+      paddingVertical: theme.spacing.lg,
     },
-    statusText: {
-      fontSize: 15,
-      color: theme.colors.mutedText,
-      textAlign: "center",
-    },
-    detailCard: {
-      gap: theme.spacing.lg,
-    },
-    detailHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: theme.spacing.md,
-    },
-    detailName: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: theme.colors.secondaryText,
-    },
-    detailBody: {
-      gap: theme.spacing.md,
-    },
-    detailRow: {
-      gap: theme.spacing.xs,
-    },
-    notesRow: {
-      backgroundColor: theme.colors.surfaceAlt,
-      borderRadius: theme.radii.md,
-      padding: theme.spacing.lg,
-    },
-    detailLabel: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: theme.colors.mutedText,
-      letterSpacing: 0.4,
-      textTransform: "uppercase",
-    },
-    detailValue: {
-      fontSize: 16,
-      color: theme.colors.secondaryText,
-      lineHeight: 22,
-    },
-    detailActions: {
-      flexDirection: "row",
-      gap: theme.spacing.sm,
-    },
-    deleteLabel: {
-      color: theme.colors.danger,
-    },
-    inlineForm: {
-      marginTop: theme.spacing.lg,
-    },
-    listItem: {
-      borderRadius: theme.radii.md,
-    },
-    listItemActive: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.accent,
-      backgroundColor: theme.colors.surfaceAlt,
-    },
-    notesBadge: {
-      backgroundColor: theme.colors.accentSoft,
-    },
-    separator: {
-      height: theme.spacing.md,
-    },
-    emptyContainer: {
-      paddingVertical: theme.spacing.xl,
-      alignItems: "center",
-    },
-    emptyCard: {
-      alignItems: "center",
-      gap: theme.spacing.md,
-    },
-    emptyTitle: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: theme.colors.secondaryText,
-    },
-    emptyBody: {
-      fontSize: 15,
-      color: theme.colors.mutedText,
-      textAlign: "center",
-      lineHeight: 20,
-    },
-    fab: {
-      position: "absolute",
-      right: theme.spacing.xl,
-      bottom: theme.spacing.xl,
+    pillButton: {
+      borderRadius: 30,
+      paddingHorizontal: 24,
+      alignSelf: "center",
+      minWidth: 180,
     },
   });
 }
 
 function createEditStyles(theme: Theme) {
   return StyleSheet.create({
-    card: {
-      gap: theme.spacing.lg,
-    },
-    headerRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: theme.spacing.sm,
-    },
-    title: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: theme.colors.secondaryText,
-    },
-    editBadge: {
-      backgroundColor: theme.colors.accentSoft,
-    },
-    actions: {
-      flexDirection: "column",
-      gap: theme.spacing.sm,
-    },
-    deleteSection: {
-      marginTop: theme.spacing.lg,
-      alignSelf: "stretch",
-    },
+    card: { gap: theme.spacing.lg },
+    headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    title: { fontSize: 18, fontWeight: "600", color: theme.colors.secondaryText },
+    editBadge: { backgroundColor: theme.colors.accentSoft },
+    actions: { flexDirection: "column", gap: theme.spacing.sm },
+    deleteSection: { marginTop: theme.spacing.lg, alignSelf: "stretch" },
   });
 }

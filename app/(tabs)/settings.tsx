@@ -20,6 +20,8 @@ import type { HapticIntensity } from "../../context/SettingsContext";
 import type { MarkupMode } from "../../lib/estimateMath";
 import type { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
+import { resetLocalDatabase } from "../../lib/sqlite";
+
 
 const HAPTIC_LABELS = ["Subtle", "Balanced", "Bold"];
 
@@ -564,6 +566,31 @@ export default function Settings() {
           accessibilityLabel="Sign out of QuickQuote"
         />
       </Card>
+
+      <Card>
+  <Text style={styles.cardTitle}>Developer Tools</Text>
+  <Button
+    label="🧹 Reset Local DB"
+    variant="secondary"
+    onPress={() => {
+      Alert.alert(
+        "Reset Local Database",
+        "This will delete your local data and rebuild from scratch.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Confirm",
+            style: "destructive",
+            onPress: async () => {
+              await resetLocalDatabase();
+              Alert.alert("Database reset complete", "Restart the app to reload cleanly.");
+            },
+          },
+        ]
+      );
+    }}
+  />
+</Card>
     </ScrollView>
   );
 }
