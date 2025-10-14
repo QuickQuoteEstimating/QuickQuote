@@ -21,6 +21,11 @@ import type { MarkupMode } from "../../lib/estimateMath";
 import type { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
 import { resetLocalDatabase } from "../../lib/sqlite";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import { openDB } from "../../lib/sqlite";
+import * as Print from "expo-print";
+import { renderEstimatePdf } from "../../lib/pdf";
 
 
 const HAPTIC_LABELS = ["Subtle", "Balanced", "Bold"];
@@ -519,12 +524,55 @@ export default function Settings() {
         />
         <View style={styles.listDivider} />
         <ListItem
-          title="Export data (PDF/CSV)"
-          subtitle="Create a report of your quotes and customers."
-          onPress={() => Alert.alert("Coming soon", "Exports are not yet implemented.")}
-          badge={<Badge style={styles.badge} textStyle={styles.badgeTextMuted}>TODO</Badge>}
-          style={styles.listItem}
-        />
+  title="Export data (PDF/CSV)"
+  subtitle="Create a report of your quotes and customers."
+  onPress={async () => {
+    try {
+      const db = await openDB();
+
+      // --- Export customers as CSV ---
+      const customers = await db.getAllAsync<any>(
+        `SELECT name, phone, email, address, notes FROM customers WHERE deleted_at IS NULL`
+      );
+      const customerCsvHeader = "Name,Phone,Email,Address,Notes\n";
+      const customerCsvRows = customers
+        .map(c =>
+          [
+            c.name ?? "",
+            c.phone ?? "",
+            c.email ?? "",
+            c.address ?? "",
+            (c.notes ?? "").replace(/\n/g, " "),
+          ]
+            .map(v => `"${v.replace(/"/g, '""')}"`)
+            .join(",")
+        )
+        .join("\n");
+      const csvContent = customerCsvHeader + customerCsvRows;
+
+      // Save CSV to local file
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+const documentDir =
+  (FileSystem as any).documentDirectory ?? (FileSystem as any).cacheDirectory ?? "";
+const fileUri = `${documentDir}quickquote-export-${timestamp}.csv`;
+await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+  encoding: (FileSystem as any).EncodingType?.UTF8 ?? "utf8",
+});
+
+      // Try to share
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, { mimeType: "text/csv" });
+      } else {
+        Alert.alert("Export complete", `File saved to: ${fileUri}`);
+      }
+    } catch (err) {
+      console.error("Export failed", err);
+      Alert.alert("Export failed", "We couldn’t export your data. Please try again.");
+    }
+  }}
+  badge={<Badge style={styles.badge} textStyle={styles.badgeTextSuccess}>LIVE</Badge>}
+  style={styles.listItem}
+/>
       </Card>
 
       <Card>
@@ -549,7 +597,7 @@ export default function Settings() {
           style={styles.listItem}
         />
         <Text style={styles.mutedText}>
-          Need a hand right away? Email us at support@quickquote.com and we'll get back within one
+          Need a hand right away? Email us at info.quickquote@gmail.com and we'll get back within one
           business day.
         </Text>
       </Card>

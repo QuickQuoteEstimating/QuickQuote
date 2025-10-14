@@ -18,10 +18,8 @@ import { Picker } from "@react-native-picker/picker";
 import { v4 as uuidv4 } from "uuid";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-
 import CustomerPicker from "../../../components/CustomerPicker";
 import { useAuth } from "../../../context/AuthContext";
-import { useSettings } from "../../../context/SettingsContext";
 import { useThemeContext } from "../../../theme/ThemeProvider";
 import { openDB, queueChange } from "../../../lib/sqlite";
 import { sanitizeEstimateForQueue } from "../../../lib/estimates";
@@ -29,6 +27,8 @@ import { runSync } from "../../../lib/sync";
 import { Button, Card, Input } from "../../../components/ui";
 import type { Theme } from "../../../theme";
 import { renderEstimatePdf } from "../../../lib/pdf";
+import { useSettings } from "../../../context/SettingsContext";
+
 
 // ---------- helpers ----------
 const formatCurrency = (value: number): string => `$${(value || 0).toFixed(2)}`;
@@ -486,6 +486,8 @@ export default function EstimateFormScreen() {
           quantity: parseFloat(i.qty) || 0,
           unitPrice: parseFloat(i.price) || 0,
           total: (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0),
+          termsAndConditions: settings.termsAndConditions,
+          paymentDetails: settings.paymentDetails,
         })),
       });
 
