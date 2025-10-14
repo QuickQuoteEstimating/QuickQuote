@@ -9,6 +9,8 @@ import { useAuth } from "../context/AuthContext";
 import { Button, Card, Input } from "./ui";
 import { router } from "expo-router";
 import type { CustomerRecord } from "../types/customers";
+import NetInfo from "@react-native-community/netinfo";
+import { isOnline } from "../lib/network";
 
 type Props = {
   onSaved?: (customer: CustomerRecord) => void;
@@ -46,9 +48,6 @@ export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = tr
       return;
     }
 
-    // Combine address fields into one clean line
-    const fullAddress = [street, city, state, zip].filter(Boolean).join(", ") || null;
-
     const now = new Date().toISOString();
     const newCustomer: CustomerRecord = {
       id: uuidv4(),
@@ -56,57 +55,69 @@ export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = tr
       name: name.trim(),
       phone: phone?.trim() || null,
       email: email?.trim() || null,
-      address: fullAddress,
+      street: street?.trim() || null,
+      city: city?.trim() || null,
+      state: state?.trim() || null,
+      zip: zip?.trim() || null,
       notes: notes?.trim() || null,
       version: 1,
       updated_at: now,
       deleted_at: null,
     };
 
-    try {
-      setSaving(true);
-      const db = await openDB();
-      await db.runAsync(
-        `INSERT OR REPLACE INTO customers
-         (id, user_id, name, phone, email, address, notes, version, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          newCustomer.id,
-          newCustomer.user_id,
-          newCustomer.name,
-          newCustomer.phone ?? null,
-          newCustomer.email ?? null,
-          newCustomer.address ?? null,
-          newCustomer.notes ?? null,
-          newCustomer.version ?? 1,
-          newCustomer.updated_at ?? now,
-          newCustomer.deleted_at ?? null,
-        ]
-      );
+try {
+  setSaving(true);
+  const db = await openDB();
 
-      await queueChange("customers", "insert", newCustomer);
-      await runSync();
+  // Check network first
 
-      Alert.alert("Success", "Customer saved (will sync when online).");
-      setJustSavedCustomer(newCustomer);
-      onSaved?.(newCustomer);
+  const online = await isOnline();
 
-      // Reset form fields
-      setName("");
-      setPhone("");
-      setEmail("");
-      setStreet("");
-      setCity("");
-      setState("");
-      setZip("");
-      setNotes("");
-    } catch (error) {
-      console.error("Failed to save customer", error);
-      Alert.alert("Error", "Unable to save this customer. Please try again.");
-    } finally {
-      setSaving(false);
-    }
+  // Always write locally
+  await db.runAsync(
+    `INSERT OR REPLACE INTO customers
+     (id, user_id, name, phone, email, street, city, state, zip, notes, version, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      newCustomer.id,
+      newCustomer.user_id,
+      newCustomer.name,
+      newCustomer.phone ?? null,
+      newCustomer.email ?? null,
+      newCustomer.street ?? null,
+      newCustomer.city ?? null,
+      newCustomer.state ?? null,
+      newCustomer.zip ?? null,
+      newCustomer.notes ?? null,
+      newCustomer.version ?? 1,
+      newCustomer.updated_at ?? now,
+      newCustomer.deleted_at ?? null,
+    ]
+  );
+
+  // Always queue the change
+  await queueChange("customers", "insert", newCustomer);
+
+  // Only attempt Supabase sync if online
+  if (online) {
+    await runSync();
   }
+
+  Alert.alert("Success", online
+    ? "Customer saved and synced."
+    : "Customer saved locally. Will sync when online."
+  );
+
+  setJustSavedCustomer(newCustomer);
+  onSaved?.(newCustomer);
+  router.back();
+} catch (error) {
+  console.error("Failed to save customer", error);
+  Alert.alert("Error", "Unable to save customer. Please try again.");
+} finally {
+  setSaving(false);
+}
+
 
   const content = (
     <>
@@ -212,4 +223,4 @@ function createStyles() {
       marginTop: 16,
     },
   });
-}
+}}

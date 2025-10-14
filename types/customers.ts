@@ -4,7 +4,10 @@ export type CustomerRecord = {
   name: string;
   phone: string | null;
   email: string | null;
-  address: string | null;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
   notes: string | null;
   version: number;
   updated_at: string;

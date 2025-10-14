@@ -7,8 +7,11 @@ import { SettingsProvider } from "../context/SettingsContext";
 import { initLocalDB } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
 import { ThemeProvider } from "../theme/ThemeProvider";
+import { useAutoSync } from "../hooks/useAutoSync";
+
 
 export default function RootLayout() {
+ useAutoSync(); // ✅ automatically syncs queued data when back online
   useEffect(() => {
     const init = async () => {
       try {
