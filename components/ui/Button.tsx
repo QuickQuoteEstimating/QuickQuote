@@ -9,13 +9,13 @@ import {
   View,
   ViewStyle,
 } from "react-native";
+import * as Haptics from "expo-haptics";
+import { useSettings } from "../../context/SettingsContext";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
-
 type ButtonAlignment = "inline" | "full";
-
 type ButtonLabelVariant = `${ButtonVariant}Label`;
 
 export interface ButtonProps {
@@ -48,15 +48,23 @@ export function Button({
   accessibilityLabel,
 }: ButtonProps) {
   const { theme } = useThemeContext();
+  const { triggerHaptic } = useSettings();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
   const isDisabled = disabled || loading;
+
   const handlePress = useCallback(() => {
-    if (isDisabled || typeof onPress !== "function") {
-      return;
-    }
+    if (isDisabled || typeof onPress !== "function") return;
+
+// Haptic feedback on button render if variant is danger
+if (variant === "danger") {
+  triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
+} else {
+  triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+}
 
     onPress();
-  }, [isDisabled, onPress]);
+  }, [isDisabled, onPress, triggerHaptic]);
 
   const labelVariant: ButtonLabelVariant = `${variant}Label`;
 

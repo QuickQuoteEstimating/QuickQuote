@@ -66,6 +66,7 @@ export async function initLocalDB(): Promise<void> {
   const db = await openDB();
   await db.execAsync("PRAGMA foreign_keys = ON;");
 
+  // --- Standard table creation (unchanged) ---
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS sync_queue (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -186,8 +187,25 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  console.log("✅ Local SQLite DB initialized");
+  // --- ✅ NEW: Safe schema migration for missing columns ---
+  const tableInfo = await db.getAllAsync<{ name: string }>(
+    "PRAGMA table_info(estimates);"
+  );
+  const existingColumns = tableInfo.map((col) => col.name);
+
+  if (!existingColumns.includes("estimate_number")) {
+    console.log("🧩 Adding missing column: estimate_number");
+    await db.execAsync(`ALTER TABLE estimates ADD COLUMN estimate_number TEXT;`);
+  }
+
+  if (!existingColumns.includes("description")) {
+    console.log("🧩 Adding missing column: description");
+    await db.execAsync(`ALTER TABLE estimates ADD COLUMN description TEXT;`);
+  }
+
+  console.log("✅ Local SQLite DB initialized (with schema migration)");
 }
+
 
 // -------------------------------------------------------------
 // Sync queue helpers

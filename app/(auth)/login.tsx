@@ -6,7 +6,8 @@ import { BrandLogo } from "../../components/BrandLogo";
 import { Body, Button, Card, Input, Subtitle, Title } from "../../components/ui";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
-import KeyboardWrapper from "../../components/KeyboardWrapper";
+import KeyboardAwareContainer from "../../components/KeyboardAwareContainer";
+
 
 export default function LoginScreen() {
   const { theme } = useThemeContext();
@@ -43,7 +44,7 @@ export default function LoginScreen() {
   }, [form]);
 
   return (
-    <KeyboardWrapper>
+    <KeyboardAwareContainer>
       <View style={styles.content}>
         <Card style={styles.card}>
           <View style={styles.logoContainer}>
@@ -99,7 +100,7 @@ export default function LoginScreen() {
           </View>
         </Card>
       </View>
-    </KeyboardWrapper>
+    </KeyboardAwareContainer>
   );
 }
 

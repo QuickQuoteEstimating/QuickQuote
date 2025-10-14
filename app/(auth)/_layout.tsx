@@ -16,7 +16,7 @@ export default function AuthLayout() {
 
   // ✅ Redirect logged-in users straight to main tabs
   if (session) {
-    return <Redirect href="/(auth)/_keyboard-test" />;
+    return <Redirect href="/(auth)/login" />;
 
   }
 

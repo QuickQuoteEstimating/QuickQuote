@@ -318,27 +318,15 @@ export default function Customers() {
         />
 
         {/* ✅ Centered Add Customer Pill */}
-        <View style={styles.centeredButtonContainer}>
-         <Button
-  label="Create Estimate"
-  variant="primary"
-  style={{ backgroundColor: theme.colors.accent }}
-  textStyle={{ color: "#fff" }}
-  onPress={() =>
-    selectedCustomer &&
-    router.push({
-      pathname: "/(tabs)/estimates/[id]",
-      params: {
-        id: "new",
-        customer_id: selectedCustomer.id,
-        name: selectedCustomer.name,
-        mode: "new",
-      },
-    })
-  }
-/>
-
-        </View>
+       <View style={styles.centeredButtonContainer}>
+  <Button
+    label="New Customer"
+    variant="primary"
+    style={{ backgroundColor: theme.colors.accent }}
+    textStyle={{ color: "#fff" }}
+    onPress={() => setShowAddForm(true)}
+  />
+       </View>
       </View>
     </SafeAreaView>
   );

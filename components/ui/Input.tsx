@@ -17,8 +17,10 @@ import {
   View,
   ViewStyle,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
+import { useSettings } from "../../context/SettingsContext";
 
 export interface InputProps extends TextInputProps {
   label?: string;
@@ -31,7 +33,7 @@ export interface InputProps extends TextInputProps {
 }
 
 type FocusEvt = Parameters<NonNullable<TextInputProps["onFocus"]>>[0];
-type BlurEvt  = Parameters<NonNullable<TextInputProps["onBlur"]>>[0];
+type BlurEvt = Parameters<NonNullable<TextInputProps["onBlur"]>>[0];
 
 const InputImpl = forwardRef<TextInput, InputProps>(function Input(
   {
@@ -50,15 +52,18 @@ const InputImpl = forwardRef<TextInput, InputProps>(function Input(
   ref: ForwardedRef<TextInput>
 ) {
   const { theme } = useThemeContext();
+  const { triggerHaptic } = useSettings();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  // Pass-through handlers without triggering local state updates
   const handleFocus = useCallback(
     (e: FocusEvt) => {
+      // ✅ Light haptic feedback on focus
+      triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
       onFocus?.(e);
     },
-    [onFocus]
+    [onFocus, triggerHaptic]
   );
+
   const handleBlur = useCallback(
     (e: BlurEvt) => {
       onBlur?.(e);
@@ -75,7 +80,13 @@ const InputImpl = forwardRef<TextInput, InputProps>(function Input(
     <View style={[styles.container, containerStyle]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
 
-      <View style={[styles.fieldShell, multiline && styles.multilineShell, error && styles.errorState]}>
+      <View
+        style={[
+          styles.fieldShell,
+          multiline && styles.multilineShell,
+          error && styles.errorState,
+        ]}
+      >
         {leftElement ? <View style={styles.adornment}>{leftElement}</View> : null}
 
         <TextInput
@@ -85,12 +96,14 @@ const InputImpl = forwardRef<TextInput, InputProps>(function Input(
           multiline={multiline}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          // keep our handlers, then spread remaining props
+          onSubmitEditing={() => triggerHaptic(Haptics.ImpactFeedbackStyle.Light)}
           {...textInputProps}
         />
 
         {rightElement ? (
-          <View style={[styles.adornment, styles.rightAdornment]}>{rightElement}</View>
+          <View style={[styles.adornment, styles.rightAdornment]}>
+            {rightElement}
+          </View>
         ) : null}
       </View>
 
@@ -133,5 +146,6 @@ function createStyles(theme: Theme) {
     adornment: { justifyContent: "center", alignItems: "center" },
     rightAdornment: { marginLeft: "auto" },
     errorState: { borderColor: theme.colors.danger },
+    
   });
 }
