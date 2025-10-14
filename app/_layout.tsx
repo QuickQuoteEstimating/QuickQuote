@@ -20,7 +20,7 @@ export default function RootLayout() {
       } catch (error) {
         console.error("Initialization failed", error);
       }
-    };
+    }
 
     init();
     const sub = AppState.addEventListener("change", (state) => {
