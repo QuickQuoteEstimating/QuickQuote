@@ -1,7 +1,4 @@
-import React from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Appearance, ColorSchemeName } from "react-native";
-import {
+import React, {
   ReactNode,
   createContext,
   useCallback,
@@ -11,11 +8,12 @@ import {
   useRef,
   useState,
 } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Appearance, ColorSchemeName } from "react-native";
 import * as Haptics from "expo-haptics";
 import type { MarkupMode } from "../lib/estimateMath";
 
 export type ThemePreference = "light" | "dark" | "system";
-
 export type HapticIntensity = 0 | 1 | 2;
 
 export interface CompanyProfile {
@@ -48,38 +46,37 @@ interface SettingsContextValue {
   settings: SettingsState;
   isHydrated: boolean;
   resolvedTheme: "light" | "dark";
-  setThemePreference: (preference: ThemePreference) => void;
-  setMaterialMarkup: (value: number) => void;
-  setMaterialMarkupMode: (value: MarkupMode) => void;
-  setLaborMarkup: (value: number) => void;
-  setLaborMarkupMode: (value: MarkupMode) => void;
-  setHourlyRate: (value: number) => void;
-  setTaxRate: (value: number) => void;
-  setHapticsEnabled: (value: boolean) => void;
-  setHapticIntensity: (value: HapticIntensity) => void;
-  setNotificationsEnabled: (value: boolean) => void;
-  setAutoSyncEnabled: (value: boolean) => void;
+  setThemePreference: (v: ThemePreference) => void;
+  setMaterialMarkup: (v: number) => void;
+  setMaterialMarkupMode: (v: MarkupMode) => void;
+  setLaborMarkup: (v: number) => void;
+  setLaborMarkupMode: (v: MarkupMode) => void;
+  setHourlyRate: (v: number) => void;
+  setTaxRate: (v: number) => void;
+  setHapticsEnabled: (v: boolean) => void;
+  setHapticIntensity: (v: HapticIntensity) => void;
+  setNotificationsEnabled: (v: boolean) => void;
+  setAutoSyncEnabled: (v: boolean) => void;
   setCompanyProfile: (
-    updater: Partial<CompanyProfile> | ((prev: CompanyProfile) => CompanyProfile),
+    updater: Partial<CompanyProfile> | ((prev: CompanyProfile) => CompanyProfile)
   ) => void;
-  setTermsAndConditions: (value: string) => void;
-  setPaymentDetails: (value: string) => void;
+  setTermsAndConditions: (v: string) => void;
+  setPaymentDetails: (v: string) => void;
   triggerHaptic: (style?: Haptics.ImpactFeedbackStyle) => void;
   resetToDefaults: () => void;
 }
 
-const DEFAULT_TERMS_AND_CONDITIONS = [
+const DEFAULT_TERMS = [
   "Estimates are valid for 30 days unless otherwise noted.",
   "Work will be scheduled upon approval and receipt of the required deposit.",
   "Any additional work not listed will require a separate change order.",
   "Manufacturer warranties apply to supplied products. Labor is warranted for one year.",
 ].join("\n");
 
-const DEFAULT_PAYMENT_DETAILS =
-  "A deposit may be required prior to scheduling. Final balance is due upon completion.\n\n" +
-  "Please make payments to QuickQuote Services. We accept major credit cards and checks.";
+const DEFAULT_PAYMENT =
+  "A deposit may be required prior to scheduling. Final balance is due upon completion.\n\nPlease make payments to QuickQuote Services. We accept major credit cards and checks.";
 
-const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
+const DEFAULT_COMPANY: CompanyProfile = {
   name: "",
   email: "",
   phone: "",
@@ -100,273 +97,180 @@ const DEFAULT_SETTINGS: SettingsState = {
   hapticIntensity: 1,
   notificationsEnabled: true,
   autoSyncEnabled: true,
-  companyProfile: DEFAULT_COMPANY_PROFILE,
-  termsAndConditions: DEFAULT_TERMS_AND_CONDITIONS,
-  paymentDetails: DEFAULT_PAYMENT_DETAILS,
+  companyProfile: DEFAULT_COMPANY,
+  termsAndConditions: DEFAULT_TERMS,
+  paymentDetails: DEFAULT_PAYMENT,
 };
 
 const STORAGE_KEY = "@quickquote/settings";
-
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
 
-type SettingsProviderProps = {
-  children: ReactNode;
-};
-
-export function SettingsProvider({ children }: SettingsProviderProps) {
-  const [settings, setSettings] = useState<SettingsState>(() => ({
-    ...DEFAULT_SETTINGS,
-    companyProfile: { ...DEFAULT_COMPANY_PROFILE },
-  }));
+export function SettingsProvider({ children }: { children: ReactNode }) {
+  const [settings, setSettings] = useState<SettingsState>({ ...DEFAULT_SETTINGS });
   const [isHydrated, setIsHydrated] = useState(false);
-  const [systemTheme, setSystemTheme] = useState<ColorSchemeName>(Appearance.getColorScheme());
+  const [systemTheme, setSystemTheme] = useState<ColorSchemeName>(
+    Appearance.getColorScheme()
+  );
   const hydrationRef = useRef(false);
 
+  // -------- Load settings once --------
   useEffect(() => {
-    const loadSettings = async () => {
+    (async () => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored) as Partial<SettingsState>;
-          setSettings((current) => ({
-            ...current,
+          setSettings((prev) => ({
+            ...prev,
             ...parsed,
-            companyProfile: {
-              ...current.companyProfile,
-              ...(parsed.companyProfile ?? {}),
-            },
+            companyProfile: { ...prev.companyProfile, ...(parsed.companyProfile ?? {}) },
           }));
         }
-      } catch (error) {
-        console.error("Failed to load settings from storage", error);
+      } catch (e) {
+        console.error("Failed to load settings", e);
       } finally {
         hydrationRef.current = true;
         setIsHydrated(true);
       }
-    };
-
-    loadSettings();
+    })();
   }, []);
 
+  // -------- Watch for system theme changes --------
   useEffect(() => {
-    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
+    const sub = Appearance.addChangeListener(({ colorScheme }) => {
       setSystemTheme(colorScheme);
     });
-
-    return () => subscription.remove();
+    return () => sub.remove();
   }, []);
 
+  // -------- Debounced persist (prevents router resets while typing) --------
   useEffect(() => {
     if (!hydrationRef.current) return;
 
-    // ⛔ Skip persisting while on auth routes
-    const skipPersist =
-      typeof window !== "undefined" &&
-      (window.location?.pathname?.includes?.("/(auth)") ||
-        window.location?.pathname?.includes?.("/login") ||
-        window.location?.pathname?.includes?.("/signup"));
-
-    if (skipPersist) return;
-
-    const persist = async () => {
+    const timeout = setTimeout(async () => {
       try {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-      } catch (error) {
-        console.error("Failed to persist settings", error);
+      } catch (e) {
+        console.error("Failed to persist settings", e);
       }
-    };
+    }, 600); // only write after 600ms of no changes
 
-    persist();
+    return () => clearTimeout(timeout);
   }, [settings]);
 
-  const resolvedTheme = useMemo<"light" | "dark">(() => {
+  // -------- Derived theme --------
+  const resolvedTheme: "light" | "dark" = useMemo(() => {
     if (settings.themePreference === "system") {
       return systemTheme === "dark" ? "dark" : "light";
     }
-
     return settings.themePreference;
   }, [settings.themePreference, systemTheme]);
 
+  // -------- Generic updater --------
   const updateSettings = useCallback(
     (updater: Partial<SettingsState> | ((prev: SettingsState) => SettingsState)) => {
       setSettings((prev) => {
-        if (typeof updater === "function") {
-          const next = updater(prev);
-          return {
-            ...prev,
-            ...next,
-            companyProfile: {
-              ...prev.companyProfile,
-              ...(next.companyProfile ?? {}),
-            },
-          };
-        }
-
-        const nextCompanyProfile =
-          updater.companyProfile !== undefined
-            ? {
-                ...prev.companyProfile,
-                ...updater.companyProfile,
-              }
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        const mergedCompany =
+          next.companyProfile !== undefined
+            ? { ...prev.companyProfile, ...next.companyProfile }
             : prev.companyProfile;
-
-        const { companyProfile: _ignored, ...rest } = updater;
-
-        return {
-          ...prev,
-          ...rest,
-          companyProfile: nextCompanyProfile,
-        };
+        return { ...prev, ...next, companyProfile: mergedCompany };
       });
     },
-    [],
+    []
   );
 
-  // (keep all your setter functions as-is here)
-  // ...
-const setThemePreference = useCallback(
-  (preference: ThemePreference) => {
-    updateSettings({ themePreference: preference });
-  },
-  [updateSettings],
-);
+  // -------- Setter wrappers --------
+  const setThemePreference = useCallback(
+    (v: ThemePreference) => updateSettings({ themePreference: v }),
+    [updateSettings]
+  );
+  const setMaterialMarkup = useCallback(
+    (v: number) => updateSettings({ materialMarkup: Math.max(0, v) }),
+    [updateSettings]
+  );
+  const setMaterialMarkupMode = useCallback(
+    (v: MarkupMode) =>
+      updateSettings({ materialMarkupMode: v === "flat" ? "flat" : "percentage" }),
+    [updateSettings]
+  );
+  const setLaborMarkup = useCallback(
+    (v: number) => updateSettings({ laborMarkup: Math.max(0, v) }),
+    [updateSettings]
+  );
+  const setLaborMarkupMode = useCallback(
+    (v: MarkupMode) =>
+      updateSettings({ laborMarkupMode: v === "flat" ? "flat" : "percentage" }),
+    [updateSettings]
+  );
+  const setHourlyRate = useCallback(
+    (v: number) => updateSettings({ hourlyRate: Math.max(0, v) }),
+    [updateSettings]
+  );
+  const setTaxRate = useCallback(
+    (v: number) => updateSettings({ taxRate: Math.max(0, v) }),
+    [updateSettings]
+  );
+  const setHapticsEnabled = useCallback(
+    (v: boolean) => updateSettings({ hapticsEnabled: v }),
+    [updateSettings]
+  );
 
-const setMaterialMarkup = useCallback(
-  (value: number) => {
-    updateSettings({ materialMarkup: Number.isFinite(value) ? Math.max(0, value) : 0 });
-  },
-  [updateSettings],
-);
-
-const setMaterialMarkupMode = useCallback(
-  (mode: MarkupMode) => {
-    updateSettings({ materialMarkupMode: mode === "flat" ? "flat" : "percentage" });
-  },
-  [updateSettings],
-);
-
-const setLaborMarkup = useCallback(
-  (value: number) => {
-    updateSettings({ laborMarkup: Number.isFinite(value) ? Math.max(0, value) : 0 });
-  },
-  [updateSettings],
-);
-
-const setLaborMarkupMode = useCallback(
-  (mode: MarkupMode) => {
-    updateSettings({ laborMarkupMode: mode === "flat" ? "flat" : "percentage" });
-  },
-  [updateSettings],
-);
-
-const setHourlyRate = useCallback(
-  (value: number) => {
-    updateSettings({ hourlyRate: Number.isFinite(value) ? Math.max(0, value) : 0 });
-  },
-  [updateSettings],
-);
-
-const setTaxRate = useCallback(
-  (value: number) => {
-    updateSettings({ taxRate: Number.isFinite(value) ? Math.max(0, value) : 0 });
-  },
-  [updateSettings],
-);
-
-const setHapticsEnabled = useCallback(
-  (value: boolean) => {
-    updateSettings({ hapticsEnabled: value });
-  },
-  [updateSettings],
-);
-
-const setHapticIntensity = useCallback(
-  (value: HapticIntensity) => {
+   const setHapticIntensity = useCallback(
+  (v: HapticIntensity) =>
     updateSettings({
-      hapticIntensity: Math.min(2, Math.max(0, Math.round(value))) as HapticIntensity,
-    });
-  },
-  [updateSettings],
-);
+      hapticIntensity: Math.min(2, Math.max(0, Math.round(v))) as HapticIntensity,
+    }),
+  [updateSettings]
+  );
 
-const setNotificationsEnabled = useCallback(
-  (value: boolean) => {
-    updateSettings({ notificationsEnabled: value });
-  },
-  [updateSettings],
-);
-
-const setAutoSyncEnabled = useCallback(
-  (value: boolean) => {
-    updateSettings({ autoSyncEnabled: value });
-  },
-  [updateSettings],
-);
-
-const setCompanyProfile = useCallback(
-  (updater: Partial<CompanyProfile> | ((prev: CompanyProfile) => CompanyProfile)) => {
-    if (typeof updater === "function") {
+  const setNotificationsEnabled = useCallback(
+    (v: boolean) => updateSettings({ notificationsEnabled: v }),
+    [updateSettings]
+  );
+  const setAutoSyncEnabled = useCallback(
+    (v: boolean) => updateSettings({ autoSyncEnabled: v }),
+    [updateSettings]
+  );
+  const setCompanyProfile = useCallback(
+    (
+      updater: Partial<CompanyProfile> | ((prev: CompanyProfile) => CompanyProfile)
+    ) => {
       updateSettings((prev) => ({
         ...prev,
-        companyProfile: updater(prev.companyProfile),
+        companyProfile:
+          typeof updater === "function"
+            ? updater(prev.companyProfile)
+            : { ...prev.companyProfile, ...updater },
       }));
-      return;
-    }
-
-    updateSettings((prev) => ({
-      ...prev,
-      companyProfile: {
-        ...prev.companyProfile,
-        ...updater,
-      },
-    }));
-  },
-  [updateSettings],
-);
-
-const setTermsAndConditions = useCallback(
-  (value: string) => {
-    updateSettings({ termsAndConditions: value });
-  },
-  [updateSettings],
-);
-
-const setPaymentDetails = useCallback(
-  (value: string) => {
-    updateSettings({ paymentDetails: value });
-  },
-  [updateSettings],
-);
-
-const triggerHaptic = useCallback(
-  (style?: Haptics.ImpactFeedbackStyle) => {
-    if (!settings.hapticsEnabled) return;
-
-    const normalizedIntensity = Math.min(2, Math.max(0, Math.round(settings.hapticIntensity)));
-    const inferredStyle = (() => {
-      switch (normalizedIntensity) {
-        case 0:
-          return Haptics.ImpactFeedbackStyle.Light;
-        case 2:
-          return Haptics.ImpactFeedbackStyle.Heavy;
-        default:
-          return Haptics.ImpactFeedbackStyle.Medium;
-      }
-    })();
-
-    Haptics.impactAsync(style ?? inferredStyle).catch((error) => {
-      console.warn("Unable to trigger haptic feedback", error);
-    });
-  },
-  [settings.hapticsEnabled, settings.hapticIntensity],
-);
-
-const resetToDefaults = useCallback(() => {
-  setSettings({
-    ...DEFAULT_SETTINGS,
-    companyProfile: { ...DEFAULT_COMPANY_PROFILE },
-  });
-}, []);
+    },
+    [updateSettings]
+  );
+  const setTermsAndConditions = useCallback(
+    (v: string) => updateSettings({ termsAndConditions: v }),
+    [updateSettings]
+  );
+  const setPaymentDetails = useCallback(
+    (v: string) => updateSettings({ paymentDetails: v }),
+    [updateSettings]
+  );
+  const triggerHaptic = useCallback(
+    (style?: Haptics.ImpactFeedbackStyle) => {
+      if (!settings.hapticsEnabled) return;
+      const lvl = Math.min(2, Math.max(0, Math.round(settings.hapticIntensity)));
+      const chosen =
+        style ??
+        [Haptics.ImpactFeedbackStyle.Light, Haptics.ImpactFeedbackStyle.Medium, Haptics.ImpactFeedbackStyle.Heavy][
+          lvl
+        ];
+      Haptics.impactAsync(chosen).catch(() => {});
+    },
+    [settings.hapticsEnabled, settings.hapticIntensity]
+  );
+  const resetToDefaults = useCallback(() => {
+    setSettings({ ...DEFAULT_SETTINGS });
+  }, []);
 
   const value = useMemo<SettingsContextValue>(
     () => ({
@@ -390,54 +294,14 @@ const resetToDefaults = useCallback(() => {
       triggerHaptic,
       resetToDefaults,
     }),
-    [
-      isHydrated,
-      resolvedTheme,
-      setAutoSyncEnabled,
-      setCompanyProfile,
-      setPaymentDetails,
-      setHapticIntensity,
-      setHapticsEnabled,
-      setLaborMarkup,
-      setLaborMarkupMode,
-      setMaterialMarkup,
-      setMaterialMarkupMode,
-      setHourlyRate,
-      setTaxRate,
-      setNotificationsEnabled,
-      setTermsAndConditions,
-      setThemePreference,
-      settings,
-      triggerHaptic,
-      resetToDefaults,
-    ],
+    [settings, isHydrated, resolvedTheme]
   );
 
-  // ✅ Memoized provider prevents global re-renders on every keystroke
-  const MemoizedSettingsContextProvider = React.memo(function MemoizedSettingsContextProvider({
-    value,
-    children,
-  }: {
-    value: SettingsContextValue;
-    children: ReactNode;
-  }) {
-    return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
-  });
-
-  // ✅ Use the memoized provider instead of plain SettingsContext.Provider
-  return (
-    <MemoizedSettingsContextProvider value={value}>
-      {children}
-    </MemoizedSettingsContextProvider>
-  );
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
-// ----------------------
-// Hook (keep this part as-is)
 export function useSettings(): SettingsContextValue {
-  const context = useContext(SettingsContext);
-  if (!context) {
-    throw new Error("useSettings must be used within a SettingsProvider");
-  }
-  return context;
+  const ctx = useContext(SettingsContext);
+  if (!ctx) throw new Error("useSettings must be used within a SettingsProvider");
+  return ctx;
 }

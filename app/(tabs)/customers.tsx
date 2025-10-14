@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { Redirect, router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import {
@@ -20,6 +20,7 @@ import { confirmDelete } from "../../lib/confirmDelete";
 import { openDB, queueChange } from "../../lib/sqlite";
 import { runSync } from "../../lib/sync";
 import type { CustomerRecord } from "../../types/customers";
+import { useAuth } from "../../context/AuthContext";
 
 type EditCustomerFormProps = {
   customer: CustomerRecord;
@@ -30,6 +31,7 @@ type EditCustomerFormProps = {
 
 function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustomerFormProps) {
   const { theme } = useThemeContext();
+const { session, isLoading } = useAuth();
   const styles = useMemo(() => createEditStyles(theme), [theme]);
   const [name, setName] = useState(customer.name);
   const [phone, setPhone] = useState(customer.phone ?? "");
@@ -113,6 +115,9 @@ function EditCustomerForm({ customer, onCancel, onSaved, onDelete }: EditCustome
       setSaving(false);
     }
   }, [name, phone, email, notes, street, city, state, zip, customer, onSaved]);
+
+  if (isLoading) return null;
+if (!session) return <Redirect href="/(auth)/login" />;
 
   return (
     <Card style={styles.card}>

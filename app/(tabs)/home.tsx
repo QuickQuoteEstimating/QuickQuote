@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from "expo-router";
+import { Redirect, router, useFocusEffect } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -20,6 +20,7 @@ import {
 } from "../../components/ui";
 import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
+import { useAuth } from "../../context/AuthContext";
 
 type DashboardMetrics = {
   jobsSold: number;
@@ -235,6 +236,7 @@ function formatStatus(value: string) {
 export default function Home() {
   const insets = useSafeAreaInsets();
   const { theme } = useThemeContext();
+const { session, isLoading } = useAuth();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -394,9 +396,11 @@ export default function Home() {
   }, [metrics]);
 
   const heroStatValue = metrics ? formatCurrency(metrics.yearlyEarnings) : "—";
-
   const topPadding = Math.max(insets.top, theme.spacing.xl);
   const bottomPadding = Math.max(insets.bottom, theme.spacing.lg);
+
+  if (isLoading) return null;
+if (!session) return <Redirect href="/(auth)/login" />;
 
   return (
     <View style={styles.container}>
@@ -556,12 +560,17 @@ export default function Home() {
         </Card>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: bottomPadding }]}>
-        <Button
-          label="Create Estimate"
-          onPress={() => router.push({ pathname: "/(tabs)/estimates/[id]", params: { mode: "new" } })}
-        />
-      </View>
-    </View>
+<View style={[styles.footer, { paddingBottom: bottomPadding }]}>
+  <Button
+    label="Create Estimate"
+    onPress={() =>
+      router.push({
+        pathname: "/(tabs)/estimates/[id]",
+        params: { id: "new", mode: "new" },
+      })
+    }
+  />
+</View>
+</View>
   );
 }

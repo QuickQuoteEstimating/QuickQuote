@@ -34,52 +34,43 @@ import { renderEstimatePdf } from "../../../lib/pdf";
 const formatCurrency = (value: number): string => `$${(value || 0).toFixed(2)}`;
 
 type LineItem = { id: string; name: string; qty: string; price: string };
-
 type CustomerRow = {
   id: string;
   name: string | null;
   email: string | null;
   phone: string | null;
-  street: string | null;
-  city: string | null;
-  state: string | null;
-  zip: string | null;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
 };
 
-// =========================================
-// Estimate Form
-// =========================================
 export default function EstimateFormScreen() {
-  const params = useLocalSearchParams<{
-    id?: string;
-    mode?: string;
-    customer_id?: string;
-    name?: string;
-  }>();
+  const params = useLocalSearchParams<{ id?: string; mode?: string; customer_id?: string; name?: string }>();
   const router = useRouter();
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { user } = useAuth();
   const { settings } = useSettings();
-
   const userId = user?.id ?? null;
+
+  // ---------- stable state (no conditional hooks) ----------
   const initialEstimateId = Array.isArray(params.id) ? params.id[0] : params.id || null;
   const isNew = !initialEstimateId || (Array.isArray(params.mode) ? params.mode[0] : params.mode) === "new";
-
   const [estimateId] = useState(initialEstimateId || uuidv4());
-  const [loading, setLoading] = useState(!isNew);
+  const [estimateNumber, setEstimateNumber] = useState<string>("001");
+
+  const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Customer state
+  // Customer info
   const [customerId, setCustomerId] = useState<string | null>(
     Array.isArray(params.customer_id) ? params.customer_id[0] : params.customer_id ?? null
   );
-  const [customerName, setCustomerName] = useState(
-    Array.isArray(params.name) ? params.name[0] : params.name ?? ""
-  );
+  const [customerName, setCustomerName] = useState<string>(Array.isArray(params.name) ? params.name[0] : params.name ?? "");
   const [customerContact, setCustomerContact] = useState<{ email?: string | null; phone?: string | null }>({});
 
   // Main form fields
@@ -123,112 +114,147 @@ export default function EstimateFormScreen() {
       : subtotal * (taxRatePct / 100);
   const total = subtotal + tax;
 
-  // ---------- load helper ----------
-  const loadCustomerIntoForm = useCallback(async (id: string) => {
-    try {
-      const db = await openDB();
-      const row = await db.getFirstAsync<CustomerRow>(
-        `SELECT id, name, email, phone, street, city, state, zip FROM customers WHERE id = ? LIMIT 1`,
-        [id]
-      );
-      if (!row) return;
+  // ---------- helpers ----------
+  const coalesceAddressFromSingleLine = (oneLine: string | null | undefined) => {
+    if (!oneLine) return { street: "", city: "", state: "", zip: "" };
+    const parts = oneLine.split(",").map((p) => p.trim());
+    return {
+      street: parts[0] ?? "",
+      city: parts[1] ?? "",
+      state: parts[2] ?? "",
+      zip: parts[3] ?? "",
+    };
+  };
 
-      setCustomerName(row.name ?? "");
-      setCustomerContact({ email: row.email, phone: row.phone });
+  const oneLineFromParts = (street: string, city: string, state: string, zip: string) =>
+    [street, city, state, zip].filter(Boolean).join(", ");
 
-      // Prefill billing address only if blank
-      const shouldPrefill =
-        !billingStreet && !billingCity && !billingState && !billingZip;
+  const loadCustomerIntoForm = useCallback(
+    async (id: string) => {
+      try {
+        const db = await openDB();
+        // Read what exists; don't assume columns. If not present, fall back to address string.
+        const row = await db.getFirstAsync<any>(
+          `SELECT id, name, email, phone, address, street, city, state, zip FROM customers WHERE id = ? LIMIT 1`,
+          [id]
+        ) as CustomerRow & { address?: string | null };
 
-      if (shouldPrefill) {
-        setBillingStreet(row.street ?? "");
-        setBillingCity(row.city ?? "");
-        setBillingState(row.state ?? "");
-        setBillingZip(row.zip ?? "");
+        if (!row) return;
+
+        setCustomerName(row.name ?? "");
+        setCustomerContact({ email: row.email ?? null, phone: row.phone ?? null });
+
+        // Prefer split fields; fallback to parsing single-line address if needed
+        let st = row.street ?? "";
+        let ci = row.city ?? "";
+        let stt = row.state ?? "";
+        let zp = row.zip ?? "";
+
+        if (!st && !ci && !stt && !zp && row.address) {
+          const parsed = coalesceAddressFromSingleLine(row.address);
+          st = parsed.street;
+          ci = parsed.city;
+          stt = parsed.state;
+          zp = parsed.zip;
+        }
+
+        const shouldPrefillBilling = !billingStreet && !billingCity && !billingState && !billingZip;
+        if (shouldPrefillBilling) {
+          setBillingStreet(st);
+          setBillingCity(ci);
+          setBillingState(stt);
+          setBillingZip(zp);
+        }
+
+        if (sameAddress) {
+          setJobStreet(st);
+          setJobCity(ci);
+          setJobState(stt);
+          setJobZip(zp);
+        }
+      } catch (e) {
+        console.warn("Could not prefill customer address", e);
       }
+    },
+    [billingStreet, billingCity, billingState, billingZip, sameAddress]
+  );
 
-      // If job same as billing, mirror too
-      if (sameAddress) {
-        setJobStreet(row.street ?? "");
-        setJobCity(row.city ?? "");
-        setJobState(row.state ?? "");
-        setJobZip(row.zip ?? "");
-      }
-    } catch (e) {
-      console.warn("Could not prefill customer address", e);
-    }
-  }, [billingStreet, billingCity, billingState, billingZip, sameAddress]);
-
-  // ---------- load existing estimate ----------
+  // ---------- load or create ----------
   useEffect(() => {
-    if (isNew) {
-      setLoading(false);
-      if (customerId) {
-        // Prefill from passed customer
-        loadCustomerIntoForm(customerId);
-      }
-      return;
-    }
-
     let mounted = true;
     (async () => {
       try {
         const db = await openDB();
-        const est = await db.getFirstAsync<any>(
-          `SELECT * FROM estimates WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
-          [estimateId]
-        );
-        if (!est) {
-          setLoading(false);
-          return;
-        }
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS estimates (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            customer_id TEXT,
+            description TEXT,
+            billing_address TEXT,
+            job_address TEXT,
+            subtotal REAL,
+            tax_rate REAL,
+            tax_total REAL,
+            total REAL,
+            notes TEXT,
+            estimate_number TEXT,
+            updated_at TEXT,
+            deleted_at TEXT
+          );
+        `);
 
-        if (!mounted) return;
+        if (isNew) {
+          // next estimate number
+          const result = await db.getFirstAsync<{ lastNum: string }>(
+            "SELECT estimate_number AS lastNum FROM estimates WHERE deleted_at IS NULL ORDER BY estimate_number DESC LIMIT 1"
+          );
+          const nextNum = result?.lastNum ? String(parseInt(result.lastNum, 10) + 1).padStart(3, "0") : "001";
+          if (mounted) setEstimateNumber(nextNum);
 
-        setCustomerId(est.customer_id ?? null);
-        if (est.description) setDescription(est.description);
+          if (customerId) await loadCustomerIntoForm(customerId);
+        } else {
+          const est = await db.getFirstAsync<any>(
+            `SELECT * FROM estimates WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+            [estimateId]
+          );
 
-        // Addresses are single-line "street, city, state, zip"
-        const fillFromOneLine = (value: string | null, setter: (segments: string[]) => void) => {
-          const parts = (value ?? "").split(",").map((p: string) => p.trim());
-          setter(parts);
-        };
+          if (!est) {
+            if (mounted) setLoading(false);
+            return;
+          }
 
-        if (est.billing_address) {
-          fillFromOneLine(est.billing_address, ([st, c, s, z]) => {
-            setBillingStreet(st ?? "");
-            setBillingCity(c ?? "");
-            setBillingState(s ?? "");
-            setBillingZip(z ?? "");
-          });
-        }
+          setEstimateNumber(est.estimate_number || "—");
+          setDescription(est.description || "");
+          setNotes(est.notes || "");
 
-        if (est.job_address) {
-          fillFromOneLine(est.job_address, ([st, c, s, z]) => {
-            setJobStreet(st ?? "");
-            setJobCity(c ?? "");
-            setJobState(s ?? "");
-            setJobZip(z ?? "");
-          });
-        }
+          // Prefill addresses
+          const b = coalesceAddressFromSingleLine(est.billing_address ?? "");
+          setBillingStreet(b.street);
+          setBillingCity(b.city);
+          setBillingState(b.state);
+          setBillingZip(b.zip);
 
-        // If equal, toggle sameAddress
-        const a = [est.billing_address ?? "", est.job_address ?? ""].map((x) => (x || "").trim());
-        setSameAddress(a[0] && a[0] === a[1]);
+          const j = coalesceAddressFromSingleLine(est.job_address ?? "");
+          setJobStreet(j.street);
+          setJobCity(j.city);
+          setJobState(j.state);
+          setJobZip(j.zip);
 
-        // labor hours (if stored as notes or extra field later — for now derive from totals if possible)
-        setLaborHoursText("0");
+          setSameAddress(est.billing_address && est.job_address && est.billing_address === est.job_address);
 
-        setNotes(est.notes ?? "");
+          if (est.customer_id) {
+            setCustomerId(est.customer_id);
+            await loadCustomerIntoForm(est.customer_id);
+          }
 
-        // Load line items (if table exists)
-        try {
+          // Load line items if table exists; if not, skip silently
           await db.execAsync(`
             CREATE TABLE IF NOT EXISTS estimate_items (
               id TEXT PRIMARY KEY,
               estimate_id TEXT NOT NULL,
               description TEXT NOT NULL,
-              quantity INTEGER NOT NULL,
+              quantity REAL NOT NULL,
               unit_price REAL NOT NULL,
               base_total REAL NOT NULL DEFAULT 0,
               total REAL NOT NULL,
@@ -240,12 +266,7 @@ export default function EstimateFormScreen() {
             );
           `);
 
-          const rows = await db.getAllAsync<{
-            id: string;
-            description: string;
-            quantity: number;
-            unit_price: number;
-          }>(
+          const rows = await db.getAllAsync<{ id: string; description: string; quantity: number; unit_price: number }>(
             `SELECT id, description, quantity, unit_price
              FROM estimate_items
              WHERE estimate_id = ? AND (deleted_at IS NULL OR deleted_at = '')`,
@@ -256,31 +277,23 @@ export default function EstimateFormScreen() {
             rows.map((r) => ({
               id: r.id,
               name: r.description,
-              qty: String(r.quantity),
-              price: String(r.unit_price),
+              qty: String(r.quantity ?? 1),
+              price: String(r.unit_price ?? 0),
             }))
           );
-        } catch {
-          // ignore
-        }
-
-        // resolve customer display/details
-        if (est.customer_id) {
-          await loadCustomerIntoForm(est.customer_id);
         }
       } catch (e) {
-        console.error("Failed to load estimate", e);
+        console.error("Error loading estimate", e);
       } finally {
         if (mounted) setLoading(false);
       }
     })();
-
     return () => {
       mounted = false;
     };
-  }, [estimateId, isNew, customerId, loadCustomerIntoForm]);
+  }, [isNew, estimateId, customerId, loadCustomerIntoForm]);
 
-  // When sameAddress toggles on, mirror billing → job
+  // keep job == billing when toggled on
   useEffect(() => {
     if (sameAddress) {
       setJobStreet(billingStreet);
@@ -291,15 +304,10 @@ export default function EstimateFormScreen() {
   }, [sameAddress, billingStreet, billingCity, billingState, billingZip]);
 
   // ---------- item handlers ----------
-  const addLineItem = () => {
-    setItems((prev) => [...prev, { id: uuidv4(), name: "", qty: "1", price: "0" }]);
-  };
-  const updateItem = (id: string, field: "name" | "qty" | "price", value: string) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
-  };
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
-  };
+  const addLineItem = () => setItems((p) => [...p, { id: uuidv4(), name: "", qty: "1", price: "0" }]);
+  const updateItem = (id: string, field: "name" | "qty" | "price", value: string) =>
+    setItems((p) => p.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
+  const removeItem = (id: string) => setItems((p) => p.filter((i) => i.id !== id));
 
   // ---------- save ----------
   const saveEstimate = useCallback(async () => {
@@ -308,38 +316,14 @@ export default function EstimateFormScreen() {
       return;
     }
 
-    const billingAddress = [billingStreet, billingCity, billingState, billingZip]
-      .filter(Boolean)
-      .join(", ");
-    const jobAddress = sameAddress
-      ? billingAddress
-      : [jobStreet, jobCity, jobState, jobZip].filter(Boolean).join(", ");
+    const billingAddress = oneLineFromParts(billingStreet, billingCity, billingState, billingZip);
+    const jobAddress = sameAddress ? billingAddress : oneLineFromParts(jobStreet, jobCity, jobState, jobZip);
 
     setSaving(true);
     try {
       const db = await openDB();
       const now = new Date().toISOString();
 
-      // ensure tables
-      await db.execAsync(`
-        CREATE TABLE IF NOT EXISTS estimates (
-          id TEXT PRIMARY KEY,
-          user_id TEXT,
-          customer_id TEXT,
-          description TEXT,
-          billing_address TEXT,
-          job_address TEXT,
-          subtotal REAL,
-          tax_rate REAL,
-          tax_total REAL,
-          total REAL,
-          notes TEXT,
-          updated_at TEXT,
-          deleted_at TEXT
-        );
-      `);
-
-      // upsert estimate
       const estimateData = {
         id: estimateId,
         user_id: userId,
@@ -352,27 +336,25 @@ export default function EstimateFormScreen() {
         tax_total: tax,
         total,
         notes,
+        estimate_number: estimateNumber,
         updated_at: now,
         deleted_at: null as string | null,
       };
 
-      const existing = await db.getFirstAsync<{ id: string }>(
-        "SELECT id FROM estimates WHERE id = ? LIMIT 1",
-        [estimateId]
-      );
+      const existing = await db.getFirstAsync<{ id: string }>(`SELECT id FROM estimates WHERE id = ? LIMIT 1`, [
+        estimateId,
+      ]);
 
       if (!existing) {
         await db.runAsync(
-          `INSERT INTO estimates (id, user_id, customer_id, description, billing_address, job_address, subtotal, tax_rate, tax_total, total, notes, updated_at, deleted_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO estimates (id, user_id, customer_id, description, billing_address, job_address, subtotal, tax_rate, tax_total, total, notes, estimate_number, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           Object.values(estimateData)
         );
         await queueChange("estimates", "insert", sanitizeEstimateForQueue(estimateData));
       } else {
         await db.runAsync(
-          `UPDATE estimates SET
-           user_id=?, customer_id=?, description=?, billing_address=?, job_address=?, subtotal=?, tax_rate=?, tax_total=?, total=?, notes=?, updated_at=?, deleted_at=NULL
-           WHERE id=?`,
+          `UPDATE estimates SET user_id=?, customer_id=?, description=?, billing_address=?, job_address=?, subtotal=?, tax_rate=?, tax_total=?, total=?, notes=?, estimate_number=?, updated_at=?, deleted_at=NULL WHERE id=?`,
           [
             userId,
             customerId,
@@ -384,6 +366,7 @@ export default function EstimateFormScreen() {
             tax,
             total,
             notes,
+            estimateNumber,
             now,
             estimateId,
           ]
@@ -391,13 +374,13 @@ export default function EstimateFormScreen() {
         await queueChange("estimates", "update", sanitizeEstimateForQueue(estimateData));
       }
 
-      // persist line items (simple replace strategy)
+      // persist items (simple replace)
       await db.execAsync(`
         CREATE TABLE IF NOT EXISTS estimate_items (
           id TEXT PRIMARY KEY,
           estimate_id TEXT NOT NULL,
           description TEXT NOT NULL,
-          quantity INTEGER NOT NULL,
+          quantity REAL NOT NULL,
           unit_price REAL NOT NULL,
           base_total REAL NOT NULL DEFAULT 0,
           total REAL NOT NULL,
@@ -409,11 +392,9 @@ export default function EstimateFormScreen() {
         );
       `);
 
-      // soft-delete existing, then reinsert all current items
+      // soft-delete previous
       await db.runAsync(
-        `UPDATE estimate_items
-         SET deleted_at = CURRENT_TIMESTAMP
-         WHERE estimate_id = ? AND (deleted_at IS NULL OR deleted_at = '')`,
+        `UPDATE estimate_items SET deleted_at = CURRENT_TIMESTAMP WHERE estimate_id = ? AND (deleted_at IS NULL OR deleted_at = '')`,
         [estimateId]
       );
 
@@ -422,13 +403,11 @@ export default function EstimateFormScreen() {
         const p = parseFloat(i.price) || 0;
         const lineTotal = q * p;
         const id = uuidv4();
-
         await db.runAsync(
           `INSERT INTO estimate_items (id, estimate_id, description, quantity, unit_price, base_total, total, apply_markup, deleted_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, 1, NULL)`,
           [id, estimateId, i.name, q, p, lineTotal, lineTotal]
         );
-
         await queueChange("estimate_items", "insert", {
           id,
           estimate_id: estimateId,
@@ -442,9 +421,7 @@ export default function EstimateFormScreen() {
       }
 
       await runSync();
-
-      Alert.alert("Saved", "Your estimate has been saved.");
-      // Stay on screen (choice B)
+      Alert.alert("Saved", `Estimate #${estimateNumber} saved successfully.`);
     } catch (e) {
       console.error("Save failed", e);
       Alert.alert("Error", "Unable to save this estimate.");
@@ -452,9 +429,10 @@ export default function EstimateFormScreen() {
       setSaving(false);
     }
   }, [
-    customerId,
     estimateId,
+    estimateNumber,
     userId,
+    customerId,
     description,
     billingStreet,
     billingCity,
@@ -477,15 +455,13 @@ export default function EstimateFormScreen() {
   const handlePreview = useCallback(async () => {
     try {
       setPreviewing(true);
-
-      const billingAddress = [billingStreet, billingCity, billingState, billingZip].filter(Boolean).join(", ");
-      const jobAddress = sameAddress
-        ? billingAddress
-        : [jobStreet, jobCity, jobState, jobZip].filter(Boolean).join(", ");
+      const billingAddress = oneLineFromParts(billingStreet, billingCity, billingState, billingZip);
+      const jobAddress = sameAddress ? billingAddress : oneLineFromParts(jobStreet, jobCity, jobState, jobZip);
 
       const pdf = await renderEstimatePdf({
         estimate: {
           id: estimateId,
+          estimate_number: estimateNumber,
           date: new Date().toISOString(),
           status: "Draft",
           notes,
@@ -494,14 +470,14 @@ export default function EstimateFormScreen() {
           taxTotal: tax,
           laborTotal,
           materialTotal: materialSubtotal,
-          tax_rate: taxRatePct as any, // compatible with your renderer
+          tax_rate: taxRatePct as any,
           billingAddress,
           jobAddress,
           customer: {
             name: customerName,
             email: customerContact.email ?? null,
             phone: customerContact.phone ?? null,
-            address: [billingStreet, billingCity, billingState, billingZip].filter(Boolean).join(", "),
+            address: billingAddress,
           },
         } as any,
         items: items.map((i) => ({
@@ -516,12 +492,13 @@ export default function EstimateFormScreen() {
       await Print.printAsync({ uri: pdf.uri });
     } catch (e) {
       console.error("Preview failed", e);
-      Alert.alert("Error", "Could not open PDF preview.");
+      Alert.alert("Error", "Unable to open PDF preview.");
     } finally {
       setPreviewing(false);
     }
   }, [
     estimateId,
+    estimateNumber,
     customerName,
     customerContact,
     billingStreet,
@@ -537,80 +514,65 @@ export default function EstimateFormScreen() {
     total,
     subtotal,
     tax,
-    taxRatePct,
     laborTotal,
     materialSubtotal,
+    taxRatePct,
     items,
   ]);
 
   // ---------- share ----------
   const handleShare = useCallback(async () => {
-    Alert.alert(
-      "Send to Customer",
-      "Generate and share this estimate PDF?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Confirm",
-          onPress: async () => {
-            try {
-              setSending(true);
+    try {
+      setSending(true);
+      const billingAddress = oneLineFromParts(billingStreet, billingCity, billingState, billingZip);
+      const jobAddress = sameAddress ? billingAddress : oneLineFromParts(jobStreet, jobCity, jobState, jobZip);
 
-              const billingAddress = [billingStreet, billingCity, billingState, billingZip].filter(Boolean).join(", ");
-              const jobAddress = sameAddress
-                ? billingAddress
-                : [jobStreet, jobCity, jobState, jobZip].filter(Boolean).join(", ");
-
-              const pdf = await renderEstimatePdf({
-                estimate: {
-                  id: estimateId,
-                  date: new Date().toISOString(),
-                  status: "Draft",
-                  notes,
-                  total,
-                  subtotal,
-                  taxTotal: tax,
-                  laborTotal,
-                  materialTotal: materialSubtotal,
-                  billingAddress,
-                  jobAddress,
-                  customer: {
-                    name: customerName,
-                    email: customerContact.email ?? null,
-                    phone: customerContact.phone ?? null,
-                    address: [billingStreet, billingCity, billingState, billingZip].filter(Boolean).join(", "),
-                  },
-                } as any,
-                items: items.map((i) => ({
-                  id: i.id,
-                  description: i.name,
-                  quantity: parseFloat(i.qty) || 0,
-                  unitPrice: parseFloat(i.price) || 0,
-                  total: (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0),
-                })),
-              });
-
-              if (await Sharing.isAvailableAsync()) {
-                await Sharing.shareAsync(pdf.uri, {
-                  UTI: "com.adobe.pdf",
-                  mimeType: "application/pdf",
-                });
-              } else {
-                await Print.printAsync({ uri: pdf.uri });
-              }
-            } catch (e) {
-              console.error("Share failed", e);
-              Alert.alert("Error", "Could not share the estimate PDF.");
-            } finally {
-              setSending(false);
-            }
+      const pdf = await renderEstimatePdf({
+        estimate: {
+          id: estimateId,
+          estimate_number: estimateNumber,
+          date: new Date().toISOString(),
+          status: "Draft",
+          notes,
+          total,
+          subtotal,
+          taxTotal: tax,
+          laborTotal,
+          materialTotal: materialSubtotal,
+          tax_rate: taxRatePct as any,
+          billingAddress,
+          jobAddress,
+          customer: {
+            name: customerName,
+            email: customerContact.email ?? null,
+            phone: customerContact.phone ?? null,
+            address: billingAddress,
           },
-        },
-      ],
-      { cancelable: true }
-    );
+        } as any,
+        items: items.map((i) => ({
+          id: i.id,
+          description: i.name,
+          quantity: parseFloat(i.qty) || 0,
+          unitPrice: parseFloat(i.price) || 0,
+          total: (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0),
+        })),
+      });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(pdf.uri, { UTI: "com.adobe.pdf", mimeType: "application/pdf" });
+      } else {
+        await Print.printAsync({ uri: pdf.uri });
+      }
+      Alert.alert("Success", "Estimate PDF shared successfully.");
+    } catch (e) {
+      console.error("Share failed", e);
+      Alert.alert("Error", "Unable to share this estimate.");
+    } finally {
+      setSending(false);
+    }
   }, [
     estimateId,
+    estimateNumber,
     customerName,
     customerContact,
     billingStreet,
@@ -626,51 +588,44 @@ export default function EstimateFormScreen() {
     total,
     subtotal,
     tax,
+    laborTotal,
     materialSubtotal,
+    taxRatePct,
     items,
   ]);
 
   // ---------- delete ----------
   const handleDelete = useCallback(() => {
-    Alert.alert(
-      "Delete Estimate",
-      "Are you sure you want to delete this estimate? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setDeleting(true);
-              const db = await openDB();
-              await db.runAsync(
-                `UPDATE estimates
-                 SET deleted_at = CURRENT_TIMESTAMP
-                 WHERE id = ?`,
-                [estimateId]
-              );
-              await queueChange("estimates", "delete", { id: estimateId });
-              await runSync();
-              Alert.alert("Deleted", "Estimate was deleted.");
-              router.replace("/(tabs)/estimates");
-            } catch (e) {
-              console.error("Delete failed", e);
-              Alert.alert("Error", "Could not delete this estimate.");
-            } finally {
-              setDeleting(false);
-            }
-          },
+    Alert.alert("Delete Estimate", `Delete Estimate #${estimateNumber}?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setDeleting(true);
+            const db = await openDB();
+            await db.runAsync(`UPDATE estimates SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?`, [estimateId]);
+            await queueChange("estimates", "delete", { id: estimateId });
+            await runSync();
+            Alert.alert("Deleted", `Estimate #${estimateNumber} deleted.`);
+            router.replace("/(tabs)/estimates");
+          } catch (e) {
+            console.error("Delete failed", e);
+            Alert.alert("Error", "Unable to delete estimate.");
+          } finally {
+            setDeleting(false);
+          }
         },
-      ],
-      { cancelable: true }
-    );
-  }, [estimateId, router]);
+      },
+    ]);
+  }, [estimateId, estimateNumber, router]);
 
   if (loading) {
     return (
       <View style={styles.loadingState}>
         <ActivityIndicator color={theme.colors.accent} />
+        <Text style={{ marginTop: 10 }}>Loading estimate...</Text>
       </View>
     );
   }
@@ -678,30 +633,27 @@ export default function EstimateFormScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <Card style={styles.headerCard}>
             <Text style={styles.headerText}>{isNew ? "Creating Estimate" : "Editing Estimate"}</Text>
-
-            {/* Customer picker + selected label */}
-            <View style={{ marginTop: 8 }}>
-              <Text style={styles.sectionTitle}>Customer</Text>
-              <CustomerPicker
-                selectedCustomer={customerId}
-                onSelect={async (custId) => {
-                  if (custId) {
-                    setCustomerId(custId);
-                    await loadCustomerIntoForm(custId);
-                  } else {
-                    setCustomerId(null);
-                    setCustomerName("");
-                    setCustomerContact({});
-                  }
-                }}
-              />
-              <Text style={{ marginTop: 6, color: customerName ? "#374151" : "#9CA3AF" }}>
-                {customerName ? `Selected: ${customerName}` : "No customer selected"}
-              </Text>
-            </View>
+            <Text style={styles.headerSub}>Estimate #{estimateNumber || "—"}</Text>
+            <Text style={styles.sectionTitle}>Customer</Text>
+            <CustomerPicker
+              selectedCustomer={customerId}
+              onSelect={async (custId) => {
+                if (custId) {
+                  setCustomerId(custId);
+                  await loadCustomerIntoForm(custId);
+                } else {
+                  setCustomerId(null);
+                  setCustomerName("");
+                  setCustomerContact({});
+                }
+              }}
+            />
+            <Text style={{ marginTop: 6, color: customerName ? "#374151" : "#9CA3AF" }}>
+              {customerName ? `Selected: ${customerName}` : "No customer selected"}
+            </Text>
           </Card>
 
           <Card style={styles.card}>
@@ -748,11 +700,7 @@ export default function EstimateFormScreen() {
             <Text style={styles.sectionTitle}>Line Items</Text>
             {items.map((item) => (
               <View key={item.id} style={styles.lineItem}>
-                <Input
-                  label="Item"
-                  value={item.name}
-                  onChangeText={(v) => updateItem(item.id, "name", v)}
-                />
+                <Input label="Item" value={item.name} onChangeText={(v) => updateItem(item.id, "name", v)} />
                 <View style={styles.row}>
                   <Input
                     label="Qty"
@@ -772,7 +720,6 @@ export default function EstimateFormScreen() {
                 </View>
               </View>
             ))}
-
             <Button label="+ Add Line Item" onPress={addLineItem} variant="secondary" />
 
             <Text style={styles.sectionTitle}>Tax Settings</Text>
@@ -789,56 +736,42 @@ export default function EstimateFormScreen() {
             <Text>Tax: {formatCurrency(tax)}</Text>
             <Text style={styles.total}>Total: {formatCurrency(total)}</Text>
 
-            <Input
-              label="Notes"
-              placeholder="Add any additional notes"
-              value={notes}
-              onChangeText={setNotes}
-              multiline
-            />
+            <Input label="Notes" placeholder="Add any additional notes" value={notes} onChangeText={setNotes} multiline />
           </Card>
+
+          {/* Footer */}
+          <View style={styles.footerContainer}>
+            <View style={styles.footerRow}>
+              <Button label={saving ? "Saving…" : "Save"} onPress={saveEstimate} loading={saving} style={styles.footerButton} />
+              <Button label="Cancel" variant="secondary" onPress={() => router.back()} style={styles.footerButton} />
+            </View>
+
+            <Button
+              label={previewing ? "Previewing…" : "Preview PDF"}
+              variant="secondary"
+              onPress={handlePreview}
+              loading={previewing}
+              style={styles.footerButton}
+            />
+
+            <Button
+              label={sending ? "Sharing…" : "Send to Customer"}
+              variant="secondary"
+              onPress={handleShare}
+              loading={sending}
+              style={styles.footerButton}
+            />
+
+            <Button
+              label={deleting ? "Deleting…" : "Delete"}
+              variant="danger"
+              onPress={handleDelete}
+              loading={deleting}
+              style={[styles.footerButton, styles.deleteButton]}
+            />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Bottom action bar */}
-      <SafeAreaView edges={["bottom"]} style={styles.footer}>
-        <View style={styles.footerRow}>
-          <Button
-            label={saving ? "Saving…" : "Save"}
-            onPress={saveEstimate}
-            loading={saving}
-            style={{ flex: 1 }}
-          />
-          <Button
-            label="Cancel"
-            variant="secondary"
-            onPress={() => router.back()}
-            style={{ flex: 1 }}
-          />
-        </View>
-        <View style={styles.footerRow}>
-          <Button
-            label={previewing ? "Previewing…" : "Preview PDF"}
-            variant="secondary"
-            onPress={handlePreview}
-            loading={previewing}
-            style={{ flex: 1 }}
-          />
-          <Button
-            label={sending ? "Sharing…" : "Send to Customer"}
-            variant="secondary"
-            onPress={handleShare}
-            loading={sending}
-            style={{ flex: 1 }}
-          />
-        </View>
-        <Button
-          label={deleting ? "Deleting…" : "Delete"}
-          variant="danger"
-          onPress={handleDelete}
-          loading={deleting}
-        />
-      </SafeAreaView>
     </SafeAreaView>
   );
 }
@@ -851,12 +784,9 @@ function createStyles(theme: Theme) {
     loadingState: { flex: 1, justifyContent: "center", alignItems: "center" },
     headerCard: { marginBottom: 16, padding: 12 },
     headerText: { fontSize: 18, fontWeight: "700", color: colors.primaryText },
+    headerSub: { fontSize: 16, fontWeight: "500", color: colors.secondaryText, marginTop: 4, marginBottom: 8 },
     card: { gap: 16 },
-    sameRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
+    sameRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     sectionTitle: { fontWeight: "700", marginTop: 10, marginBottom: 6, color: colors.secondaryText },
     lineItem: { marginBottom: 12 },
     row: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -864,15 +794,9 @@ function createStyles(theme: Theme) {
     priceInput: { flex: 1 },
     label: { color: colors.secondaryText },
     total: { fontSize: 18, fontWeight: "700", marginTop: 4 },
-    footer: {
-      paddingTop: 8,
-      paddingHorizontal: 16,
-      paddingBottom: 12,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-      backgroundColor: colors.surface,
-      gap: 8,
-    },
-    footerRow: { flexDirection: "row", gap: 8 },
+    footerContainer: { marginTop: 30, paddingBottom: 40, borderTopWidth: 1, borderColor: "#E5E7EB", gap: 12 },
+    footerRow: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
+    footerButton: { flex: 1 },
+    deleteButton: { marginTop: 10, backgroundColor: "#DC2626" },
   });
 }

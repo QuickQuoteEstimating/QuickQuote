@@ -50,6 +50,7 @@ export default function Settings() {
   } = useSettings();
 
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   const formatMarkupInput = useCallback((value: number, mode: MarkupMode) => {
     if (mode === "flat") {
@@ -165,6 +166,8 @@ export default function Settings() {
     "N/A";
   const environment = __DEV__ ? "Development" : "Production";
 
+  if (!user) return null; // Prevent redirect/flicker while reloading session
+
   if (!isHydrated) {
     return (
       <View style={[styles.loadingContainer]}>
@@ -191,13 +194,8 @@ export default function Settings() {
             <Text style={styles.accountEmail}>{accountEmail}</Text>
           </View>
         </View>
-        <Button
-          label="Edit profile"
-          variant="secondary"
-          alignment="inline"
-          onPress={() => Alert.alert("Coming soon", "Profile editing is not yet available.")}
-        />
-        <Text style={styles.mutedText}>Signed in via Supabase</Text>
+<Text style={styles.mutedText}>Signed in via Supabase</Text>
+
         <View style={styles.sectionDivider} />
         <Text style={styles.sectionHeading}>Company profile</Text>
         <LogoPicker
@@ -208,7 +206,7 @@ export default function Settings() {
           <Input
             label="Company name"
             value={settings.companyProfile.name}
-            onChangeText={(text) => setCompanyProfile({ name: text })}
+            onChangeText={(text) => setCompanyProfile((prev) => ({ ...prev, name: text }))}
             placeholder="QuickQuote Construction"
           />
           <Input
@@ -216,28 +214,28 @@ export default function Settings() {
             keyboardType="email-address"
             autoCapitalize="none"
             value={settings.companyProfile.email}
-            onChangeText={(text) => setCompanyProfile({ email: text })}
+            onChangeText={(text) => setCompanyProfile((prev) => ({ ...prev, email: text }))}
             placeholder="hello@quickquote.com"
           />
           <Input
             label="Phone"
             keyboardType="phone-pad"
             value={settings.companyProfile.phone}
-            onChangeText={(text) => setCompanyProfile({ phone: text })}
+            onChangeText={(text) => setCompanyProfile((prev) => ({ ...prev, phone: text }))}
             placeholder="(555) 123-4567"
           />
           <Input
             label="Website"
             autoCapitalize="none"
             value={settings.companyProfile.website}
-            onChangeText={(text) => setCompanyProfile({ website: text })}
+            onChangeText={(text) => setCompanyProfile((prev) => ({ ...prev, website: text }))}
             placeholder="quickquote.com"
           />
           <Input
             label="Address"
             multiline
             value={settings.companyProfile.address}
-            onChangeText={(text) => setCompanyProfile({ address: text })}
+            onChangeText={(text) => setCompanyProfile((prev) => ({ ...prev, address: text }))}
             placeholder="123 Main Street, Springfield, USA"
           />
         </View>

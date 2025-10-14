@@ -1,14 +1,17 @@
-import { Redirect, Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 import { useThemeContext } from "../../theme/ThemeProvider";
+import React, { useEffect, useRef } from "react";
 
 export default function TabsLayout() {
   const { session, isLoading } = useAuth();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { theme } = useThemeContext();
+  const lastSessionRef = useRef(session);
 
   const palette = {
     background: theme.colors.surface,
@@ -20,7 +23,16 @@ export default function TabsLayout() {
     overlay: theme.colors.overlay,
   };
 
-  // Show a simple loading state while session is being determined
+  // Track session changes only once
+  useEffect(() => {
+    if (session !== lastSessionRef.current) {
+      lastSessionRef.current = session;
+      if (!isLoading && !session) {
+        router.replace("/(auth)/login");
+      }
+    }
+  }, [session, isLoading]);
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -29,10 +41,7 @@ export default function TabsLayout() {
     );
   }
 
-  // Redirect to login if not signed in
-  if (!session) {
-    return <Redirect href="/(auth)/login" />;
-  }
+  if (!session) return null;
 
   return (
     <Tabs
@@ -40,11 +49,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: palette.accent,
         tabBarInactiveTintColor: palette.muted,
-        tabBarLabelStyle: {
-          fontWeight: "600",
-          fontSize: 12,
-          marginBottom: 4,
-        },
+        tabBarLabelStyle: { fontWeight: "600", fontSize: 12, marginBottom: 4 },
         tabBarStyle: {
           backgroundColor: palette.background,
           borderTopWidth: StyleSheet.hairlineWidth,
@@ -58,10 +63,7 @@ export default function TabsLayout() {
           paddingBottom: insets.bottom,
           height: 60 + insets.bottom,
         },
-        tabBarItemStyle: {
-          borderRadius: 10,
-          marginHorizontal: 4,
-        },
+        tabBarItemStyle: { borderRadius: 10, marginHorizontal: 4 },
         tabBarActiveBackgroundColor: palette.card,
       }}
     >
@@ -70,7 +72,7 @@ export default function TabsLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "home" : "home-outline"} color={color} size={24} />
+            <Ionicons name={focused ? "home" : "home-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -79,7 +81,7 @@ export default function TabsLayout() {
         options={{
           title: "Customers",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "people" : "people-outline"} color={color} size={24} />
+            <Ionicons name={focused ? "people" : "people-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -90,8 +92,8 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "document-text" : "document-text-outline"}
-              color={color}
               size={24}
+              color={color}
             />
           ),
         }}
@@ -103,8 +105,8 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "settings" : "settings-outline"}
-              color={color}
               size={24}
+              color={color}
             />
           ),
         }}
@@ -115,8 +117,8 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   loadingContainer: {
-    alignItems: "center",
     flex: 1,
+    alignItems: "center",
     justifyContent: "center",
   },
 });
