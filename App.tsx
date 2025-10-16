@@ -1,6 +1,6 @@
 import "react-native-gesture-handler";
 import "expo-router/entry";
-
+git 
 import { useEffect } from "react";
 import { resetLocalDatabase } from "./lib/sqlite";
 
