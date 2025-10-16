@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack, Tabs } from "expo-router";
 import { useEffect } from "react";
 import { AppState } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -33,8 +33,10 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <SafeAreaProvider>
+        <AuthProvider>
         <SettingsProvider>
-          <AuthProvider>
+      
+          
 <Stack
   screenOptions={{
     headerShown: false,
@@ -42,8 +44,9 @@ export default function RootLayout() {
   }}
 />
 
-          </AuthProvider>
+          
         </SettingsProvider>
+        </AuthProvider>
       </SafeAreaProvider>
     </ThemeProvider>
   );

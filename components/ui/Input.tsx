@@ -22,7 +22,10 @@ import { Theme } from "../../theme";
 import { useThemeContext } from "../../theme/ThemeProvider";
 import { useSettings } from "../../context/SettingsContext";
 
-export interface InputProps extends TextInputProps {
+export interface InputProps 
+extends Omit<TextInputProps, "value" | "onChangeText"> {
+  value: string;
+  onChangeText: (text: string) => void;
   label?: string;
   caption?: string;
   error?: string | null;
@@ -89,16 +92,20 @@ const InputImpl = forwardRef<TextInput, InputProps>(function Input(
       >
         {leftElement ? <View style={styles.adornment}>{leftElement}</View> : null}
 
-        <TextInput
-          ref={ref}
-          style={inputFinalStyle}
-          placeholderTextColor={theme.colors.mutedText}
-          multiline={multiline}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          onSubmitEditing={() => triggerHaptic(Haptics.ImpactFeedbackStyle.Light)}
-          {...textInputProps}
-        />
+<TextInput
+  ref={ref}
+  style={inputFinalStyle}
+  placeholderTextColor={theme.colors.mutedText}
+  multiline={multiline}
+  value={textInputProps.value ?? ""}
+  keyboardType={textInputProps.keyboardType ?? "default"}
+  onChangeText={textInputProps.onChangeText}
+  onFocus={handleFocus}
+  onBlur={handleBlur}
+  onSubmitEditing={() => triggerHaptic(Haptics.ImpactFeedbackStyle.Light)}
+  textAlignVertical={multiline ? "top" : "center"}
+/>
+
 
         {rightElement ? (
           <View style={[styles.adornment, styles.rightAdornment]}>

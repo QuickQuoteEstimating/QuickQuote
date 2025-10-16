@@ -111,8 +111,11 @@ async function processChange(change: Change) {
       | Awaited<ReturnType<typeof supabase["from"]>> // just for TS happiness
       | any;
 
-    if (change.op === "insert") {
-      result = await supabase.from(change.table_name).insert(payload);
+if (change.op === "insert") {
+  result = await supabase
+    .from(change.table_name)
+    .upsert(payload, { onConflict: "id" }); // ✅ replaces insert with upsert
+
     } else if (change.op === "update") {
       if (!raw.id) {
         console.warn("⚠️ Skipping update: missing ID", raw);

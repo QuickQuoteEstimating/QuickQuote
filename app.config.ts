@@ -4,6 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "QuickQuote",
   slug: "quickquote",
+  scheme: "quickquote",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/icon.png",

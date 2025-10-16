@@ -1,13 +1,15 @@
-import NetInfo from "@react-native-community/netinfo";
+// lib/network.ts
+let forceOffline = false;
 
-/**
- * Checks if the device currently has an active internet connection.
- * Returns `true` if online, `false` if offline.
- */
+export function setForceOffline(value: boolean) {
+  forceOffline = value;
+}
+
 export async function isOnline(): Promise<boolean> {
+  if (forceOffline) return false;
   try {
-    const state = await NetInfo.fetch();
-    return !!state.isConnected;
+    const response = await fetch("https://api.github.com", { method: "HEAD" });
+    return response.ok;
   } catch {
     return false;
   }

@@ -1,29 +1,48 @@
 // hooks/useAutoSync.ts
 import { useEffect, useRef } from "react";
-import NetInfo from "@react-native-community/netinfo";
+import { AppState } from "react-native";
 import { runSync } from "../lib/sync";
+import { isOnline } from "../lib/network";
 
+/**
+ * Automatically runs sync when app regains focus or comes back online.
+ * Works even in mock/offline-safe environments (no native NetInfo required).
+ */
 export function useAutoSync() {
   const hasSynced = useRef(false);
 
   useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(async (state) => {
-      const online = !!state.isConnected;
+    let active = true;
 
+    async function trySync() {
+      if (!active) return;
+
+      const online = await isOnline();
       if (online && !hasSynced.current) {
-        console.log("🌐 Connection restored — running auto-sync...");
-        try {
-          await runSync();
-          hasSynced.current = true;
-          console.log("✅ Auto-sync complete.");
-        } catch (err) {
-          console.warn("⚠️ Auto-sync failed:", err);
-        }
+        console.log("🌐 AutoSync: device online, running sync...");
+        hasSynced.current = true;
+        await runSync();
+      } else if (!online) {
+        console.log("📴 AutoSync: offline, will retry when network restores.");
+        hasSynced.current = false;
       }
+    }
 
-      if (!online) hasSynced.current = false;
+    // Check on mount
+    trySync();
+
+    // Recheck whenever app becomes active
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") trySync();
     });
 
-    return () => unsubscribe();
+    // Recheck every 60s (safety fallback)
+    const interval = setInterval(trySync, 60000);
+
+    return () => {
+      active = false;
+      sub.remove();
+      clearInterval(interval);
+    };
   }, []);
 }

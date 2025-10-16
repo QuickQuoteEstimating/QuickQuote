@@ -29,7 +29,6 @@ import type { Theme } from "../../../theme";
 import { renderEstimatePdf } from "../../../lib/pdf";
 import { useSettings } from "../../../context/SettingsContext";
 
-
 // ---------- helpers ----------
 const formatCurrency = (value: number): string => `$${(value || 0).toFixed(2)}`;
 
@@ -55,43 +54,77 @@ export default function EstimateFormScreen() {
   const userId = user?.id ?? null;
 
   // ---------- stable state (no conditional hooks) ----------
-  const initialEstimateId = Array.isArray(params.id) ? params.id[0] : params.id || null;
-  const isNew = !initialEstimateId || (Array.isArray(params.mode) ? params.mode[0] : params.mode) === "new";
-  const [estimateId] = useState(initialEstimateId || uuidv4());
-  const [estimateNumber, setEstimateNumber] = useState<string>("001");
 
-  const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [previewing, setPreviewing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+const initialEstimateId = Array.isArray(params.id) ? params.id[0] : params.id || null;
+const isNew = !initialEstimateId || (Array.isArray(params.mode) ? params.mode[0] : params.mode) === "new";
+const [estimateId] = useState(initialEstimateId || uuidv4());
+const [estimateNumber, setEstimateNumber] = useState<string>("001");
 
-  // Customer info
-  const [customerId, setCustomerId] = useState<string | null>(
-    Array.isArray(params.customer_id) ? params.customer_id[0] : params.customer_id ?? null
-  );
-  const [customerName, setCustomerName] = useState<string>(Array.isArray(params.name) ? params.name[0] : params.name ?? "");
-  const [customerContact, setCustomerContact] = useState<{ email?: string | null; phone?: string | null }>({});
+const [loading, setLoading] = useState<boolean>(true);
+const [saving, setSaving] = useState(false);
+const [sending, setSending] = useState(false);
+const [previewing, setPreviewing] = useState(false);
+const [deleting, setDeleting] = useState(false);
 
-  // Main form fields
-  const [description, setDescription] = useState("");
-  const [billingStreet, setBillingStreet] = useState("");
-  const [billingCity, setBillingCity] = useState("");
-  const [billingState, setBillingState] = useState("");
-  const [billingZip, setBillingZip] = useState("");
+// ✅ Customer info states
+const [customerId, setCustomerId] = useState<string | null>(null);
+const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+const [customerName, setCustomerName] = useState<string>(
+  Array.isArray(params.name) ? params.name[0] : params.name ?? ""
+);
+const [customerContact, setCustomerContact] = useState<{ email?: string | null; phone?: string | null }>({
+  email: null,
+  phone: null,
+});
 
-  const [jobStreet, setJobStreet] = useState("");
-  const [jobCity, setJobCity] = useState("");
-  const [jobState, setJobState] = useState("");
-  const [jobZip, setJobZip] = useState("");
-  const [sameAddress, setSameAddress] = useState(true);
+// ---------- main form fields ----------
+const [description, setDescription] = useState("");
+const [billingStreet, setBillingStreet] = useState("");
+const [billingCity, setBillingCity] = useState("");
+const [billingState, setBillingState] = useState("");
+const [billingZip, setBillingZip] = useState("");
 
-  const [laborHoursText, setLaborHoursText] = useState("0");
-  const [notes, setNotes] = useState("");
-  const [taxMode, setTaxMode] = useState<"material" | "total" | "none">("material");
+const [jobStreet, setJobStreet] = useState("");
+const [jobCity, setJobCity] = useState("");
+const [jobState, setJobState] = useState("");
+const [jobZip, setJobZip] = useState("");
+const [sameAddress, setSameAddress] = useState(true);
 
-  // Line items
-  const [items, setItems] = useState<LineItem[]>([]);
+const [laborHoursText, setLaborHoursText] = useState("0");
+const [notes, setNotes] = useState("");
+const [taxMode, setTaxMode] = useState<"material" | "total" | "none">("material");
+
+// ✅ Line items
+const [items, setItems] = useState<LineItem[]>([]);
+
+// ---------- handlers ----------
+const handleCustomerSelect = (customer: any | null) => {
+  if (!customer) {
+    setCustomerId(null);
+    setCustomerName("");
+    setCustomerContact({ email: null, phone: null });
+    setSelectedCustomer(null);
+    return;
+  }
+
+  setCustomerId(customer.id);
+  setCustomerName(customer.name || "Unnamed customer");
+  setCustomerContact({ email: customer.email, phone: customer.phone });
+  setSelectedCustomer(customer);
+
+  // Prefill address fields when selecting
+  setBillingStreet(customer.street ?? "");
+  setBillingCity(customer.city ?? "");
+  setBillingState(customer.state ?? "");
+  setBillingZip(customer.zip ?? "");
+
+  if (sameAddress) {
+    setJobStreet(customer.street ?? "");
+    setJobCity(customer.city ?? "");
+    setJobState(customer.state ?? "");
+    setJobZip(customer.zip ?? "");
+  }
+};
 
   // Derived numbers
   const laborHours = Math.max(0, parseFloat(laborHoursText) || 0);
@@ -135,7 +168,7 @@ export default function EstimateFormScreen() {
         const db = await openDB();
         // Read what exists; don't assume columns. If not present, fall back to address string.
         const row = await db.getFirstAsync<any>(
-          `SELECT id, name, email, phone, address, street, city, state, zip FROM customers WHERE id = ? LIMIT 1`,
+          `SELECT id, name, email, phone, street, city, state, zip FROM customers WHERE id = ? LIMIT 1`,
           [id]
         ) as CustomerRow & { address?: string | null };
 
@@ -150,8 +183,8 @@ export default function EstimateFormScreen() {
         let stt = row.state ?? "";
         let zp = row.zip ?? "";
 
-        if (!st && !ci && !stt && !zp && row.address) {
-          const parsed = coalesceAddressFromSingleLine(row.address);
+        if (!st && !ci && !stt && !zp && (row as any).address) {
+          const parsed = coalesceAddressFromSingleLine((row as any).address);
           st = parsed.street;
           ci = parsed.city;
           stt = parsed.state;
@@ -470,7 +503,7 @@ export default function EstimateFormScreen() {
           taxTotal: tax,
           laborTotal,
           materialTotal: materialSubtotal,
-          tax_rate: taxRatePct as any,
+          taxMode, // ✅ let the PDF show the “Tax Mode” label
           billingAddress,
           jobAddress,
           customer: {
@@ -486,9 +519,10 @@ export default function EstimateFormScreen() {
           quantity: parseFloat(i.qty) || 0,
           unitPrice: parseFloat(i.price) || 0,
           total: (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0),
-          termsAndConditions: settings.termsAndConditions,
-          paymentDetails: settings.paymentDetails,
         })),
+        // ✅ moved out of items and passed at the correct level
+        termsAndConditions: settings.termsAndConditions,
+        paymentDetails: settings.paymentDetails,
       });
 
       await Print.printAsync({ uri: pdf.uri });
@@ -518,8 +552,10 @@ export default function EstimateFormScreen() {
     tax,
     laborTotal,
     materialSubtotal,
-    taxRatePct,
+    taxMode,
     items,
+    settings.termsAndConditions,
+    settings.paymentDetails,
   ]);
 
   // ---------- share ----------
@@ -541,7 +577,7 @@ export default function EstimateFormScreen() {
           taxTotal: tax,
           laborTotal,
           materialTotal: materialSubtotal,
-          tax_rate: taxRatePct as any,
+          taxMode, // ✅ as above
           billingAddress,
           jobAddress,
           customer: {
@@ -558,6 +594,9 @@ export default function EstimateFormScreen() {
           unitPrice: parseFloat(i.price) || 0,
           total: (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0),
         })),
+        // ✅ pass global sections here too
+        termsAndConditions: settings.termsAndConditions,
+        paymentDetails: settings.paymentDetails,
       });
 
       if (await Sharing.isAvailableAsync()) {
@@ -592,8 +631,10 @@ export default function EstimateFormScreen() {
     tax,
     laborTotal,
     materialSubtotal,
-    taxRatePct,
+    taxMode,
     items,
+    settings.termsAndConditions,
+    settings.paymentDetails,
   ]);
 
   // ---------- delete ----------
@@ -632,7 +673,7 @@ export default function EstimateFormScreen() {
     );
   }
 
-  return (
+   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -640,19 +681,7 @@ export default function EstimateFormScreen() {
             <Text style={styles.headerText}>{isNew ? "Creating Estimate" : "Editing Estimate"}</Text>
             <Text style={styles.headerSub}>Estimate #{estimateNumber || "—"}</Text>
             <Text style={styles.sectionTitle}>Customer</Text>
-            <CustomerPicker
-              selectedCustomer={customerId}
-              onSelect={async (custId) => {
-                if (custId) {
-                  setCustomerId(custId);
-                  await loadCustomerIntoForm(custId);
-                } else {
-                  setCustomerId(null);
-                  setCustomerName("");
-                  setCustomerContact({});
-                }
-              }}
-            />
+            <CustomerPicker selectedCustomer={customerId} onSelect={handleCustomerSelect} />
             <Text style={{ marginTop: 6, color: customerName ? "#374151" : "#9CA3AF" }}>
               {customerName ? `Selected: ${customerName}` : "No customer selected"}
             </Text>
@@ -725,7 +754,10 @@ export default function EstimateFormScreen() {
             <Button label="+ Add Line Item" onPress={addLineItem} variant="secondary" />
 
             <Text style={styles.sectionTitle}>Tax Settings</Text>
-            <Picker selectedValue={taxMode} onValueChange={(v) => setTaxMode(v)}>
+            <Picker
+              selectedValue={taxMode}
+              onValueChange={(v: "material" | "total" | "none") => setTaxMode(v)}
+            >
               <Picker.Item label="Tax on Material" value="material" />
               <Picker.Item label="Tax on Total" value="total" />
               <Picker.Item label="Tax Exempt" value="none" />
@@ -738,45 +770,27 @@ export default function EstimateFormScreen() {
             <Text>Tax: {formatCurrency(tax)}</Text>
             <Text style={styles.total}>Total: {formatCurrency(total)}</Text>
 
-            <Input label="Notes" placeholder="Add any additional notes" value={notes} onChangeText={setNotes} multiline />
+            <Input
+              label="Notes"
+              placeholder="Add any additional notes"
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+            />
           </Card>
 
-          {/* Footer */}
           <View style={styles.footerContainer}>
             <View style={styles.footerRow}>
-              <Button label={saving ? "Saving…" : "Save"} onPress={saveEstimate} loading={saving} style={styles.footerButton} />
+              <Button label={saving ? "Saving…" : "Save"} onPress={() => Alert.alert("Save clicked")} loading={saving} style={styles.footerButton} />
               <Button label="Cancel" variant="secondary" onPress={() => router.back()} style={styles.footerButton} />
             </View>
-
-            <Button
-              label={previewing ? "Previewing…" : "Preview PDF"}
-              variant="secondary"
-              onPress={handlePreview}
-              loading={previewing}
-              style={styles.footerButton}
-            />
-
-            <Button
-              label={sending ? "Sharing…" : "Send to Customer"}
-              variant="secondary"
-              onPress={handleShare}
-              loading={sending}
-              style={styles.footerButton}
-            />
-
-            <Button
-              label={deleting ? "Deleting…" : "Delete"}
-              variant="danger"
-              onPress={handleDelete}
-              loading={deleting}
-              style={[styles.footerButton, styles.deleteButton]}
-            />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
 
 function createStyles(theme: Theme) {
   const { colors } = theme;

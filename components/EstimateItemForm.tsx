@@ -48,19 +48,15 @@ type EstimateItemFormProps = {
 };
 
 function parseQuantity(value: string): number {
-  const parsed = parseFloat(value.replace(/[^0-9.]/g, ""));
-  if (!Number.isFinite(parsed)) {
-    return 0;
-  }
-  return Math.max(0, Math.round(parsed));
+  const clean = value.replace(/,/g, ".").replace(/[^0-9.]/g, "");
+  const parsed = parseFloat(clean);
+  return isNaN(parsed) ? 0 : parsed;
 }
 
 function parseCurrency(value: string): number {
-  const parsed = parseFloat(value.replace(/[^0-9.]/g, ""));
-  if (!Number.isFinite(parsed)) {
-    return 0;
-  }
-  return Math.max(0, Math.round(parsed * 100) / 100);
+  const clean = value.replace(/,/g, ".").replace(/[^0-9.]/g, "");
+  const parsed = parseFloat(clean);
+  return isNaN(parsed) ? 0 : parseFloat(parsed.toFixed(2));
 }
 
 function formatCurrency(value: number): string {
@@ -98,15 +94,15 @@ export default function EstimateItemForm({
   const { theme } = useThemeContext();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  useEffect(() => {
-    if (!initialValue) {
-      return;
-    }
-    setDescription(initialValue.description);
-    setQuantityText(String(initialValue.quantity));
-    setUnitPriceText(String(initialValue.unit_price));
+useEffect(() => {
+  if (initialValue) {
+    setDescription(initialValue.description ?? "");
+    setQuantityText(String(initialValue.quantity ?? "1"));
+    setUnitPriceText(String(initialValue.unit_price ?? "0"));
     setMarkupApplied(initialValue.apply_markup ?? true);
-  }, [initialValue]);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []); // run once, not on every initialValue change
 
   useEffect(() => {
     setSelectedTemplateId(initialTemplateId ?? null);
@@ -206,7 +202,7 @@ export default function EstimateItemForm({
           <View style={styles.pickerShell}>
             <Picker
               selectedValue={selectedTemplateId ?? ""}
-              onValueChange={(value) => {
+              onValueChange={(value: string) => {
                 const nextValue = value ? String(value) : "";
                 const normalized = nextValue ? nextValue : null;
                 setSelectedTemplateId(normalized);

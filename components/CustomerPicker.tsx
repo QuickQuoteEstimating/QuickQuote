@@ -1,4 +1,3 @@
-// components/CustomerPicker.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
@@ -14,13 +13,16 @@ type Customer = {
   name: string;
   phone?: string | null;
   email?: string | null;
-  address?: string | null;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
   notes?: string | null;
 };
 
 type Props = {
-  selectedCustomer: string | null;
-  onSelect: (id: string | null) => void;
+  selectedCustomer?: string | null;
+  onSelect: (customer: Customer | null) => void;
 };
 
 export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
@@ -36,15 +38,12 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
     try {
       const db = await openDB();
       const rows = await db.getAllAsync<Customer>(
-        "SELECT id, name, phone, email, address, notes FROM customers WHERE deleted_at IS NULL ORDER BY name ASC",
+        "SELECT id, name, phone, email, street, city, state, zip, notes FROM customers WHERE deleted_at IS NULL ORDER BY name ASC"
       );
       setCustomers(rows);
     } catch (error) {
       console.error("Failed to load customers", error);
-      Alert.alert(
-        "Unable to load customers",
-        "Please try again later or contact support if the issue persists.",
-      );
+      Alert.alert("Unable to load customers", "Please try again later.");
     } finally {
       setLoading(false);
     }
@@ -55,50 +54,24 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
   }, [loadCustomers]);
 
   const filteredCustomers = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      return customers;
-    }
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return customers;
 
-    const normalize = (value?: string | null) => {
-      if (typeof value === "string") {
-        return value.toLowerCase().trim();
-      }
+    const normalize = (val?: string | null) => (val ? val.toLowerCase().trim() : "");
+    return customers.filter(
+      (c) =>
+        normalize(c.name).includes(q) ||
+        normalize(c.phone).includes(q) ||
+        normalize(c.email).includes(q) ||
+        normalize(c.street).includes(q) ||
+        normalize(c.city).includes(q) ||
+        normalize(c.state).includes(q) ||
+        normalize(c.zip).includes(q) ||
+        normalize(c.notes).includes(q)
+    );
+  }, [customers, searchQuery]);
 
-      if (value === null || value === undefined) {
-        return "";
-      }
-
-      return String(value).toLowerCase().trim();
-    };
-
-    const matches = customers.filter((customer) => {
-      const nameMatch = normalize(customer.name).includes(query);
-      const phoneMatch = normalize(customer.phone).includes(query);
-      const emailMatch = normalize(customer.email).includes(query);
-      const addressMatch = normalize(customer.address).includes(query);
-      const notesMatch = normalize(customer.notes).includes(query);
-
-      return Boolean(nameMatch || phoneMatch || emailMatch || addressMatch || notesMatch);
-    });
-
-    if (selectedCustomer && !matches.some((customer) => customer.id === selectedCustomer)) {
-      const selected = customers.find((customer) => customer.id === selectedCustomer);
-      if (selected) {
-        return [selected, ...matches];
-      }
-    }
-
-    return matches;
-  }, [customers, searchQuery, selectedCustomer]);
-
-  const getDisplayName = useCallback((customer: Customer) => {
-    const trimmedName = customer.name?.trim();
-    if (trimmedName) {
-      return trimmedName;
-    }
-    return "Unnamed customer";
-  }, []);
+  const getDisplayName = (customer: Customer) => customer.name?.trim() || "Unnamed customer";
 
   if (addingNew) {
     return (
@@ -106,23 +79,25 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
         onSaved={(customer: CustomerRecord) => {
           setAddingNew(false);
           setSearchQuery("");
-
           const mapped: Customer = {
             id: customer.id,
             name: customer.name,
             phone: customer.phone,
             email: customer.email,
-            address: customer.address,
+            street: customer.street,
+            city: customer.city,
+            state: customer.state,
+            zip: customer.zip,
             notes: customer.notes,
           };
 
-          setCustomers((prev) => {
-            const next = [mapped, ...prev.filter((row) => row.id !== mapped.id)];
-            return next.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-          });
+          setCustomers((prev) =>
+            [mapped, ...prev.filter((r) => r.id !== mapped.id)].sort((a, b) =>
+              a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+            )
+          );
 
-          onSelect(customer.id);
-          void loadCustomers();
+          onSelect(mapped); // ✅ Pass full customer object
         }}
         onCancel={() => setAddingNew(false)}
         wrapInCard={false}
@@ -141,7 +116,12 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
       return;
     }
 
-    onSelect(String(value));
+    const found = customers.find((c) => c.id === value);
+    if (found) {
+      onSelect(found); // ✅ Pass full customer object
+    } else {
+      onSelect(null);
+    }
   };
 
   if (loading) {
@@ -161,6 +141,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
           Search existing contacts or create a new profile without leaving the estimate.
         </Text>
       </View>
+
       <Input
         label="Search"
         placeholder="Name, phone, email, or address"
@@ -170,6 +151,7 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
         autoCapitalize="none"
         returnKeyType="search"
       />
+
       <View style={styles.pickerShell}>
         <Picker
           selectedValue={selectedCustomer ?? ""}
@@ -181,12 +163,13 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
           {filteredCustomers.length === 0 ? (
             <Picker.Item label="No matching customers" value="" enabled={false} />
           ) : null}
-          {filteredCustomers.map((c: Customer) => (
+          {filteredCustomers.map((c) => (
             <Picker.Item key={c.id} label={getDisplayName(c)} value={c.id} />
           ))}
           <Picker.Item label="➕ Add New Customer" value="new" />
         </Picker>
       </View>
+
       <Button label="Add New Customer" variant="secondary" onPress={() => setAddingNew(true)} />
     </Card>
   );
@@ -195,22 +178,10 @@ export default function CustomerPicker({ selectedCustomer, onSelect }: Props) {
 function createStyles(theme: Theme) {
   const { colors } = theme;
   return StyleSheet.create({
-    card: {
-      gap: 16,
-    },
-    header: {
-      gap: 6,
-    },
-    title: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: colors.primaryText,
-    },
-    caption: {
-      fontSize: 13,
-      lineHeight: 18,
-      color: colors.mutedText,
-    },
+    card: { gap: 16 },
+    header: { gap: 6 },
+    title: { fontSize: 18, fontWeight: "600", color: colors.primaryText },
+    caption: { fontSize: 13, lineHeight: 18, color: colors.mutedText },
     pickerShell: {
       borderRadius: 16,
       borderWidth: 1,
@@ -218,17 +189,8 @@ function createStyles(theme: Theme) {
       backgroundColor: colors.surfaceAlt,
       overflow: "hidden",
     },
-    picker: {
-      height: 52,
-      color: colors.primaryText,
-    },
-    loadingCard: {
-      alignItems: "center",
-      gap: 12,
-    },
-    loadingText: {
-      fontSize: 14,
-      color: colors.mutedText,
-    },
+    picker: { height: 52, color: colors.primaryText },
+    loadingCard: { alignItems: "center", gap: 12 },
+    loadingText: { fontSize: 14, color: colors.mutedText },
   });
 }

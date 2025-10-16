@@ -26,6 +26,7 @@ import * as Sharing from "expo-sharing";
 import { openDB } from "../../lib/sqlite";
 import * as Print from "expo-print";
 import { renderEstimatePdf } from "../../lib/pdf";
+import { setForceOffline } from "../../lib/network";
 
 
 const HAPTIC_LABELS = ["Subtle", "Balanced", "Bold"];
@@ -612,6 +613,14 @@ await FileSystem.writeAsStringAsync(fileUri, csvContent, {
           accessibilityLabel="Sign out of QuickQuote"
         />
       </Card>
+
+<Button
+  label="Toggle Offline Mode"
+  onPress={() => {
+    setForceOffline(true);
+    Alert.alert("Offline mode", "Force offline mode enabled.");
+  }}
+/>
 
       <Card>
   <Text style={styles.cardTitle}>Developer Tools</Text>

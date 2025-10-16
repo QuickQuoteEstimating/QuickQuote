@@ -1,16 +1,20 @@
-import { ReadableStream as PolyfillReadableStream } from "web-streams-polyfill/ponyfill";
-
-if (typeof globalThis.ReadableStream === "undefined") {
-  globalThis.ReadableStream = PolyfillReadableStream;
-}
-
+import "react-native-gesture-handler";
 import "expo-router/entry";
 
-import { resetLocalDatabase } from "./lib/sqlite";
 import { useEffect } from "react";
+import { resetLocalDatabase } from "./lib/sqlite";
 
-useEffect(() => {
-  // TEMP: run this once to wipe and re-init the local DB
-  resetLocalDatabase();
-}, []);
+// 👇 Optional: only use this for debugging
+// Uncomment if you really want to reset local DB every launch
+// useEffect(() => {
+//   resetLocalDatabase();
+// }, []);
 
+export default function App() {
+  // 👇 You can add any global setup hooks here later if needed
+  useEffect(() => {
+    console.log("✅ App initialized");
+  }, []);
+
+  return null; // expo-router handles navigation tree automatically
+}
