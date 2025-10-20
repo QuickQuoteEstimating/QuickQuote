@@ -1,8 +1,10 @@
 {
   "extends": "expo/tsconfig.base",
+
+
   "compilerOptions": {
     "strict": true,
-    "jsx": "react-native",
+    "jsx": "react-jsx",
     "target": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
@@ -12,6 +14,7 @@
     "noEmit": true,
     "types": [
       "jest",
+      "expo-router",
       "react-native",
       "react"
     ],
