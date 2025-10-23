@@ -1,9 +1,9 @@
 // lib/sqlite.ts
 import * as SQLite from "expo-sqlite";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { v4 as uuidv4 } from "uuid";
 
-// Some SDK typings don't expose these properties; cast to any for safety.
+// Fallback safety
 const FS: any = FileSystem;
 export const documentDirectory: string =
   FS.documentDirectory ?? FS.cacheDirectory ?? "";
@@ -11,8 +11,6 @@ export const documentDirectory: string =
 // -------------------------------------------------------------
 // Types
 // -------------------------------------------------------------
-export type TableColumn = { name: string };
-
 export type Change = {
   id: number;
   table_name:
@@ -27,46 +25,30 @@ export type Change = {
   created_at: string;
 };
 
-export type DeliveryLogRecord = {
-  id: string;
-  estimate_id: string;
-  channel: string;
-  recipient: string | null;
-  message_preview: string | null;
-  metadata: string | null;
-  created_at: string;
-};
+
 
 // -------------------------------------------------------------
-// DB singleton (use standard location: <documentDir>/SQLite/quickquote.db)
+// DB Singleton
 // -------------------------------------------------------------
 let _dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export async function openDB(): Promise<SQLite.SQLiteDatabase> {
   if (!_dbPromise) {
-    // Use just the filename so Expo stores it under .../SQLite/quickquote.db
     _dbPromise = SQLite.openDatabaseAsync("quickquote.db");
   }
   return _dbPromise;
 }
 
-// Debug helper: log CREATE TABLE for customers
-export async function debugCustomersSchema() {
-  const db = await openDB();
-  const result = await db.getAllAsync<{ name: string; sql: string }>(
-    "SELECT name, sql FROM sqlite_master WHERE type='table' AND name='customers';"
-  );
-  console.log("🧩 Local customers table schema:", result);
-}
-
 // -------------------------------------------------------------
-// Initialize schema
+// Initialize Schema
 // -------------------------------------------------------------
 export async function initLocalDB(): Promise<void> {
   const db = await openDB();
   await db.execAsync("PRAGMA foreign_keys = ON;");
 
-  // --- Standard table creation (unchanged) ---
+  // -------------------------------
+  // SYNC QUEUE
+  // -------------------------------
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS sync_queue (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,10 +59,13 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
+  // -------------------------------
+  // CUSTOMERS
+  // -------------------------------
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS customers (
       id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
+      user_id TEXT,
       name TEXT NOT NULL,
       phone TEXT,
       email TEXT,
@@ -90,64 +75,83 @@ export async function initLocalDB(): Promise<void> {
       zip TEXT,
       notes TEXT,
       version INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT
     );
   `);
 
+  // -------------------------------
+  // ESTIMATES
+  // -------------------------------
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS estimates (
       id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      customer_id TEXT NOT NULL,
-      date TEXT DEFAULT (datetime('now')),
-      total REAL DEFAULT 0,
-      material_total REAL DEFAULT 0,
-      labor_hours REAL DEFAULT 0,
-      labor_rate REAL DEFAULT 0,
-      labor_total REAL DEFAULT 0,
+      user_id TEXT,
+      customer_id TEXT,
+      description TEXT,
+      billing_address TEXT,
+      job_address TEXT,
       subtotal REAL DEFAULT 0,
       tax_rate REAL DEFAULT 0,
       tax_total REAL DEFAULT 0,
+      total REAL DEFAULT 0,
       notes TEXT,
-      billing_address TEXT,
-      job_address TEXT,
-      job_details TEXT,
+      estimate_number TEXT,
       status TEXT DEFAULT 'draft',
       version INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT,
       FOREIGN KEY (customer_id) REFERENCES customers(id)
     );
   `);
 
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS item_catalog (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      unit_price REAL DEFAULT 0,
-      deleted_at TEXT
-    );
-  `);
-
+  // -------------------------------
+  // ESTIMATE ITEMS
+  // -------------------------------
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS estimate_items (
       id TEXT PRIMARY KEY,
       estimate_id TEXT NOT NULL,
+      user_id TEXT,
       description TEXT NOT NULL,
-      quantity INTEGER NOT NULL,
-      unit_price REAL NOT NULL,
+      quantity REAL NOT NULL DEFAULT 1,
+      unit_price REAL NOT NULL DEFAULT 0,
       base_total REAL NOT NULL DEFAULT 0,
-      total REAL NOT NULL,
+      total REAL NOT NULL DEFAULT 0,
       apply_markup INTEGER NOT NULL DEFAULT 1,
       catalog_item_id TEXT,
       version INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT,
       FOREIGN KEY (estimate_id) REFERENCES estimates(id)
     );
   `);
 
+  // -------------------------------
+  // ITEM CATALOG
+  // -------------------------------
+  await db.execAsync(`
+    DROP TABLE IF EXISTS item_catalog;
+    CREATE TABLE IF NOT EXISTS item_catalog (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      name TEXT NOT NULL,
+      unit_price REAL DEFAULT 0,
+      default_quantity REAL DEFAULT 1,
+      apply_markup INTEGER DEFAULT 1,
+      version INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TEXT
+    );
+  `);
+
+  // -------------------------------
+  // PHOTOS
+  // -------------------------------
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS photos (
       id TEXT PRIMARY KEY,
@@ -156,20 +160,24 @@ export async function initLocalDB(): Promise<void> {
       local_uri TEXT,
       description TEXT,
       version INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       deleted_at TEXT,
       FOREIGN KEY (estimate_id) REFERENCES estimates(id)
     );
   `);
 
+  // -------------------------------
+  // SAVED ITEMS
+  // -------------------------------
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS saved_items (
       id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
+      user_id TEXT,
       name TEXT NOT NULL,
       default_quantity INTEGER DEFAULT 1,
-      default_unit_price REAL NOT NULL,
-      default_markup_applicable INTEGER NOT NULL DEFAULT 1,
+      default_unit_price REAL DEFAULT 0,
+      default_markup_applicable INTEGER DEFAULT 1,
       version INTEGER DEFAULT 1,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -177,6 +185,9 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
+  // -------------------------------
+  // DELIVERY LOGS
+  // -------------------------------
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS delivery_logs (
       id TEXT PRIMARY KEY,
@@ -190,25 +201,26 @@ export async function initLocalDB(): Promise<void> {
     );
   `);
 
-  // --- ✅ NEW: Safe schema migration for missing columns ---
-  const tableInfo = await db.getAllAsync<{ name: string }>(
-    "PRAGMA table_info(estimates);"
-  );
-  const existingColumns = tableInfo.map((col) => col.name);
+  // -------------------------------
+  // MIGRATION CHECKS
+  // -------------------------------
+  const migrations: { table: string; column: string; type: string }[] = [
+    { table: "customers", column: "user_id", type: "TEXT" },
+    { table: "estimates", column: "user_id", type: "TEXT" },
+    { table: "estimate_items", column: "user_id", type: "TEXT" },
+    { table: "item_catalog", column: "user_id", type: "TEXT" },
+  ];
 
-  if (!existingColumns.includes("estimate_number")) {
-    console.log("🧩 Adding missing column: estimate_number");
-    await db.execAsync(`ALTER TABLE estimates ADD COLUMN estimate_number TEXT;`);
+  for (const { table, column, type } of migrations) {
+    const info = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table});`);
+    if (!info.some((col) => col.name === column)) {
+      console.log(`🧩 Adding missing column ${column} to ${table}`);
+      await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${type};`);
+    }
   }
 
-  if (!existingColumns.includes("description")) {
-    console.log("🧩 Adding missing column: description");
-    await db.execAsync(`ALTER TABLE estimates ADD COLUMN description TEXT;`);
-  }
-
-  console.log("✅ Local SQLite DB initialized (with schema migration)");
+  console.log("✅ Local SQLite DB initialized successfully");
 }
-
 
 // -------------------------------------------------------------
 // Sync queue helpers
@@ -270,7 +282,7 @@ export async function logEstimateDelivery(params: {
 }
 
 // -------------------------------------------------------------
-// Reset local DB (delete both possible locations just in case)
+// Reset local DB
 // -------------------------------------------------------------
 export async function resetLocalDatabase(): Promise<void> {
   try {
@@ -289,7 +301,6 @@ export async function resetLocalDatabase(): Promise<void> {
     await tryDelete(primary);
     await tryDelete(fallback);
 
-    // Re-initialize schema
     await initLocalDB();
 
     const db = await openDB();

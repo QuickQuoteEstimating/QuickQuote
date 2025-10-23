@@ -14,7 +14,10 @@ type Customer = {
   name: string;
   phone: string | null;
   email: string | null;
-  address: string | null;
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
   notes: string | null;
   version: number | null;
   updated_at: string | null;
@@ -109,15 +112,18 @@ export async function bootstrapUserData(userId: string) {
 
   for (const customer of (customers ?? []) as Customer[]) {
     await db.runAsync(
-      `INSERT OR REPLACE INTO customers (id, user_id, name, phone, email, address, notes, version, updated_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO customers (id, user_id, name, phone, email, street, city, state, zip, notes, version, updated_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         customer.id,
         customer.user_id,
         customer.name,
         customer.phone,
         customer.email,
-        customer.address,
+        customer.street,
+        customer.city,
+        customer.state,
+        customer.zip,
         customer.notes,
         customer.version ?? 1,
         customer.updated_at ?? new Date().toISOString(),

@@ -1,17 +1,18 @@
-import { Stack, Tabs } from "expo-router";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { AppState } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { Stack } from "expo-router";
+import { ThemeProvider, useThemeContext } from "../theme/ThemeProvider";
 import { AuthProvider } from "../context/AuthContext";
 import { SettingsProvider } from "../context/SettingsContext";
 import { initLocalDB } from "../lib/sqlite";
 import { runSync } from "../lib/sync";
-import { ThemeProvider } from "../theme/ThemeProvider";
 import { useAutoSync } from "../hooks/useAutoSync";
 
-
 export default function RootLayout() {
- useAutoSync(); // ✅ automatically syncs queued data when back online
+  useAutoSync(); // ✅ automatically syncs queued data when online
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -20,9 +21,10 @@ export default function RootLayout() {
       } catch (error) {
         console.error("Initialization failed", error);
       }
-    }
+    };
 
     init();
+
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") init();
     });
@@ -33,21 +35,40 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <SafeAreaProvider>
-        <AuthProvider>
-        <SettingsProvider>
-      
-          
-<Stack
-  screenOptions={{
-    headerShown: false,
-    animation: "none",
-  }}
-/>
-
-          
-        </SettingsProvider>
-        </AuthProvider>
+        <RootLayoutInner />
       </SafeAreaProvider>
     </ThemeProvider>
+  );
+}
+
+// ✅ Separate inner layout so we can access the theme context
+function RootLayoutInner() {
+  const { theme } = useThemeContext();
+  const { colors } = theme;
+
+  return (
+    <AuthProvider>
+      <SettingsProvider>
+        <SafeAreaView
+          style={{
+            flex: 1,
+            backgroundColor: colors.background, // matches your app theme
+          }}
+          edges={["top", "left", "right"]}
+        >
+          <StatusBar
+            style={theme.isDark ? "light" : "dark"}
+            backgroundColor={colors.background}
+          />
+
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: "none",
+            }}
+          />
+        </SafeAreaView>
+      </SettingsProvider>
+    </AuthProvider>
   );
 }

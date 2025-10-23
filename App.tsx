@@ -9,6 +9,8 @@ import { resetLocalDatabase } from "./lib/sqlite";
 //   resetLocalDatabase();
 // }, []);
 
+
+
 export default function App() {
   // 👇 You can add any global setup hooks here later if needed
   useEffect(() => {

@@ -46,11 +46,12 @@ const ALLOWED_KEYS: Record<Change["table_name"], string[]> = {
   estimate_items: [
     "id",
     "estimate_id",
+    "user_id",
     "description",
     "quantity",
     "unit_price",
     "base_total",
-    "total",
+    // ❌ "total" removed — Supabase calculates it
     "apply_markup",
     "catalog_item_id",
     "version",
@@ -82,12 +83,26 @@ const ALLOWED_KEYS: Record<Change["table_name"], string[]> = {
   item_catalog: ["id", "name", "unit_price", "deleted_at"],
 };
 
+// 🧹 Utility to strip disallowed or computed fields
 function sanitizePayload(table: Change["table_name"], payload: any) {
   const allowed = ALLOWED_KEYS[table];
   const clean: Record<string, unknown> = {};
+
   for (const k of allowed) {
-    if (k in payload) clean[k] = payload[k];
+    if (k in payload && k !== "total") clean[k] = payload[k]; // ✅ skip computed column
   }
+  return clean;
+
+  // 🚫 Remove any computed or DB-managed columns explicitly
+  if (table === "estimate_items") {
+    delete clean.total; // Supabase computes this server-side
+  }
+
+  if (table === "estimates") {
+    delete clean.title; // Some older local schemas still include this
+  }
+
+  delete clean.created_at; // Avoid overwriting Supabase triggers
   return clean;
 }
 
@@ -97,48 +112,60 @@ async function processChange(change: Change) {
   try {
     const raw = JSON.parse(change.payload);
 
-    // Never send phantom keys like "title"
-    delete raw.title;
+    // 🧹 Safety cleanup
+    delete raw.title; // Remove phantom fields
 
-    // Remove placeholder ids
-    if (raw.id === "[id]" || raw.id === null || raw.id === undefined) {
+    // 🧠 Ignore placeholder or invalid IDs
+    if (
+      raw.id === "[id]" ||
+      raw.id === "new" ||
+      raw.id === null ||
+      raw.id === undefined ||
+      raw.id === ""
+    ) {
       delete raw.id;
     }
 
+    // 🧽 Keep only whitelisted keys for the given table
     const payload = sanitizePayload(change.table_name, raw);
 
-    let result:
-      | Awaited<ReturnType<typeof supabase["from"]>> // just for TS happiness
-      | any;
+    console.log("➡️ Sending sanitized payload:", payload);
 
-if (change.op === "insert") {
-  result = await supabase
-    .from(change.table_name)
-    .upsert(payload, { onConflict: "id" }); // ✅ replaces insert with upsert
+    let result: Awaited<ReturnType<typeof supabase["from"]>> | any;
 
-    } else if (change.op === "update") {
+    // 🧩 Handle Supabase operations
+    if (change.op === "insert") {
+      result = await supabase
+        .from(change.table_name)
+        .upsert(payload, { onConflict: "id" }); // Upsert = insert or update
+    } 
+    else if (change.op === "update") {
       if (!raw.id) {
         console.warn("⚠️ Skipping update: missing ID", raw);
         return;
       }
       result = await supabase.from(change.table_name).update(payload).eq("id", raw.id);
-    } else if (change.op === "delete") {
-      if (!raw.id) {
-        console.warn("⚠️ Skipping delete: missing ID", raw);
+    } 
+    else if (change.op === "delete") {
+      // 🧠 Prevent delete attempts with invalid IDs (like "new")
+      if (!raw.id || raw.id === "new" || raw.id === "[id]") {
+        console.warn("⚠️ Skipping delete: invalid ID", raw);
         return;
       }
       result = await supabase.from(change.table_name).delete().eq("id", raw.id);
-    } else {
+    } 
+    else {
       console.warn("⚠️ Unknown op:", change.op);
       return;
     }
 
+    // 🪵 Log Supabase response
     if (result.error) {
       console.error(
         `❌ Supabase error for ${change.op} on ${change.table_name}:`,
         result.error.message
       );
-      return; // keep it in the queue so we can inspect again later
+      return; // keep the change queued for retry
     }
 
     console.log(`✅ ${change.op} successful for ${change.table_name}`);

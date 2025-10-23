@@ -37,15 +37,15 @@ export type ThemeColors = {
   successSoft: string;
   overlay: string;
 };
+export type ThemeMode = "light" | "dark";
 
 export type Theme = {
   mode: ThemeMode;
   colors: ThemeColors;
   spacing: ThemeSpacing;
   radii: ThemeRadii;
+  isDark: boolean;
 };
-
-export type ThemeMode = "light" | "dark";
 
 const spacing: ThemeSpacing = {
   none: 0,
@@ -68,7 +68,7 @@ const radii: ThemeRadii = {
 };
 
 export const light: Theme = {
-  mode: "light",
+  
   colors: {
     background: "#F5F7FB",
     surface: "#FFFFFF",
@@ -80,17 +80,20 @@ export const light: Theme = {
     accent: "#2D74FF",
     accentSoft: "#E3EDFF",
     success: "#2FBF71",
+    accentMuted: "#93C5FD",
     successSoft: "#E3F7ED",
     danger: "#EF4444",
     dangerSoft: "#FEE2E2",
     overlay: "rgba(9, 17, 34, 0.4)",
   },
+  mode: "light",
+  isDark: false,
   spacing,
   radii,
 };
 
 export const dark: Theme = {
-  mode: "dark",
+  
   colors: {
     background: "#0F172A",
     surface: "#16213C",
@@ -101,12 +104,15 @@ export const dark: Theme = {
     mutedText: "#94A3B8",
     accent: "#5A8BFF",
     accentSoft: "#243560",
+    accentMuted: "#93C5FD",
     success: "#3DD68C",
     successSoft: "#123D2C",
     danger: "#F87171",
     dangerSoft: "#3A1B1B",
     overlay: "rgba(9, 17, 34, 0.65)",
   },
+  mode: "dark",
+  isDark: true,
   spacing,
   radii,
 };

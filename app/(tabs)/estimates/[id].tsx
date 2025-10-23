@@ -13,10 +13,11 @@ import {
   Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Picker } from "@react-native-picker/picker";
+// import { Picker } from "@react-native-picker/picker"; // (unused right now)
 import { v4 as uuidv4 } from "uuid";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import * as MailComposer from "expo-mail-composer";
 import CustomerPicker from "../../../components/CustomerPicker";
 import { useAuth } from "../../../context/AuthContext";
 import { useThemeContext } from "../../../theme/ThemeProvider";
@@ -27,240 +28,546 @@ import { Button, Card, Input } from "../../../components/ui";
 import type { Theme } from "../../../theme";
 import { renderEstimatePdf } from "../../../lib/pdf";
 import { useSettings } from "../../../context/SettingsContext";
+import { supabase } from "lib/supabase";
 
-// ---------- helpers ----------
 const formatCurrency = (value: number): string => `$${(value || 0).toFixed(2)}`;
 const oneLineFromParts = (street: string, city: string, state: string, zip: string) =>
   [street, city, state, zip].filter(Boolean).join(", ");
 
-type LineItem = { id: string; name: string; qty: string; price: string };
+// ✅ include addToCatalog in the LineItem type
+type LineItem = {
+  id: string;
+  name: string;
+  qty: string;
+  price: string;
+  addToCatalog?: boolean;
+};
 
 export default function EstimateFormScreen() {
-  const params = useLocalSearchParams<{ id?: string; mode?: string; customer?: string }>();
-  const prefillCustomer = params.customer ? JSON.parse(params.customer as string) : null;
+  const { theme } = useThemeContext();
+  const { colors } = theme;
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useRouter();
 
-  const { theme } = useThemeContext();
-  const styles = useMemo(() => createStyles(theme), [theme]);
-  const { user } = useAuth();
-  const { settings } = useSettings();
-  const userId = user?.id ?? null;
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  // ----- Estimate & Customer Data -----
-  const [estimateId] = useState<string>(uuidv4());
-  const [estimateNumber, setEstimateNumber] = useState<string>("001");
-
-  const [customerId, setCustomerId] = useState(prefillCustomer?.id ?? null);
-  const [customerName, setCustomerName] = useState(prefillCustomer?.name ?? "");
-  const [customerContact, setCustomerContact] = useState({
-    email: prefillCustomer?.email ?? null,
-    phone: prefillCustomer?.phone ?? null,
-  });
-
-  const [billingStreet, setBillingStreet] = useState(prefillCustomer?.street ?? "");
-  const [billingCity, setBillingCity] = useState(prefillCustomer?.city ?? "");
-  const [billingState, setBillingState] = useState(prefillCustomer?.state ?? "");
-  const [billingZip, setBillingZip] = useState(prefillCustomer?.zip ?? "");
-
-  const [jobStreet, setJobStreet] = useState(prefillCustomer?.street ?? "");
-  const [jobCity, setJobCity] = useState(prefillCustomer?.city ?? "");
-  const [jobState, setJobState] = useState(prefillCustomer?.state ?? "");
-  const [jobZip, setJobZip] = useState(prefillCustomer?.zip ?? "");
-  const [sameAddress, setSameAddress] = useState(true);
-
+  // 💾 all your useState hooks first
+  const [estimateNumber, setEstimateNumber] = useState("001");
   const [description, setDescription] = useState("");
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerName, setCustomerName] = useState("");
+  const [customerContact, setCustomerContact] = useState({ email: "", phone: "" });
+  const [billingStreet, setBillingStreet] = useState("");
+  const [billingCity, setBillingCity] = useState("");
+  const [billingState, setBillingState] = useState("");
+  const [billingZip, setBillingZip] = useState("");
+  const [jobStreet, setJobStreet] = useState("");
+  const [jobCity, setJobCity] = useState("");
+  const [jobState, setJobState] = useState("");
+  const [jobZip, setJobZip] = useState("");
   const [laborHoursText, setLaborHoursText] = useState("0");
-  const [notes, setNotes] = useState("");
-  const [taxMode, setTaxMode] = useState<"material" | "total" | "none">("material");
-
   const [items, setItems] = useState<LineItem[]>([]);
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // ---------- Derived Amounts ----------
-  const laborHours = Math.max(0, parseFloat(laborHoursText) || 0);
-  const laborRate = settings.hourlyRate || 0;
-  const laborTotal = laborHours * laborRate;
-  const materialSubtotal = items.reduce((sum, i) => {
-    const q = parseFloat(i.qty) || 0;
-    const p = parseFloat(i.price) || 0;
-    return sum + q * p;
-  }, 0);
-  const subtotal = materialSubtotal + laborTotal;
-  const taxRatePct = settings.taxRate || 0;
-  const tax =
-    taxMode === "none"
-      ? 0
-      : taxMode === "material"
-      ? materialSubtotal * (taxRatePct / 100)
-      : subtotal * (taxRatePct / 100);
-  const total = subtotal + tax;
+  const [sameAddress, setSameAddress] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  // ---------- Load latest estimate number ----------
-  useEffect(() => {
+  const [subtotal, setSubtotal] = useState(0);
+  const [taxRatePct, setTaxRatePct] = useState(0);
+  const [tax, setTax] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [laborRate, setLaborRate] = useState(75); // adjust to your default hourly rate
+  const [laborTotal, setLaborTotal] = useState(0);
+
+  const params = useLocalSearchParams<{
+  id?: string;
+  customerId?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+}>();
+const estimateId = useMemo(() => params.id ?? uuidv4(), [params.id]);
+  // 👇 place the new useEffect **here**, inside the component,
+  // after all the useState declarations:
+    useEffect(() => {
     (async () => {
       const db = await openDB();
-      await db.execAsync(`
-        CREATE TABLE IF NOT EXISTS estimates (
-          id TEXT PRIMARY KEY,
-          user_id TEXT,
-          customer_id TEXT,
-          description TEXT,
-          billing_address TEXT,
-          job_address TEXT,
-          subtotal REAL,
-          tax_rate REAL,
-          tax_total REAL,
-          total REAL,
-          notes TEXT,
-          estimate_number TEXT,
-          updated_at TEXT,
-          deleted_at TEXT
-        );
-      `);
+      type DBEstimate = {
+  id: string;
+  estimate_number?: string | null;
+  description?: string | null;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  billing_address?: string | null;
+  job_address?: string | null;
+  labor_hours?: number | null;
+  notes?: string | null;
+};
 
-      const result = await db.getFirstAsync<{ lastNum: string }>(
+      // ✅ if editing an existing estimate
+      if (params.id) {
+        const estimate = await db.getFirstAsync<DBEstimate>(
+          `
+          SELECT 
+            e.*,
+            c.name AS customer_name,
+            c.email AS customer_email,
+            c.phone AS customer_phone,
+            c.street AS customer_street,
+            c.city AS customer_city,
+            c.state AS customer_state,
+            c.zip AS customer_zip
+          FROM estimates e
+          LEFT JOIN customers c ON e.customer_id = c.id
+          WHERE e.id = ? AND e.deleted_at IS NULL
+          `,
+          [params.id]
+        );
+
+        if (estimate) {
+          // 🔹 Restore all saved fields
+          setEstimateNumber(estimate.estimate_number || "001");
+          setDescription(estimate.description || "");
+          setCustomerId(estimate.customer_id || null);
+          setCustomerName(estimate.customer_name || "");
+          setCustomerContact({
+            email: estimate.customer_email || "",
+            phone: estimate.customer_phone || "",
+          });
+
+          const [bStreet, bCity, bState, bZip] = (estimate.billing_address || "").split(",");
+          const [jStreet, jCity, jState, jZip] = (estimate.job_address || "").split(",");
+
+          setBillingStreet(bStreet?.trim() || "");
+          setBillingCity(bCity?.trim() || "");
+          setBillingState(bState?.trim() || "");
+          setBillingZip(bZip?.trim() || "");
+
+          setJobStreet(jStreet?.trim() || "");
+          setJobCity(jCity?.trim() || "");
+          setJobState(jState?.trim() || "");
+          setJobZip(jZip?.trim() || "");
+
+          if (estimate.labor_hours !== undefined) {
+            setLaborHoursText(String(estimate.labor_hours));
+          }
+
+          const itemsData = await db.getAllAsync<any>(
+  `SELECT * FROM estimate_items WHERE estimate_id = ? AND deleted_at IS NULL`,
+  [estimate.id]
+);
+setItems(
+  itemsData.map((i: any) => ({
+    id: i.id,
+    name: i.description,
+    qty: String(i.quantity),
+    price: String(i.unit_price),
+    addToCatalog: false,
+  }))
+);
+
+          setNotes(estimate.notes || "");
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 🆕 NEW ESTIMATE FROM CUSTOMER
+    if (!params.id && params.customerId) {
+      setCustomerId(String(params.customerId));
+      setCustomerName(String(params.name || ""));
+      setCustomerContact({
+        email: String(params.email || ""),
+        phone: String(params.phone || ""),
+      });
+      setBillingStreet(String(params.street || ""));
+      setBillingCity(String(params.city || ""));
+      setBillingState(String(params.state || ""));
+      setBillingZip(String(params.zip || ""));
+      setJobStreet(String(params.street || ""));
+      setJobCity(String(params.city || ""));
+      setJobState(String(params.state || ""));
+      setJobZip(String(params.zip || ""));
+    }
+    
+      // ✅ if creating a new estimate
+      const last = await db.getFirstAsync<{ lastNum: string }>(
         "SELECT estimate_number AS lastNum FROM estimates WHERE deleted_at IS NULL ORDER BY estimate_number DESC LIMIT 1"
       );
-      const nextNum = result?.lastNum
-        ? String(parseInt(result.lastNum, 10) + 1).padStart(3, "0")
+      const nextNum = last?.lastNum
+        ? String(parseInt(last.lastNum, 10) + 1).padStart(3, "0")
         : "001";
       setEstimateNumber(nextNum);
+
       setLoading(false);
     })();
-  }, []);
+  }, [params.id]);
 
-  // ---------- Handlers ----------
+    useEffect(() => {
+    const subtotalCalc = items.reduce(
+      (sum, i) => sum + (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0),
+      0
+    );
+    const laborHrs = parseFloat(laborHoursText) || 0;
+    const laborCost = laborHrs * laborRate;
+    const sub = subtotalCalc + laborCost;
+    const taxAmount = sub * (taxRatePct / 100);
+    const grandTotal = sub + taxAmount;
+
+    setSubtotal(sub);
+    setLaborTotal(laborCost);
+    setTax(taxAmount);
+    setTotal(grandTotal);
+  }, [items, laborHoursText, laborRate, taxRatePct]);
+
+
+  // --- Handlers ---
+  const handleCustomerSelect = (customer: any | null) => {
+    if (!customer) return;
+    setCustomerId(customer.id);
+    setCustomerName(customer.name || "Unnamed customer");
+    setCustomerContact({ email: customer.email, phone: customer.phone });
+    setBillingStreet(customer.street ?? "");
+    setBillingCity(customer.city ?? "");
+    setBillingState(customer.state ?? "");
+    setBillingZip(customer.zip ?? "");
+    if (sameAddress) {
+      setJobStreet(customer.street ?? "");
+      setJobCity(customer.city ?? "");
+      setJobState(customer.state ?? "");
+      setJobZip(customer.zip ?? "");
+    }
+  };
+
   const addLineItem = () =>
-    setItems((p) => [...p, { id: uuidv4(), name: "", qty: "1", price: "0" }]);
-  const updateItem = (id: string, field: "name" | "qty" | "price", value: string) =>
+    setItems((p) => [
+      ...p,
+      {
+        id: uuidv4(),
+        name: "",
+        qty: "1",
+        price: "0",
+        addToCatalog: false,
+      },
+    ]);
+
+  const updateItem = (
+    id: string,
+    field: "name" | "qty" | "price" | "addToCatalog",
+    value: string | boolean
+  ) =>
     setItems((p) => p.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
+
   const removeItem = (id: string) => setItems((p) => p.filter((i) => i.id !== id));
 
   const handleSave = useCallback(async () => {
-    if (!customerId) {
-      Alert.alert("Missing Info", "Please select or add a customer first.");
-      return;
-    }
+  if (!customerId) {
+    Alert.alert("Missing Info", "Please select or add a customer first.");
+    return;
+  }
 
-    const billingAddress = oneLineFromParts(
-      billingStreet,
-      billingCity,
-      billingState,
-      billingZip
+  const { data } = await supabase.auth.getUser();
+  const authedUserId = data?.user?.id ?? null;
+
+  const billingAddress = oneLineFromParts(billingStreet, billingCity, billingState, billingZip);
+  const jobAddress = sameAddress
+    ? billingAddress
+    : oneLineFromParts(jobStreet, jobCity, jobState, jobZip);
+
+  const now = new Date().toISOString();
+
+  const estimateData = {
+    id: estimateId,
+    user_id: authedUserId,
+    customer_id: customerId,
+    description,
+    billing_address: billingAddress,
+    job_address: jobAddress,
+    subtotal,
+    tax_rate: taxRatePct,
+    tax_total: tax,
+    total,
+    notes,
+    estimate_number: estimateNumber,
+    updated_at: now,
+    deleted_at: null as string | null,
+  };
+
+  try {
+    setSaving(true);
+    const db = await openDB();
+
+      if (!estimateNumber || estimateNumber.length > 5) {
+  const last = await db.getFirstAsync<{ lastNum: string }>(
+    "SELECT estimate_number AS lastNum FROM estimates WHERE deleted_at IS NULL ORDER BY estimate_number DESC LIMIT 1"
+  );
+  const nextNum = last?.lastNum
+    ? String(parseInt(last.lastNum, 10) + 1).padStart(3, "0")
+    : "001";
+  setEstimateNumber(nextNum);
+}
+
+    // ✅ Check if this estimate already exists locally
+    const existing = await db.getFirstAsync<{ id: string }>(
+      "SELECT id FROM estimates WHERE id = ? LIMIT 1",
+      [estimateId]
     );
-    const jobAddress = sameAddress
-      ? billingAddress
-      : oneLineFromParts(jobStreet, jobCity, jobState, jobZip);
 
-    const now = new Date().toISOString();
-
-    const estimateData = {
-      id: estimateId,
-      user_id: userId,
-      customer_id: customerId,
-      description,
-      billing_address: billingAddress,
-      job_address: jobAddress,
-      subtotal,
-      tax_rate: taxRatePct,
-      tax_total: tax,
-      total,
-      notes,
-      estimate_number: estimateNumber,
-      updated_at: now,
-      deleted_at: null as string | null,
-    };
-
-    try {
-      setSaving(true);
-      const db = await openDB();
-
+    if (existing) {
+      // 🟡 UPDATE
+      await db.runAsync(
+        `UPDATE estimates
+         SET user_id = ?, customer_id = ?, description = ?, billing_address = ?, job_address = ?,
+             subtotal = ?, tax_rate = ?, tax_total = ?, total = ?, notes = ?, estimate_number = ?,
+             updated_at = ?, deleted_at = NULL
+         WHERE id = ?`,
+        [
+          authedUserId,
+          customerId,
+          description,
+          billingAddress,
+          jobAddress,
+          subtotal,
+          taxRatePct,
+          tax,
+          total,
+          notes,
+          estimateNumber,
+          now,
+          estimateId,
+        ]
+      );
+      await queueChange("estimates", "update", sanitizeEstimateForQueue(estimateData));
+    } else {
+      // 🟢 INSERT
       await db.runAsync(
         `INSERT INTO estimates (id, user_id, customer_id, description, billing_address, job_address, subtotal, tax_rate, tax_total, total, notes, estimate_number, updated_at, deleted_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         Object.values(estimateData)
       );
-
       await queueChange("estimates", "insert", sanitizeEstimateForQueue(estimateData));
-
-      // Create estimate_items table if not exists
-      await db.execAsync(`
-        CREATE TABLE IF NOT EXISTS estimate_items (
-          id TEXT PRIMARY KEY,
-          estimate_id TEXT NOT NULL,
-          description TEXT NOT NULL,
-          quantity REAL NOT NULL,
-          unit_price REAL NOT NULL,
-          base_total REAL NOT NULL DEFAULT 0,
-          total REAL NOT NULL,
-          apply_markup INTEGER NOT NULL DEFAULT 1,
-          catalog_item_id TEXT,
-          version INTEGER DEFAULT 1,
-          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-          deleted_at TEXT
-        );
-      `);
-
-      // Insert all line items
-      for (const i of items) {
-        const q = parseFloat(i.qty) || 0;
-        const p = parseFloat(i.price) || 0;
-        const lineTotal = q * p;
-        const id = uuidv4();
-        await db.runAsync(
-          `INSERT INTO estimate_items (id, estimate_id, description, quantity, unit_price, base_total, total, apply_markup, deleted_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1, NULL)`,
-          [id, estimateId, i.name, q, p, lineTotal, lineTotal]
-        );
-        await queueChange("estimate_items", "insert", {
-          id,
-          estimate_id: estimateId,
-          description: i.name,
-          quantity: q,
-          unit_price: p,
-          base_total: lineTotal,
-          total: lineTotal,
-          apply_markup: 1,
-        });
-      }
-
-      await runSync();
-
-      Alert.alert("Saved", `Estimate #${estimateNumber} saved successfully.`);
-      router.replace("/(tabs)/estimates");
-    } catch (e) {
-      console.error("Save failed", e);
-      Alert.alert("Error", "Unable to save this estimate.");
-    } finally {
-      setSaving(false);
     }
-  }, [
-    estimateId,
-    estimateNumber,
-    userId,
-    customerId,
+
+    // 🔁 Replace estimate_items each time (simpler + consistent)
+    await db.runAsync(`DELETE FROM estimate_items WHERE estimate_id = ?`, [estimateId]);
+
+    for (const i of items) {
+      const q = parseFloat(i.qty) || 0;
+      const p = parseFloat(i.price) || 0;
+      const lineTotal = q * p;
+      const id = uuidv4();
+
+      await db.runAsync(
+        `INSERT INTO estimate_items (id, user_id, estimate_id, description, quantity, unit_price, base_total, total, apply_markup)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        [id, authedUserId, estimateId, i.name, q, p, lineTotal, lineTotal]
+      );
+
+      if (i.addToCatalog) {
+        const catalogId = uuidv4();
+        await db.runAsync(
+          `INSERT INTO item_catalog (id, user_id, name, unit_price, default_quantity, apply_markup)
+           VALUES (?, ?, ?, ?, ?, 1)`,
+          [catalogId, authedUserId, i.name, p, q]
+        );
+      }
+    }
+
+    await runSync();
+
+    Alert.alert(
+      "Saved",
+      existing
+        ? `Estimate #${estimateNumber} updated successfully.`
+        : `Estimate #${estimateNumber} created successfully.`
+    );
+
+    router.replace("/(tabs)/estimates");
+  } catch (e) {
+    console.error("Save failed", e);
+    Alert.alert("Error", "Unable to save this estimate.");
+  } finally {
+    setSaving(false);
+  }
+}, [
+  estimateId,
+  estimateNumber,
+  customerId,
+  description,
+  billingStreet,
+  billingCity,
+  billingState,
+  billingZip,
+  jobStreet,
+  jobCity,
+  jobState,
+  jobZip,
+  sameAddress,
+  subtotal,
+  taxRatePct,
+  tax,
+  total,
+  notes,
+  items,
+]);
+
+
+  const handlePreview = useCallback(async () => {
+    try {
+      setPreviewing(true);
+
+      const pdfItems = items.map((i, index) => ({
+        id: i.id || index.toString(),
+        description: i.name,
+        quantity: parseFloat(i.qty) || 0,
+        unitPrice: parseFloat(i.price) || 0,
+        total: (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0),
+      }));
+
+      const pdf = await renderEstimatePdf({
+  estimate: {
+    id: estimateId,
+    estimate_number: estimateNumber,
     description,
-    billingStreet,
-    billingCity,
-    billingState,
-    billingZip,
-    jobStreet,
-    jobCity,
-    jobState,
-    jobZip,
-    sameAddress,
+    customer: {
+      name: customerName,
+      email: customerContact.email,
+      phone: customerContact.phone,
+    },
+    billingAddress: oneLineFromParts(
+      billingStreet,
+      billingCity,
+      billingState,
+      billingZip
+    ),
+    jobAddress: oneLineFromParts(
+      jobStreet,
+      jobCity,
+      jobState,
+      jobZip
+    ),
     subtotal,
-    taxRatePct,
-    tax,
+    taxTotal: tax,
     total,
     notes,
-    items,
-    router,
-  ]);
+  },
+  items: pdfItems,
+});
 
-  // ---------- UI ----------
+      await Print.printAsync({ uri: pdf.uri });
+    } catch (e) {
+      console.error("Preview failed", e);
+      Alert.alert("Error", "Unable to open PDF preview.");
+    } finally {
+      setPreviewing(false);
+    }
+  }, [items, estimateNumber, customerName, total, estimateId]);
+
+  const handleSendEmail = useCallback(async () => {
+    try {
+      if (!customerContact.email) {
+        Alert.alert(
+          "No Email on File",
+          "This customer doesn't have an email address saved. You can still share the PDF using the share sheet."
+        );
+      }
+
+      setSending(true);
+
+      const pdfItems = items.map((i, index) => ({
+        id: i.id || index.toString(),
+        description: i.name,
+        quantity: parseFloat(i.qty) || 0,
+        unitPrice: parseFloat(i.price) || 0,
+        total: (parseFloat(i.qty) || 0) * (parseFloat(i.price) || 0),
+      }));
+
+      const pdf = await renderEstimatePdf({
+        estimate: {
+          id: estimateId,
+          estimate_number: estimateNumber,
+          customer: { name: customerName },
+          total,
+        },
+        items: pdfItems,
+      });
+
+      const subject = `Estimate #${estimateNumber} from QuickQuote`;
+      const body =
+        `Hi ${customerName || "there"},\n\n` +
+        `Please find attached your estimate.\n\n` +
+        `Estimate #: ${estimateNumber}\n` +
+        `Total: ${formatCurrency(total)}\n\n` +
+        `Thank you!`;
+
+      const canEmail = await MailComposer.isAvailableAsync();
+
+      if (canEmail && customerContact.email) {
+        await MailComposer.composeAsync({
+          recipients: [customerContact.email],
+          subject,
+          body,
+          attachments: [pdf.uri],
+        });
+      } else if (canEmail) {
+        await MailComposer.composeAsync({
+          subject,
+          body,
+          attachments: [pdf.uri],
+        });
+      } else if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(pdf.uri, {
+          mimeType: "application/pdf",
+          UTI: "com.adobe.pdf",
+          dialogTitle: subject,
+        });
+      } else {
+        Alert.alert("Unavailable", "Neither email nor sharing is available on this device.");
+      }
+    } catch (e) {
+      console.error("Send failed", e);
+      Alert.alert("Error", "Unable to send this estimate.");
+    } finally {
+      setSending(false);
+    }
+  }, [items, estimateNumber, customerName, customerContact.email, total, estimateId]);
+
+  const handleDelete = useCallback(() => {
+    Alert.alert("Delete Estimate", `Delete Estimate #${estimateNumber}?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setDeleting(true);
+            const db = await openDB();
+            await db.runAsync(
+              `UPDATE estimates SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?`,
+              [estimateId]
+            );
+            await queueChange("estimates", "delete", { id: estimateId });
+            await runSync();
+            Alert.alert("Deleted", `Estimate #${estimateNumber} deleted.`);
+            router.replace("/(tabs)/estimates");
+          } catch (e) {
+            console.error("Delete failed", e);
+          } finally {
+            setDeleting(false);
+          }
+        },
+      },
+    ]);
+  }, [estimateId, estimateNumber, router]);
+
   if (loading) {
     return (
       <View style={styles.loadingState}>
@@ -272,24 +579,18 @@ export default function EstimateFormScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1 }}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          {/* Header */}
           <Card style={styles.headerCard}>
-            <Text style={styles.headerText}>Creating Estimate</Text>
-            <Text style={styles.headerSub}>Estimate #{estimateNumber}</Text>
-
-            <Text style={styles.sectionTitle}>Customer</Text>
-            <CustomerPicker selectedCustomer={customerId} onSelect={() => {}} />
+            <Text style={styles.headerText}>Estimate #{estimateNumber}</Text>
+            <CustomerPicker selectedCustomer={customerId} onSelect={handleCustomerSelect} />
             <Text style={{ marginTop: 6, color: customerName ? "#374151" : "#9CA3AF" }}>
-              {customerName
-                ? `Selected: ${customerName}`
-                : "No customer selected"}
+              {customerName ? `Selected: ${customerName}` : "No customer selected"}
             </Text>
           </Card>
 
+          {/* Addresses & description */}
           <Card style={styles.card}>
             <Input
               label="Description of Work"
@@ -319,7 +620,10 @@ export default function EstimateFormScreen() {
                 <Input label="ZIP" value={jobZip} onChangeText={setJobZip} />
               </>
             )}
+          </Card>
 
+          {/* Labor & items */}
+          <Card style={styles.card}>
             <Text style={styles.sectionTitle}>Labor</Text>
             <Input
               label={`Labor Hours (Rate ${formatCurrency(laborRate)}/hr)`}
@@ -327,11 +631,12 @@ export default function EstimateFormScreen() {
               onChangeText={setLaborHoursText}
               keyboardType="decimal-pad"
             />
-            <Text style={{ marginTop: -6, marginBottom: 8, color: "#6B7280" }}>
+            <Text style={{ marginTop: 3, marginBottom: 10, color: "#6B7280" }}>
               Labor Total: {formatCurrency(laborTotal)}
             </Text>
 
             <Text style={styles.sectionTitle}>Line Items</Text>
+
             {items.map((item) => (
               <View key={item.id} style={styles.lineItem}>
                 <Input
@@ -339,69 +644,78 @@ export default function EstimateFormScreen() {
                   value={item.name}
                   onChangeText={(v) => updateItem(item.id, "name", v)}
                 />
+
                 <View style={styles.row}>
-  <Input
-    label="Qty"
-    keyboardType="decimal-pad"
-    value={item.qty}
-    onChangeText={(v) => updateItem(item.id, "qty", v)}
-    containerStyle={styles.qtyInput}     // 👈 use containerStyle
-    inputStyle={styles.numericInput}     // optional: right-align numbers
-  />
-  <Input
-    label="Price"
-    keyboardType="decimal-pad"
-    value={item.price}
-    onChangeText={(v) => updateItem(item.id, "price", v)}
-    containerStyle={styles.priceInput}   // 👈 use containerStyle
-    inputStyle={styles.numericInput}
-  />
-  <Button label="X" variant="ghost" onPress={() => removeItem(item.id)} />
-</View>
+                  <Input
+                    label="Qty"
+                    keyboardType="decimal-pad"
+                    value={item.qty}
+                    onChangeText={(v) => updateItem(item.id, "qty", v)}
+                    containerStyle={styles.qtyInput}
+                    inputStyle={styles.numericInput}
+                  />
+                  <Input
+                    label="Price"
+                    keyboardType="decimal-pad"
+                    value={item.price}
+                    onChangeText={(v) => updateItem(item.id, "price", v)}
+                    containerStyle={styles.priceInput}
+                    inputStyle={styles.numericInput}
+                  />
+                  <Button label="X" variant="ghost" onPress={() => removeItem(item.id)} />
+                </View>
 
-
+                <View style={{ flexDirection: "row", alignItems: "center", marginTop: 8 }}>
+                  <Switch
+                    value={item.addToCatalog ?? false}
+                    onValueChange={(v) => updateItem(item.id, "addToCatalog", v)}
+                  />
+                  <Text style={{ marginLeft: 8, color: colors.primaryText }}>Add to Catalog</Text>
+                </View>
               </View>
             ))}
+
             <Button label="+ Add Line Item" onPress={addLineItem} variant="secondary" />
+          </Card>
 
-            <Text style={styles.sectionTitle}>Tax Settings</Text>
-            <Picker selectedValue={taxMode} onValueChange={(v) => setTaxMode(v)}>
-              <Picker.Item label="Tax on Material" value="material" />
-              <Picker.Item label="Tax on Total" value="total" />
-              <Picker.Item label="Tax Exempt" value="none" />
-            </Picker>
-
+          {/* Summary & notes */}
+          <Card style={styles.card}>
             <Text style={styles.sectionTitle}>Summary</Text>
-            <Text>Materials: {formatCurrency(materialSubtotal)}</Text>
-            <Text>Labor: {formatCurrency(laborTotal)}</Text>
             <Text>Subtotal: {formatCurrency(subtotal)}</Text>
             <Text>Tax: {formatCurrency(tax)}</Text>
             <Text style={styles.total}>Total: {formatCurrency(total)}</Text>
 
             <Input
               label="Notes"
-              placeholder="Add any additional notes"
+              placeholder="Add notes"
               value={notes}
               onChangeText={setNotes}
               multiline
             />
           </Card>
 
+          {/* Footer actions */}
           <View style={styles.footerContainer}>
-            <View style={styles.footerRow}>
-              <Button
-                label={saving ? "Saving…" : "Save"}
-                onPress={handleSave}
-                loading={saving}
-                style={styles.footerButton}
-              />
-              <Button
-                label="Cancel"
-                variant="secondary"
-                onPress={() => router.back()}
-                style={styles.footerButton}
-              />
-            </View>
+            <Button label={saving ? "Saving..." : "Save"} onPress={handleSave} loading={saving} />
+            <Button
+              label={previewing ? "Previewing..." : "Preview"}
+              variant="secondary"
+              onPress={handlePreview}
+              loading={previewing}
+            />
+            <Button
+              label={sending ? "Sending..." : "Send to Customer"}
+              variant="secondary"
+              onPress={handleSendEmail}
+              loading={sending}
+            />
+            <Button
+              label={deleting ? "Deleting..." : "Delete"}
+              variant="danger"
+              onPress={handleDelete}
+              loading={deleting}
+            />
+            <Button label="Back" variant="secondary" onPress={() => router.back()} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -417,61 +731,16 @@ function createStyles(theme: Theme) {
     loadingState: { flex: 1, justifyContent: "center", alignItems: "center" },
     headerCard: { marginBottom: 16, padding: 12 },
     headerText: { fontSize: 18, fontWeight: "700", color: colors.primaryText },
-    headerSub: {
-      fontSize: 16,
-      fontWeight: "500",
-      color: colors.secondaryText,
-      marginTop: 4,
-      marginBottom: 8,
-    },
-    card: { gap: 16 },
-    sameRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    sectionTitle: {
-      fontWeight: "700",
-      marginTop: 10,
-      marginBottom: 6,
-      color: colors.secondaryText,
-    },
+    card: { gap: 16, marginBottom: 16, paddingBottom: 12 },
+    sameRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    sectionTitle: { fontWeight: "700", marginTop: 10, marginBottom: 6, color: colors.secondaryText },
     lineItem: { marginBottom: 12 },
-row: {
-  flexDirection: "row",
-  alignItems: "flex-start",
-  gap: 8,
-},
-
-// Width is applied to the outer bubble via containerStyle
-qtyInput: {
-  flex: 1.1,
-  minWidth: 90,
-},
-
-priceInput: {
-  flex: 1.6,
-  minWidth: 130,
-},
-
-// Optional: make numeric text easier to read
-numericInput: {
-  textAlign: "right",
-},
-
-    label: { color: colors.secondaryText },
+    row: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+    qtyInput: { flex: 1.1, minWidth: 90 },
+    priceInput: { flex: 1.6, minWidth: 130 },
+    numericInput: { textAlign: "right" },
+    label: { color: colors.secondaryText, fontSize: 15 },
     total: { fontSize: 18, fontWeight: "700", marginTop: 4 },
-    footerContainer: {
-      marginTop: 30,
-      paddingBottom: 40,
-      borderTopWidth: 1,
-      borderColor: "#E5E7EB",
-      gap: 12,
-    },
-    footerRow: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
-    footerButton: { flex: 1 },
-    deleteButton: { marginTop: 10, backgroundColor: "#DC2626" },
-
-    
+    footerContainer: { marginTop: 10, paddingBottom: 60, gap: 10 },
   });
 }

@@ -1,5 +1,5 @@
 // components/CustomerForm.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
@@ -10,6 +10,8 @@ import { Button, Card, Input } from "./ui";
 import { router } from "expo-router";
 import type { CustomerRecord } from "../types/customers";
 import { isOnline } from "../lib/network";
+import { TextInput } from "react-native";
+
 
 type Props = {
   onSaved?: (customer: CustomerRecord) => void;
@@ -17,6 +19,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   wrapInCard?: boolean;
 };
+const nameInputRef = useRef<TextInput>(null);
 
 export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = true }: Props) {
   const [name, setName] = useState("");
@@ -47,13 +50,7 @@ export default function CustomerForm({ onSaved, onCancel, style, wrapInCard = tr
       return;
     }
 
-    const nameInputRef = React.useRef(null);
-useEffect(() => {
-  if (nameInputRef.current) {
-    nameInputRef.current.focus;
-  }
-}, []);
-
+nameInputRef.current?.focus(); // ✅ correct + safe
 
     const now = new Date().toISOString();
     const newCustomer: CustomerRecord = {
@@ -197,9 +194,26 @@ useEffect(() => {
             variant="ghost"
             alignment="full"
             onPress={() => {
-              setJustSavedCustomer(null);
-              router.push("/(tabs)/estimates");
-            }}
+  if (!justSavedCustomer) return;
+
+  const { id, name, email, phone, street, city, state, zip } = justSavedCustomer;
+  setJustSavedCustomer(null);
+
+  router.push({
+    pathname: "/(tabs)/estimates/new",
+    params: {
+      customerId: id,
+      name,
+      email,
+      phone,
+      street,
+      city,
+      state,
+      zip,
+    },
+  });
+}}
+
           />
         </View>
       )}
