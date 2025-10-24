@@ -1,8 +1,10 @@
+import 'react-native-gesture-handler';
+
 import React, { useEffect } from "react";
 import { AppState } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { Stack } from "expo-router";
+import { Slot } from "expo-router";
 import { ThemeProvider, useThemeContext } from "../theme/ThemeProvider";
 import { AuthProvider } from "../context/AuthContext";
 import { SettingsProvider } from "../context/SettingsContext";
@@ -61,7 +63,7 @@ function RootLayoutInner() {
             backgroundColor={colors.background}
           />
 
-          <Stack
+          <Slot
             screenOptions={{
               headerShown: false,
               animation: "none",

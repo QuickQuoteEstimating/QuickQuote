@@ -13,7 +13,7 @@ import { useThemeContext } from "../../theme/ThemeProvider";
 import { openDB, queueChange } from "../../lib/sqlite";
 import { Card, Button, Input, ListItem } from "../../components/ui";
 import { v4 as uuidv4 } from "uuid";
-import { TouchableOpacity } from "react-native-gesture-handler";
+import { Pressable } from "react-native-gesture-handler";
 
 export default function CatalogScreen() {
   const { theme } = useThemeContext();
@@ -140,9 +140,9 @@ export default function CatalogScreen() {
                   <Text style={styles.name}>{item.name}</Text>
                   <Text style={styles.price}>${item.unit_price.toFixed(2)}</Text>
                 </View>
-                <TouchableOpacity onPress={() => deleteItem(item.id)}>
+                <Pressable onPress={() => deleteItem(item.id)}>
                   <Ionicons name="trash-outline" size={22} color={colors.accent} />
-                </TouchableOpacity>
+                </Pressable>
               </View>
             </Card>
           )}
