@@ -27,7 +27,8 @@ import { openDB } from "../../lib/sqlite";
 import * as Print from "expo-print";
 import { renderEstimatePdf } from "../../lib/pdf";
 import { setForceOffline } from "../../lib/network";
-
+import { useRouter } from "expo-router";
+import { router } from "expo-router";
 
 const HAPTIC_LABELS = ["Subtle", "Balanced", "Bold"];
 
@@ -574,6 +575,23 @@ await FileSystem.writeAsStringAsync(fileUri, csvContent, {
   badge={<Badge style={styles.badge} textStyle={styles.badgeTextSuccess}>LIVE</Badge>}
   style={styles.listItem}
 />
+      </Card>
+
+            {/* ===== Premium Features ===== */}
+      <Card>
+        <Text style={styles.cardTitle}>Premium Features</Text>
+
+        <ListItem
+          title="Catalog"
+          subtitle="Access saved materials and pricing templates."
+          onPress={() => router.push("/catalog")}
+          badge={<Badge style={styles.badge} textStyle={styles.badgeTextSuccess}>LIVE</Badge>}
+          style={styles.listItem}
+        />
+        <Text style={styles.mutedText}>
+          The Catalog is currently available to all users while in testing. In the future, this
+          feature will require a QuickQuote Pro subscription.
+        </Text>
       </Card>
 
       <Card>
